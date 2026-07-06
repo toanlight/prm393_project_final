@@ -6,12 +6,16 @@ import 'package:project_final/presentation/providers/theme_provider.dart';
 import 'package:project_final/presentation/providers/auth_provider.dart';
 import 'package:project_final/domain/repositories/auth_repository.dart';
 import 'package:project_final/domain/repositories/user_repository.dart';
+import 'package:project_final/domain/repositories/transaction_repository.dart';
 import 'package:project_final/data/repositories_impl/dynamic_repositories.dart';
+import 'package:project_final/data/repositories_impl/dynamic_transaction_repository.dart';
+import 'package:project_final/presentation/providers/transaction_provider.dart';
 
 void main() {
   testWidgets('Splash screen shows brand title', (WidgetTester tester) async {
     final authRepository = DynamicAuthRepository();
     final userRepository = DynamicUserRepository();
+    final transactionRepository = DynamicTransactionRepository();
 
     await tester.pumpWidget(
       MultiProvider(
@@ -19,10 +23,16 @@ void main() {
           ChangeNotifierProvider(create: (_) => ThemeProvider()),
           Provider<AuthRepository>.value(value: authRepository),
           Provider<UserRepository>.value(value: userRepository),
+          Provider<TransactionRepository>.value(value: transactionRepository),
           ChangeNotifierProvider(
             create: (_) => AuthProvider(
               authRepository: authRepository,
               userRepository: userRepository,
+            ),
+          ),
+          ChangeNotifierProvider(
+            create: (_) => TransactionProvider(
+              transactionRepository: transactionRepository,
             ),
           ),
         ],

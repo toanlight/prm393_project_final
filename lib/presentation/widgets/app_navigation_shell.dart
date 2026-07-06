@@ -75,6 +75,12 @@ class AppNavigationShell extends StatelessWidget {
                     selectedIcon: Icon(Icons.dashboard),
                     label: Text('Bảng điều khiển'),
                   ),
+                  // DEV-3: Thêm tab Giao dịch trong NavigationRail
+                  NavigationRailDestination(
+                    icon: Icon(Icons.account_balance_wallet_outlined),
+                    selectedIcon: Icon(Icons.account_balance_wallet),
+                    label: Text('Giao dịch'),
+                  ),
                   NavigationRailDestination(
                     icon: Icon(Icons.person_outline),
                     selectedIcon: Icon(Icons.person),
@@ -121,6 +127,12 @@ class AppNavigationShell extends StatelessWidget {
                     icon: Icon(Icons.dashboard_outlined),
                     activeIcon: Icon(Icons.dashboard),
                     label: 'Bảng điều khiển',
+                  ),
+                  // DEV-3: Thêm tab Giao dịch trong BottomNavigationBar
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.account_balance_wallet_outlined),
+                    activeIcon: Icon(Icons.account_balance_wallet),
+                    label: 'Giao dịch',
                   ),
                   BottomNavigationBarItem(
                     icon: Icon(Icons.person_outline),

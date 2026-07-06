@@ -5,11 +5,14 @@ import 'package:provider/provider.dart';
 import 'core/routes/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'data/repositories_impl/dynamic_repositories.dart';
+import 'data/repositories_impl/dynamic_transaction_repository.dart';
 import 'data/services/firebase_service.dart';
 import 'domain/repositories/auth_repository.dart';
 import 'domain/repositories/user_repository.dart';
+import 'domain/repositories/transaction_repository.dart';
 import 'presentation/providers/auth_provider.dart';
 import 'presentation/providers/theme_provider.dart';
+import 'presentation/providers/transaction_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,6 +24,7 @@ void main() async {
   // Create repository wrappers that dynamically switch modes
   final authRepository = DynamicAuthRepository();
   final userRepository = DynamicUserRepository();
+  final transactionRepository = DynamicTransactionRepository();
 
   runApp(
     MultiProvider(
@@ -28,10 +32,16 @@ void main() async {
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         Provider<AuthRepository>.value(value: authRepository),
         Provider<UserRepository>.value(value: userRepository),
+        Provider<TransactionRepository>.value(value: transactionRepository),
         ChangeNotifierProvider(
           create: (_) => AuthProvider(
             authRepository: authRepository,
             userRepository: userRepository,
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => TransactionProvider(
+            transactionRepository: transactionRepository,
           ),
         ),
       ],
