@@ -8,6 +8,10 @@ class MockTransactionRepository implements TransactionRepository {
 
   MockTransactionRepository() {
     // Khởi tạo một số giao dịch mẫu ban đầu
+    // ==========================================
+    // [DEV-3 MOCK DATA] - CẦN THAY THẾ KHI TÍCH HỢP FIREBASE
+    // Chức năng: Khởi tạo dữ liệu giả lập ban đầu
+    // ==========================================
     final now = DateTime.now();
     _mockTransactions.addAll([
       TransactionModel(
@@ -83,6 +87,16 @@ class MockTransactionRepository implements TransactionRepository {
     await Future.delayed(const Duration(milliseconds: 500));
     _mockTransactions.insert(0, transaction);
     _controller.add(List.unmodifiable(_mockTransactions));
+  }
+
+  @override
+  Future<void> updateTransaction(TransactionModel transaction) async {
+    await Future.delayed(const Duration(milliseconds: 500));
+    final index = _mockTransactions.indexWhere((t) => t.id == transaction.id);
+    if (index != -1) {
+      _mockTransactions[index] = transaction;
+      _controller.add(List.unmodifiable(_mockTransactions));
+    }
   }
 
   @override

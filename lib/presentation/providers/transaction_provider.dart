@@ -54,4 +54,35 @@ class TransactionProvider with ChangeNotifier {
       notifyListeners();
     }
   }
+
+  Future<void> addTransaction(TransactionModel transaction) async {
+    try {
+      await _transactionRepository.createTransaction(transaction);
+      _transactions.insert(0, transaction);
+      _transactions.sort((a, b) => b.date.compareTo(a.date));
+      notifyListeners();
+    } catch (e) {
+      _status = TransactionStatus.error;
+      _errorMessage = 'Không thể thêm giao dịch: ${e.toString()}';
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<void> updateTransaction(TransactionModel transaction) async {
+    try {
+      await _transactionRepository.updateTransaction(transaction);
+      final index = _transactions.indexWhere((t) => t.id == transaction.id);
+      if (index != -1) {
+        _transactions[index] = transaction;
+        _transactions.sort((a, b) => b.date.compareTo(a.date));
+        notifyListeners();
+      }
+    } catch (e) {
+      _status = TransactionStatus.error;
+      _errorMessage = 'Không thể cập nhật giao dịch: ${e.toString()}';
+      notifyListeners();
+      rethrow;
+    }
+  }
 }

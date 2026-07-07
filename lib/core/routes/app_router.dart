@@ -8,6 +8,8 @@ import '../../presentation/screens/profile_screen.dart';
 import '../../presentation/screens/settings_screen.dart';
 import '../../presentation/screens/splash_screen.dart';
 import '../../presentation/screens/transaction_list_screen.dart'; // DEV-3: Import màn hình Giao dịch
+import '../../presentation/screens/transaction_form_screen.dart'; // DEV-3: Import màn hình Form
+import '../../domain/models/transaction_model.dart'; // DEV-3: Import Model
 import '../../presentation/widgets/app_navigation_shell.dart';
 
 class AppRouter {
@@ -47,6 +49,7 @@ class AppRouter {
 
         return null; // Keep going
       },
+
       routes: [
         GoRoute(
           path: '/splash',
@@ -77,6 +80,19 @@ class AppRouter {
                 GoRoute(
                   path: '/transactions',
                   builder: (context, state) => const TransactionListScreen(),
+                  routes: [
+                    GoRoute(
+                      path: 'create',
+                      builder: (context, state) => const TransactionFormScreen(),
+                    ),
+                    GoRoute(
+                      path: 'edit',
+                      builder: (context, state) {
+                        final transaction = state.extra as TransactionModel?;
+                        return TransactionFormScreen(transactionToEdit: transaction);
+                      },
+                    ),
+                  ],
                 ),
               ],
             ),

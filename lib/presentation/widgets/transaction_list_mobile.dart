@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../domain/models/transaction_model.dart';
 import 'transaction_confirm_delete_dialog.dart';
@@ -163,85 +164,91 @@ class TransactionListMobile extends StatelessWidget {
             child: Material(
               color: Colors.transparent,
               borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
-              child: Padding(
-                padding: const EdgeInsets.all(AppDesignTokens.spaceMd),
-                child: Row(
-                  children: [
-                    // Icon loại giao dịch
-                    Container(
-                      padding: const EdgeInsets.all(AppDesignTokens.spaceSm),
-                      decoration: BoxDecoration(
-                        color: isIncome
-                            ? AppDesignTokens.success.withOpacity(0.1)
-                            : AppDesignTokens.error.withOpacity(0.1),
-                        shape: BoxShape.circle,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
+                onTap: () {
+                  context.push('/transactions/edit', extra: tx);
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(AppDesignTokens.spaceMd),
+                  child: Row(
+                    children: [
+                      // Icon loại giao dịch
+                      Container(
+                        padding: const EdgeInsets.all(AppDesignTokens.spaceSm),
+                        decoration: BoxDecoration(
+                          color: isIncome
+                              ? AppDesignTokens.success.withOpacity(0.1)
+                              : AppDesignTokens.error.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          isIncome ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
+                          color: isIncome ? AppDesignTokens.success : AppDesignTokens.error,
+                          size: 24,
+                        ),
                       ),
-                      child: Icon(
-                        isIncome ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
-                        color: isIncome ? AppDesignTokens.success : AppDesignTokens.error,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: AppDesignTokens.spaceMd),
+                      const SizedBox(width: AppDesignTokens.spaceMd),
 
-                    // Thông tin Giao dịch
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            tx.category,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
+                      // Thông tin Giao dịch
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              tx.category,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _formatDate(tx.date),
-                            style: TextStyle(
-                              color: isDark
-                                  ? AppDesignTokens.darkTextSecondary
-                                  : AppDesignTokens.lightTextSecondary,
-                              fontSize: 13,
+                            const SizedBox(height: 4),
+                            Text(
+                              _formatDate(tx.date),
+                              style: TextStyle(
+                                color: isDark
+                                    ? AppDesignTokens.darkTextSecondary
+                                    : AppDesignTokens.lightTextSecondary,
+                                fontSize: 13,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
 
-                    // Ảnh hóa đơn thu nhỏ (nếu có)
-                    if (tx.receiptImageUrl != null) ...[
-                      GestureDetector(
-                        onTap: () => _showImagePreview(context, tx.receiptImageUrl!),
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          margin: const EdgeInsets.only(right: AppDesignTokens.spaceMd),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
-                            border: Border.all(
-                              color: isDark ? AppDesignTokens.darkBorder : AppDesignTokens.lightBorder,
-                            ),
-                            image: DecorationImage(
-                              image: NetworkImage(tx.receiptImageUrl!),
-                              fit: BoxFit.cover,
+                      // Ảnh hóa đơn thu nhỏ (nếu có)
+                      if (tx.receiptImageUrl != null) ...[
+                        GestureDetector(
+                          onTap: () => _showImagePreview(context, tx.receiptImageUrl!),
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            margin: const EdgeInsets.only(right: AppDesignTokens.spaceMd),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
+                              border: Border.all(
+                                color: isDark ? AppDesignTokens.darkBorder : AppDesignTokens.lightBorder,
+                              ),
+                              image: DecorationImage(
+                                image: NetworkImage(tx.receiptImageUrl!),
+                                fit: BoxFit.cover,
+                              ),
                             ),
                           ),
                         ),
+                      ],
+
+                      // Số tiền
+                      Text(
+                        '${isIncome ? '+' : '-'}${_formatVnd(tx.amountVnd)}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: isIncome ? AppDesignTokens.success : AppDesignTokens.error,
+                        ),
                       ),
                     ],
-
-                    // Số tiền
-                    Text(
-                      '${isIncome ? '+' : '-'}${_formatVnd(tx.amountVnd)}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        color: isIncome ? AppDesignTokens.success : AppDesignTokens.error,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),

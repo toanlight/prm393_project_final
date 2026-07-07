@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../domain/models/transaction_model.dart';
 import 'transaction_confirm_delete_dialog.dart';
@@ -210,26 +211,39 @@ class TransactionListDesktop extends StatelessWidget {
                           ),
                   ),
                   DataCell(
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline_rounded, color: AppDesignTokens.error),
-                      onPressed: () async {
-                        final confirm = await showDialog<bool>(
-                          context: context,
-                          barrierDismissible: false,
-                          builder: (context) => const TransactionConfirmDeleteDialog(),
-                        );
-                        if (confirm == true) {
-                          await onDelete(tx.id);
-                          if (!context.mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Đã xóa giao dịch "${tx.category}"'),
-                              behavior: SnackBarBehavior.floating,
-                              backgroundColor: AppDesignTokens.success,
-                            ),
-                          );
-                        }
-                      },
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined, color: AppDesignTokens.primary),
+                          tooltip: 'Sửa',
+                          onPressed: () {
+                            context.push('/transactions/edit', extra: tx);
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline_rounded, color: AppDesignTokens.error),
+                          tooltip: 'Xóa',
+                          onPressed: () async {
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              barrierDismissible: false,
+                              builder: (context) => const TransactionConfirmDeleteDialog(),
+                            );
+                            if (confirm == true) {
+                              await onDelete(tx.id);
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Đã xóa giao dịch "${tx.category}"'),
+                                  behavior: SnackBarBehavior.floating,
+                                  backgroundColor: AppDesignTokens.success,
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                      ],
                     ),
                   ),
                 ],

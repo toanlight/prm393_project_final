@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/utils/responsive_helper.dart';
@@ -26,6 +27,10 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
 
   void _loadData() {
     final authProvider = context.read<AuthProvider>();
+    // ==========================================
+    // [DEV-3 MOCK DATA] - CẦN THAY THẾ KHI TÍCH HỢP FIREBASE
+    // Chức năng: Lấy ID người dùng (hiện tại fallback về mock-user-123)
+    // ==========================================
     final userId = authProvider.user?.uid ?? 'mock-user-123';
     context.read<TransactionProvider>().fetchTransactions(userId);
   }
@@ -48,6 +53,10 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final authProvider = context.watch<AuthProvider>();
+    // ==========================================
+    // [DEV-3 MOCK DATA] - CẦN THAY THẾ KHI TÍCH HỢP FIREBASE
+    // Chức năng: ID người dùng giả lập cho Consumer
+    // ==========================================
     final userId = authProvider.user?.uid ?? 'mock-user-123';
 
     return Scaffold(
@@ -60,6 +69,10 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
             onPressed: _loadData,
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => context.push('/transactions/create'),
+        child: const Icon(Icons.add),
       ),
       body: Consumer<TransactionProvider>(
         builder: (context, provider, child) {

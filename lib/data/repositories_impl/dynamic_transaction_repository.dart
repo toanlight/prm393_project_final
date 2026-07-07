@@ -8,6 +8,10 @@ class DynamicTransactionRepository implements TransactionRepository {
   // Dev-2 sẽ tích hợp FirebaseTransactionRepository vào đây ở Ngày 2/3
   // Bằng cách kế thừa tương tự DynamicAuthRepository/DynamicUserRepository
 
+  // ==========================================
+  // [DEV-3 MOCK DATA] - CẦN THAY THẾ KHI TÍCH HỢP FIREBASE
+  // Chức năng: Quản lý active repo (cần trỏ sang FirebaseTransactionRepository)
+  // ==========================================
   TransactionRepository get _active => _mock;
 
   @override
@@ -23,6 +27,11 @@ class DynamicTransactionRepository implements TransactionRepository {
   @override
   Future<void> createTransaction(TransactionModel transaction) {
     return _active.createTransaction(transaction);
+  }
+
+  @override
+  Future<void> updateTransaction(TransactionModel transaction) {
+    return _active.updateTransaction(transaction);
   }
 
   @override
