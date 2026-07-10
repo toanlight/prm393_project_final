@@ -28,12 +28,12 @@ class AppRouter {
         final auth = authProvider;
         final isLoggingIn = state.matchedLocation == '/login';
         final isSplash = state.matchedLocation == '/splash';
-
+        
         // Wait until AuthProvider finishes its initial load
         if (auth.isLoading && !isSplash) {
           return '/splash';
         }
-
+        
         // User is not authenticated
         if (!auth.isAuthenticated) {
           if (isLoggingIn || isSplash) {
@@ -41,12 +41,12 @@ class AppRouter {
           }
           return '/login'; // Redirect to login
         }
-
+        
         // User is authenticated
         if (isLoggingIn || isSplash) {
           return '/'; // Go to homepage
         }
-
+        
         return null; // Keep going
       },
 
