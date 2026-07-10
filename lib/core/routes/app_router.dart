@@ -33,7 +33,7 @@ class AppRouter {
 
         // User is not authenticated
         if (!auth.isAuthenticated) {
-          if (isLoggingIn || isSplash) {
+          if (isLoggingIn) {
             return null; // Stay where we are
           }
           return '/login'; // Redirect to login
