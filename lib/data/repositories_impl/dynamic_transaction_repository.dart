@@ -15,8 +15,8 @@ class DynamicTransactionRepository implements TransactionRepository {
   TransactionRepository get _active => _mock;
 
   @override
-  Stream<List<TransactionModel>> watchTransactions(String userId) {
-    return _active.watchTransactions(userId);
+  Stream<List<TransactionModel>> streamTransactions(String userId) {
+    return _active.streamTransactions(userId);
   }
 
   @override
@@ -35,7 +35,7 @@ class DynamicTransactionRepository implements TransactionRepository {
   }
 
   @override
-  Future<void> deleteTransaction(String id) {
-    return _active.deleteTransaction(id);
+  Future<void> deleteTransaction(String transactionId) {
+    return _active.deleteTransaction(transactionId);
   }
 }

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../domain/models/transaction_model.dart';
+import '../../domain/models/transaction_type.dart';
 import '../providers/transaction_provider.dart';
 
 class TransactionFormScreen extends StatefulWidget {
@@ -48,7 +49,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     if (_isEditing) {
       final tx = widget.transactionToEdit!;
       _amount = tx.amountVnd.toString();
-      _type = tx.type;
+      _type = tx.type == TransactionType.income ? 'thu' : 'chi';
       _category = _categories.contains(tx.category) ? tx.category : _categories.first;
       _date = tx.date;
     }
@@ -83,13 +84,15 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
       // Chức năng: Tạo ID giả lập và Gán ID người dùng giả lập
       // ==========================================
       final transaction = TransactionModel(
-        id: _isEditing ? widget.transactionToEdit!.id : DateTime.now().millisecondsSinceEpoch.toString(),
-        amountVnd: amountVnd,
-        type: _type,
-        category: _category,
-        date: _date,
-        receiptImageUrl: _isEditing ? widget.transactionToEdit!.receiptImageUrl : null,
-        createdBy: _isEditing ? widget.transactionToEdit!.createdBy : 'user_mock_123',
+        transactionId: _isEditing ? widget.transactionToEdit!.id : DateTime.now().millisecondsSinceEpoch.toString(),
+        amount: amountVnd,
+        type: _type == 'thu' ? TransactionType.income : TransactionType.expense,
+        categoryId: _category,
+        transactionDate: _date,
+        receiptImage: _isEditing ? widget.transactionToEdit!.receiptImageUrl : null,
+        userId: _isEditing ? widget.transactionToEdit!.createdBy : 'user_mock_123',
+        status: 'confirmed',
+        createdAt: _isEditing ? widget.transactionToEdit!.createdAt : DateTime.now(),
       );
 
       try {

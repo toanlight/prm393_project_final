@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/utils/responsive_helper.dart';
+import '../../domain/models/transaction_type.dart';
 import '../providers/auth_provider.dart';
 import '../providers/transaction_provider.dart';
 import '../widgets/transaction_empty_state.dart';
@@ -131,7 +132,7 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
           int totalIncome = 0;
           int totalExpense = 0;
           for (var tx in provider.transactions) {
-            if (tx.type == 'thu') {
+            if (tx.type == TransactionType.income) {
               totalIncome += tx.amountVnd;
             } else {
               totalExpense += tx.amountVnd;

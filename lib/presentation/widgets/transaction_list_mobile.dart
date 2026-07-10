@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../domain/models/transaction_model.dart';
+import '../../domain/models/transaction_type.dart';
 import 'transaction_confirm_delete_dialog.dart';
 
 class TransactionListMobile extends StatelessWidget {
@@ -103,7 +104,7 @@ class TransactionListMobile extends StatelessWidget {
       separatorBuilder: (context, index) => const SizedBox(height: AppDesignTokens.spaceSm),
       itemBuilder: (context, index) {
         final tx = transactions[index];
-        final isIncome = tx.type == 'thu';
+        final isIncome = tx.type == TransactionType.income;
 
         return Dismissible(
           key: Key('tx_${tx.id}'),

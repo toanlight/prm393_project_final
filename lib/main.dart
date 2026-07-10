@@ -1,21 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 
 import 'core/routes/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'data/repositories_impl/dynamic_repositories.dart';
-import 'data/repositories_impl/dynamic_transaction_repository.dart';
 import 'data/services/firebase_service.dart';
 import 'domain/repositories/auth_repository.dart';
 import 'domain/repositories/user_repository.dart';
 import 'domain/repositories/transaction_repository.dart';
+import 'domain/repositories/invoice_repository.dart';
+import 'domain/repositories/category_repository.dart';
+import 'domain/repositories/invoice_item_repository.dart';
+import 'domain/repositories/ocr_scan_repository.dart';
 import 'presentation/providers/auth_provider.dart';
 import 'presentation/providers/theme_provider.dart';
 import 'presentation/providers/transaction_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Hive
+  await Hive.initFlutter();
 
   // Initialize Firebase with Mock Fallback support
   final firebaseService = FirebaseService();
@@ -25,6 +32,10 @@ void main() async {
   final authRepository = DynamicAuthRepository();
   final userRepository = DynamicUserRepository();
   final transactionRepository = DynamicTransactionRepository();
+  final invoiceRepository = DynamicInvoiceRepository();
+  final categoryRepository = DynamicCategoryRepository();
+  final invoiceItemRepository = DynamicInvoiceItemRepository();
+  final ocrScanRepository = DynamicOCRScanRepository();
 
   runApp(
     MultiProvider(
@@ -33,6 +44,10 @@ void main() async {
         Provider<AuthRepository>.value(value: authRepository),
         Provider<UserRepository>.value(value: userRepository),
         Provider<TransactionRepository>.value(value: transactionRepository),
+        Provider<InvoiceRepository>.value(value: invoiceRepository),
+        Provider<CategoryRepository>.value(value: categoryRepository),
+        Provider<InvoiceItemRepository>.value(value: invoiceItemRepository),
+        Provider<OCRScanRepository>.value(value: ocrScanRepository),
         ChangeNotifierProvider(
           create: (_) => AuthProvider(
             authRepository: authRepository,

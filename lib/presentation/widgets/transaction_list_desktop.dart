@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../domain/models/transaction_model.dart';
+import '../../domain/models/transaction_type.dart';
 import 'transaction_confirm_delete_dialog.dart';
 
 class TransactionListDesktop extends StatelessWidget {
@@ -155,7 +156,7 @@ class TransactionListDesktop extends StatelessWidget {
               ),
             ],
             rows: transactions.map((tx) {
-              final isIncome = tx.type == 'thu';
+              final isIncome = tx.type == TransactionType.income;
 
               return DataRow(
                 cells: [

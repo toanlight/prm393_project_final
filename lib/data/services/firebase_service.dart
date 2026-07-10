@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import '../../firebase_options.dart';
 
 class FirebaseService {
   static final FirebaseService _instance = FirebaseService._internal();
@@ -11,12 +12,10 @@ class FirebaseService {
 
   Future<void> initialize() async {
     if (kIsWeb) {
-      // On web, if Firebase options are not set up properly, it will fail.
-      // We wrap it in try-catch to enable seamless mock fallback.
       try {
-        // Try initializing with options. We try to load options reflectively or standard.
-        // If they don't exist, we will fail and fallback.
-        await Firebase.initializeApp();
+        await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        );
         _isMockMode = false;
         debugPrint("🔥 Firebase Web initialized successfully in Real Mode.");
       } catch (e) {
@@ -24,10 +23,10 @@ class FirebaseService {
         debugPrint("⚠️ Firebase Web initialization failed ($e). Falling back to Mock Mode.");
       }
     } else {
-      // Mobile / Desktop
       try {
-        // On mobile, if GoogleServices-Info.plist or google-services.json is missing, it crashes/throws.
-        await Firebase.initializeApp();
+        await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        );
         _isMockMode = false;
         debugPrint("🔥 Firebase initialized successfully in Real Mode.");
       } catch (e) {
