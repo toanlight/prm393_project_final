@@ -132,51 +132,6 @@ void main() {
 
     final allInvoices = [invoiceAConfirmed, invoiceAPending, invoiceBConfirmed];
 
-    group('1. Test lọc hóa đơn & bảo mật truy vấn đối tác', () {
-      test('Đối tác A chỉ xem được hóa đơn có TaxCode = "11111"', () {
-        final visible = RbacPermissionService.filterVisibleInvoices(partnerA, allInvoices);
-        expect(visible.length, 2);
-        expect(visible.every((inv) => inv.taxCode == '11111'), isTrue);
-      });
-
-      test('Đối tác B chỉ xem được hóa đơn có TaxCode = "22222"', () {
-        final visible = RbacPermissionService.filterVisibleInvoices(partnerB, allInvoices);
-        expect(visible.length, 1);
-        expect(visible.first.invoiceId, 'inv_b_conf');
-      });
-
-      test('Kế toán trưởng và Admin xem được toàn bộ hóa đơn', () {
-        final visibleChief = RbacPermissionService.filterVisibleInvoices(chiefAccountant, allInvoices);
-        expect(visibleChief.length, 3);
-
-        final visibleAdmin = RbacPermissionService.filterVisibleInvoices(adminUser, allInvoices);
-        expect(visibleAdmin.length, 3);
-      });
-    });
-
-    group('2. Test phân quyền xuất PDF hóa đơn', () {
-      test('Kế toán trưởng và Admin có quyền xuất mọi hóa đơn', () {
-        expect(RbacPermissionService.canExportPdf(chiefAccountant, invoiceAConfirmed), isTrue);
-        expect(RbacPermissionService.canExportPdf(chiefAccountant, invoiceAPending), isTrue);
-        expect(RbacPermissionService.canExportPdf(adminUser, invoiceBConfirmed), isTrue);
-      });
-
-      test('Kế toán viên và Người bán hàng không được quyền xuất PDF hóa đơn', () {
-        expect(RbacPermissionService.canExportPdf(accountant, invoiceAConfirmed), isFalse);
-        expect(RbacPermissionService.canExportPdf(salesperson, invoiceAConfirmed), isFalse);
-      });
-
-      test('Đối tác chỉ được xuất hóa đơn confirmed trùng mã số thuế', () {
-        // Trùng mã số thuế & đã duyệt -> Được xuất
-        expect(RbacPermissionService.canExportPdf(partnerA, invoiceAConfirmed), isTrue);
-
-        // Trùng mã số thuế & chưa duyệt -> KHÔNG được xuất
-        expect(RbacPermissionService.canExportPdf(partnerA, invoiceAPending), isFalse);
-
-        // Khác mã số thuế -> KHÔNG được xuất
-        expect(RbacPermissionService.canExportPdf(partnerA, invoiceBConfirmed), isFalse);
-      });
-    });
 
     group('3. Test liên kết dữ liệu OCRScan với Transaction & Invoice', () {
       test('Mối liên kết khóa ngoại hoạt động chính xác giữa OCRScan, Transaction và Invoice', () {

@@ -58,19 +58,5 @@ void main() {
       expect(totalExpense, 1700000); // 500,000 + 1,200,000
     });
 
-    test('3. Test calculateVatAmount (Tính thuế VAT 8% và 10%)', () {
-      // Test 8% VAT
-      final vat8 = FinanceCalculationService.calculateVatAmount(11111111, 8);
-      expect(vat8, 888889); // 11,111,111 * 0.08 = 888,888.88 -> round to 888,889
-
-      // Test 10% VAT
-      final vat10 = FinanceCalculationService.calculateVatAmount(1000000, 10);
-      expect(vat10, 100000); // 1,000,000 * 0.10 = 100,000
-    });
-
-    test('4. Test calculateTotalInvoiceAmount (Tính tổng hóa đơn đã gồm VAT)', () {
-      final totalInvoice = FinanceCalculationService.calculateTotalInvoiceAmount(11111111, 8);
-      expect(totalInvoice, 12000000); // 11,111,111 + 888,889
-    });
   });
 }

@@ -10,9 +10,7 @@ import 'data/services/firebase_service.dart';
 import 'domain/repositories/auth_repository.dart';
 import 'domain/repositories/user_repository.dart';
 import 'domain/repositories/transaction_repository.dart';
-import 'domain/repositories/invoice_repository.dart';
 import 'domain/repositories/category_repository.dart';
-import 'domain/repositories/invoice_item_repository.dart';
 import 'domain/repositories/ocr_scan_repository.dart';
 import 'presentation/providers/auth_provider.dart';
 import 'presentation/providers/theme_provider.dart';
@@ -34,9 +32,7 @@ void main() async {
   final authRepository = DynamicAuthRepository();
   final userRepository = DynamicUserRepository();
   final transactionRepository = DynamicTransactionRepository();
-  final invoiceRepository = DynamicInvoiceRepository();
   final categoryRepository = DynamicCategoryRepository();
-  final invoiceItemRepository = DynamicInvoiceItemRepository();
   final ocrScanRepository = DynamicOCRScanRepository();
 
   runApp(
@@ -46,9 +42,7 @@ void main() async {
         Provider<AuthRepository>.value(value: authRepository),
         Provider<UserRepository>.value(value: userRepository),
         Provider<TransactionRepository>.value(value: transactionRepository),
-        Provider<InvoiceRepository>.value(value: invoiceRepository),
         Provider<CategoryRepository>.value(value: categoryRepository),
-        Provider<InvoiceItemRepository>.value(value: invoiceItemRepository),
         Provider<OCRScanRepository>.value(value: ocrScanRepository),
         ChangeNotifierProvider(
           create: (_) => AuthProvider(
