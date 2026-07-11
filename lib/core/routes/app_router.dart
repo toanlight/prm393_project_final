@@ -7,6 +7,7 @@ import '../../presentation/screens/login_screen.dart';
 import '../../presentation/screens/profile_screen.dart';
 import '../../presentation/screens/settings_screen.dart';
 import '../../presentation/screens/splash_screen.dart';
+import '../../presentation/screens/dashboard_screen.dart';
 import '../../presentation/widgets/app_navigation_shell.dart';
 
 class AppRouter {
@@ -32,7 +33,7 @@ class AppRouter {
 
         // User is not authenticated
         if (!auth.isAuthenticated) {
-          if (isLoggingIn || isSplash) {
+          if (isLoggingIn) {
             return null; // Stay where we are
           }
           return '/login'; // Redirect to login
@@ -53,6 +54,10 @@ class AppRouter {
         GoRoute(
           path: '/login',
           builder: (context, state) => const LoginScreen(),
+        ),
+        GoRoute(
+          path: '/dashboard',
+          builder: (context, state) => const DashboardScreen(),
         ),
         StatefulShellRoute.indexedStack(
           builder: (context, state, navigationShell) {
