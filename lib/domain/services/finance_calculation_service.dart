@@ -16,4 +16,15 @@ class FinanceCalculationService {
         .fold(0, (sum, tx) => sum + tx.amountVnd);
   }
 
+  /// Calculates the VAT amount (Tiền thuế VAT) from subtotal (Tiền hàng) and rate (percentage as int e.g. 8 or 10).
+  static int calculateVatAmount(int subtotal, int vatRate) {
+    if (subtotal < 0 || vatRate < 0) return 0;
+    return ((subtotal * vatRate) / 100).round();
+  }
+
+  /// Calculates the total invoice payment (Tổng thanh toán = Tiền hàng + Tiền thuế VAT).
+  static int calculateTotalInvoiceAmount(int subtotal, int vatRate) {
+    final vatAmount = calculateVatAmount(subtotal, vatRate);
+    return subtotal + vatAmount;
+  }
 }
