@@ -71,9 +71,23 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => context.push('/transactions/create'),
-        child: const Icon(Icons.add),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton.small(
+            heroTag: 'scan_invoice',
+            onPressed: () => context.push('/transactions/scan'),
+            tooltip: 'Quét hóa đơn',
+            child: const Icon(Icons.document_scanner_outlined),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton(
+            heroTag: 'create_transaction',
+            onPressed: () => context.push('/transactions/create'),
+            tooltip: 'Thêm giao dịch',
+            child: const Icon(Icons.add),
+          ),
+        ],
       ),
       body: Consumer<TransactionProvider>(
         builder: (context, provider, child) {

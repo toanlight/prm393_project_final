@@ -1,7 +1,15 @@
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show kIsWeb, TargetPlatform, defaultTargetPlatform;
+
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+
+import '../../domain/services/mock_image_validation_service.dart';
+import '../../domain/services/mock_ocr_service.dart';
+import '../../domain/services/mock_receipt_image_store.dart';
+import '../widgets/scan_effect_overlay.dart';
 
 class InvoiceCaptureScreen extends StatefulWidget {
   const InvoiceCaptureScreen({super.key});
@@ -11,65 +19,184 @@ class InvoiceCaptureScreen extends StatefulWidget {
 }
 
 class _InvoiceCaptureScreenState extends State<InvoiceCaptureScreen> {
-  Uint8List? _imageBytes;
-  bool _isScanning = false;
+  final ImagePicker _picker = ImagePicker();
 
-  // Camera chỉ khả dụng thật sự trên mobile (Android/iOS).
-  // Web: image_picker hỗ trợ nhưng phải xin quyền trình duyệt, hay lỗi trên máy không có webcam.
-  // Desktop (Windows/macOS/Linux): image_picker KHÔNG có implementation camera.
+  Uint8List? _imageBytes;
+  String? _fileName;
+  bool _isProcessing = false;
+
   bool get _supportsCamera {
-    if (kIsWeb) return false; // tắt luôn cho web, tránh rủi ro quyền webcam
+    if (kIsWeb) return false;
     return defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS;
   }
 
-  Future<void> _pickImage(ImageSource source) async {
-    final picked = await ImagePicker().pickImage(source: source);
+  Future<void> _pickAndScan(ImageSource source) async {
+    if (_isProcessing) return;
+
+    final picked = await _picker.pickImage(
+      source: source,
+      imageQuality: 90,
+    );
     if (picked == null) return;
 
-    final bytes = await picked.readAsBytes();
-    setState(() {
-      _imageBytes = bytes;
-      _isScanning = true;
-    });
+    setState(() => _isProcessing = true);
 
-    await Future.delayed(const Duration(seconds: 2)); // mô phỏng quét
+    try {
+      final bytes = await picked.readAsBytes();
 
-    setState(() => _isScanning = false);
-    // TODO: điều hướng sang form Dev-3, autofill dữ liệu mẫu
+      final validation = await MockImageValidationService.validate(
+        bytes: bytes,
+        fileName: picked.name,
+      );
+
+      if (!validation.isValid) {
+        if (!mounted) return;
+        _showMessage(validation.errorMessage ?? 'Ảnh không hợp lệ.');
+        return;
+      }
+
+      setState(() {
+        _imageBytes = bytes;
+        _fileName = picked.name;
+      });
+
+      if (!mounted) return;
+      await ScanEffectOverlay.show(context, bytes);
+
+      final ocrData = MockOcrService.scan();
+
+      // Lưu đúng ảnh người dùng đã chọn theo scanId.
+      MockReceiptImageStore.save(
+        scanId: ocrData.scanId,
+        bytes: bytes,
+      );
+
+      if (!mounted) return;
+
+      context.pushReplacement(
+        '/transactions/create',
+        extra: ocrData,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage('Không thể xử lý ảnh: $error');
+    } finally {
+      if (mounted) {
+        setState(() => _isProcessing = false);
+      }
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Chụp hóa đơn')),
+      appBar: AppBar(
+        title: const Text('Quét hóa đơn'),
+      ),
       body: Center(
-        child: _isScanning
-            ? const CircularProgressIndicator()
-            : _imageBytes == null
-            ? _buildPickButtons()
-            : Image.memory(_imageBytes!, height: 300),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              children: [
+                Expanded(
+                  child: Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: _imageBytes == null
+                        ? const _EmptyCaptureState()
+                        : Image.memory(
+                      _imageBytes!,
+                      fit: BoxFit.contain,
+                      semanticLabel: _fileName,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                if (_isProcessing)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 12),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        SizedBox(width: 10),
+                        Text('Đang xử lý...'),
+                      ],
+                    ),
+                  ),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    if (_supportsCamera)
+                      FilledButton.icon(
+                        onPressed: _isProcessing
+                            ? null
+                            : () => _pickAndScan(ImageSource.camera),
+                        icon: const Icon(Icons.camera_alt_outlined),
+                        label: const Text('Chụp ảnh'),
+                      ),
+                    FilledButton.icon(
+                      onPressed: _isProcessing
+                          ? null
+                          : () => _pickAndScan(ImageSource.gallery),
+                      icon: const Icon(Icons.photo_library_outlined),
+                      label: const Text('Chọn từ thư viện'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'OCR đang ở chế độ mô phỏng. Hệ thống kiểm tra định dạng, '
+                      'dung lượng và kích thước ảnh nhưng không đọc nội dung thật.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
+}
 
-  Widget _buildPickButtons() {
-    return Wrap(
-      spacing: 12,
-      alignment: WrapAlignment.center,
-      children: [
-        if (_supportsCamera)
-          ElevatedButton.icon(
-            onPressed: () => _pickImage(ImageSource.camera),
-            icon: const Icon(Icons.camera_alt),
-            label: const Text('Chụp ảnh'),
-          ),
-        ElevatedButton.icon(
-          onPressed: () => _pickImage(ImageSource.gallery),
-          icon: const Icon(Icons.photo_library),
-          label: const Text('Chọn từ thư viện'),
-        ),
-      ],
+class _EmptyCaptureState extends StatelessWidget {
+  const _EmptyCaptureState();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.document_scanner_outlined, size: 72),
+          SizedBox(height: 16),
+          Text('Chụp hoặc chọn ảnh hóa đơn để bắt đầu quét'),
+          SizedBox(height: 8),
+          Text('Hỗ trợ JPG, JPEG, PNG, WEBP · tối đa 10 MB'),
+        ],
+      ),
     );
   }
 }

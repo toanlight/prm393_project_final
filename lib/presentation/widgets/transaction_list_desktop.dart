@@ -33,63 +33,6 @@ class TransactionListDesktop extends StatelessWidget {
     return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 
-  void _showImagePreview(BuildContext context, String imageUrl) {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(AppDesignTokens.spaceLg),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            InteractiveViewer(
-              panEnabled: true,
-              minScale: 0.5,
-              maxScale: 4.0,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
-                child: Image.network(
-                  imageUrl,
-                  fit: BoxFit.contain,
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    return const Center(
-                      child: CircularProgressIndicator(color: Colors.white),
-                    );
-                  },
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      color: Colors.grey[900],
-                      padding: const EdgeInsets.all(AppDesignTokens.spaceLg),
-                      child: const Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.error_outline, color: Colors.white, size: 48),
-                          SizedBox(height: 8),
-                          Text('Không thể tải hình ảnh', style: TextStyle(color: Colors.white)),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-            Positioned(
-              top: 10,
-              right: 10,
-              child: CircleAvatar(
-                backgroundColor: Colors.black.withOpacity(0.5),
-                child: IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -194,22 +137,30 @@ class TransactionListDesktop extends StatelessWidget {
                     ),
                   ),
                   DataCell(
-                    tx.receiptImageUrl != null
+                    tx.invoiceId != null && tx.scanId != null
                         ? Tooltip(
-                            message: 'Xem hóa đơn',
-                            child: IconButton(
-                              icon: const Icon(Icons.receipt_long_rounded, color: AppDesignTokens.primary),
-                              onPressed: () => _showImagePreview(context, tx.receiptImageUrl!),
-                            ),
-                          )
+                      message: 'Xem hóa đơn',
+                      child: IconButton(
+                        icon: const Icon(
+                          Icons.receipt_long_rounded,
+                          color: AppDesignTokens.primary,
+                        ),
+                        onPressed: () {
+                          context.push(
+                            '/transactions/receipt',
+                            extra: tx,
+                          );
+                        },
+                      ),
+                    )
                         : Text(
-                            'Không có',
-                            style: TextStyle(
-                              color: isDark
-                                  ? AppDesignTokens.darkTextSecondary.withOpacity(0.5)
-                                  : AppDesignTokens.lightTextSecondary.withOpacity(0.5),
-                            ),
-                          ),
+                      'Không có',
+                      style: TextStyle(
+                        color: isDark
+                            ? AppDesignTokens.darkTextSecondary.withOpacity(0.5)
+                            : AppDesignTokens.lightTextSecondary.withOpacity(0.5),
+                      ),
+                    ),
                   ),
                   DataCell(
                     Row(

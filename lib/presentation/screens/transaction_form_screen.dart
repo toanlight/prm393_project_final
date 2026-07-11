@@ -6,12 +6,20 @@ import 'package:provider/provider.dart';
 
 import '../../domain/models/transaction_model.dart';
 import '../../domain/models/transaction_type.dart';
+import '../../domain/repositories/invoice_repository.dart';
+import '../../domain/services/mock_ocr_service.dart';
+import '../../domain/services/mock_receipt_image_store.dart';
 import '../providers/transaction_provider.dart';
 
 class TransactionFormScreen extends StatefulWidget {
   final TransactionModel? transactionToEdit;
+  final OcrInvoiceData? initialOcrData;
 
-  const TransactionFormScreen({super.key, this.transactionToEdit});
+  const TransactionFormScreen({
+    super.key,
+    this.transactionToEdit,
+    this.initialOcrData,
+  });
 
   @override
   State<TransactionFormScreen> createState() => _TransactionFormScreenState();
@@ -20,231 +28,331 @@ class TransactionFormScreen extends StatefulWidget {
 class _TransactionFormScreenState extends State<TransactionFormScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  // Form values
-  String _amount = '';
+  late final TextEditingController _amountController;
+
   String _type = 'chi';
   String _category = 'Ăn uống';
   DateTime _date = DateTime.now();
-
   bool _isSaving = false;
-  bool get _isEditing => widget.transactionToEdit != null;
 
-  // ==========================================
-  // [DEV-3 MOCK DATA] - CẦN THAY THẾ KHI TÍCH HỢP FIREBASE
-  // Chức năng: Danh sách danh mục cố định
-  // ==========================================
-  final List<String> _categories = [
+  bool get _isEditing => widget.transactionToEdit != null;
+  bool get _isFromOcr => !_isEditing && widget.initialOcrData != null;
+
+  final List<String> _categories = const [
     'Ăn uống',
     'Di chuyển',
     'Lương',
     'Mua sắm',
     'Kinh doanh',
     'Hóa đơn',
-    'Khác'
+    'Khác',
   ];
 
   @override
   void initState() {
     super.initState();
+
+    String initialAmount = '';
+
     if (_isEditing) {
       final tx = widget.transactionToEdit!;
-      _amount = tx.amountVnd.toString();
+      initialAmount = tx.amountVnd.toString();
       _type = tx.type == TransactionType.income ? 'thu' : 'chi';
-      _category = _categories.contains(tx.category) ? tx.category : _categories.first;
+      _category =
+      _categories.contains(tx.category) ? tx.category : _categories.first;
       _date = tx.date;
+    } else if (_isFromOcr) {
+      final ocr = widget.initialOcrData!;
+      initialAmount = ocr.totalAmount.toString();
+      _type = 'chi';
+      _category = _categories.contains(ocr.suggestedCategory)
+          ? ocr.suggestedCategory
+          : 'Khác';
+      _date = ocr.invoiceDate;
     }
+
+    _amountController = TextEditingController(text: initialAmount);
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    super.dispose();
   }
 
   Future<void> _selectDate(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
+    final picked = await showDatePicker(
       context: context,
       initialDate: _date,
       firstDate: DateTime(2000),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
+
     if (picked != null && picked != _date) {
-      setState(() {
-        _date = picked;
-      });
+      setState(() => _date = picked);
     }
   }
 
-  void _saveTransaction() async {
-    if (_formKey.currentState!.validate()) {
-      _formKey.currentState!.save();
+  Future<void> _saveTransaction() async {
+    if (_isSaving || !_formKey.currentState!.validate()) return;
 
-      setState(() {
-        _isSaving = true;
-      });
+    _formKey.currentState!.save();
+    setState(() => _isSaving = true);
 
-      final int amountVnd = int.parse(_amount);
+    final provider = context.read<TransactionProvider>();
+    final invoiceRepository = context.read<InvoiceRepository>();
+    final now = DateTime.now();
 
-      // ==========================================
-      // [DEV-3 MOCK DATA] - CẦN THAY THẾ KHI TÍCH HỢP FIREBASE
-      // Chức năng: Tạo ID giả lập và Gán ID người dùng giả lập
-      // ==========================================
-      final transaction = TransactionModel(
-        transactionId: _isEditing ? widget.transactionToEdit!.id : DateTime.now().millisecondsSinceEpoch.toString(),
-        amount: amountVnd,
-        type: _type == 'thu' ? TransactionType.income : TransactionType.expense,
-        categoryId: _category,
-        transactionDate: _date,
-        receiptImage: _isEditing ? widget.transactionToEdit!.receiptImageUrl : null,
-        userId: _isEditing ? widget.transactionToEdit!.createdBy : 'user_mock_123',
-        status: 'confirmed',
-        createdAt: _isEditing ? widget.transactionToEdit!.createdAt : DateTime.now(),
+    final transactionId = _isEditing
+        ? widget.transactionToEdit!.transactionId
+        : 'tx_${now.microsecondsSinceEpoch}';
+
+    final invoiceId =
+    _isFromOcr ? 'invoice_${now.microsecondsSinceEpoch}' : null;
+
+    final userId =
+    _isEditing ? widget.transactionToEdit!.userId : 'user_mock_123';
+
+    final transaction = TransactionModel(
+      transactionId: transactionId,
+      userId: userId,
+      categoryId: _category,
+      invoiceId: invoiceId,
+      scanId: _isFromOcr ? widget.initialOcrData!.scanId : null,
+      amount: int.parse(_amountController.text),
+      type: _type == 'thu'
+          ? TransactionType.income
+          : TransactionType.expense,
+      transactionDate: _date,
+      note: _isFromOcr
+          ? '${widget.initialOcrData!.invoiceNumber} - '
+          '${widget.initialOcrData!.partnerName}'
+          : (_isEditing ? widget.transactionToEdit!.note : ''),
+      receiptImage: _isFromOcr
+          ? 'mock://${widget.initialOcrData!.scanId}'
+          : (_isEditing ? widget.transactionToEdit!.receiptImage : null),
+      status: _isEditing ? widget.transactionToEdit!.status : 'confirmed',
+      createdAt: _isEditing ? widget.transactionToEdit!.createdAt : now,
+    );
+
+    bool transactionCreated = false;
+
+    try {
+      if (_isEditing) {
+        await provider.updateTransaction(transaction);
+      } else {
+        await provider.addTransaction(transaction);
+        transactionCreated = true;
+      }
+
+      if (_isFromOcr && invoiceId != null) {
+        final invoice = widget.initialOcrData!.toInvoiceModel(
+          invoiceId: invoiceId,
+          transactionId: transactionId,
+          createdBy: userId,
+        );
+
+        await invoiceRepository.createInvoice(invoice);
+      }
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _isEditing
+                ? 'Cập nhật giao dịch thành công!'
+                : _isFromOcr
+                ? 'Đã tạo giao dịch và hóa đơn từ OCR!'
+                : 'Thêm giao dịch thành công!',
+          ),
+        ),
       );
 
-      try {
-        final provider = context.read<TransactionProvider>();
-        if (_isEditing) {
-          await provider.updateTransaction(transaction);
-        } else {
-          await provider.addTransaction(transaction);
-        }
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(_isEditing ? 'Cập nhật giao dịch thành công!' : 'Thêm giao dịch thành công!')),
-          );
-          context.pop();
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Lỗi: $e')),
-          );
-          setState(() {
-            _isSaving = false;
-          });
+      context.pop();
+    } catch (error) {
+      // Tránh giao dịch mồ côi nếu tạo invoice thất bại trong luồng OCR.
+      if (transactionCreated && _isFromOcr) {
+        try {
+          await provider.deleteTransaction(transactionId, userId);
+        } catch (_) {
+          // Không che mất lỗi gốc.
         }
       }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không thể lưu dữ liệu: $error')),
+      );
+      setState(() => _isSaving = false);
     }
+  }
+
+  void _cancelOcr() {
+    final scanId = widget.initialOcrData?.scanId;
+    if (scanId != null) {
+      MockReceiptImageStore.remove(scanId);
+    }
+    context.pop();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_isEditing ? 'Chỉnh sửa giao dịch' : 'Thêm giao dịch mới'),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            children: [
-              // Số tiền
-              TextFormField(
-                initialValue: _amount,
-                decoration: const InputDecoration(
-                  labelText: 'Số tiền (VNĐ)',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.money),
-                ),
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Vui lòng nhập số tiền';
-                  }
-                  final amount = int.tryParse(value);
-                  if (amount == null || amount <= 0) {
-                    return 'Số tiền phải là số nguyên dương';
-                  }
-                  return null;
-                },
-                onSaved: (value) {
-                  _amount = value!;
-                },
-              ),
-              const SizedBox(height: 16),
-
-              // Loại giao dịch
-              DropdownButtonFormField<String>(
-                value: _type,
-                decoration: const InputDecoration(
-                  labelText: 'Loại',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.swap_horiz),
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'thu', child: Text('Thu')),
-                  DropdownMenuItem(value: 'chi', child: Text('Chi')),
-                ],
-                onChanged: (value) {
-                  setState(() {
-                    _type = value!;
-                  });
-                },
-                onSaved: (value) {
-                  _type = value!;
-                },
-              ),
-              const SizedBox(height: 16),
-
-              // Danh mục
-              DropdownButtonFormField<String>(
-                value: _category,
-                decoration: const InputDecoration(
-                  labelText: 'Danh mục',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.category),
-                ),
-                items: _categories.map((String category) {
-                  return DropdownMenuItem(
-                    value: category,
-                    child: Text(category),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _category = value!;
-                  });
-                },
-                onSaved: (value) {
-                  _category = value!;
-                },
-              ),
-              const SizedBox(height: 16),
-
-              // Ngày giao dịch
-              InkWell(
-                onTap: () => _selectDate(context),
-                child: InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: 'Ngày giao dịch',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.calendar_today),
-                  ),
-                  child: Text(
-                    DateFormat('dd/MM/yyyy').format(_date),
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 32),
-
-              // Nút Lưu
-              SizedBox(
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: _isSaving ? null : _saveTransaction,
-                  style: ElevatedButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: _isSaving
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : Text(
-                          _isEditing ? 'Cập nhật' : 'Tạo mới',
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                ),
-              ),
-            ],
+    return PopScope(
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop && _isFromOcr) {
+          final scanId = widget.initialOcrData?.scanId;
+          if (scanId != null) {
+            // Chỉ xóa khi người dùng rời form mà chưa lưu.
+            // Nếu đã lưu, context.pop() xảy ra sau createInvoice; store vẫn cần giữ ảnh.
+          }
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: _isFromOcr
+              ? IconButton(
+            onPressed: _cancelOcr,
+            icon: const Icon(Icons.arrow_back),
+          )
+              : null,
+          title: Text(
+            _isEditing
+                ? 'Chỉnh sửa giao dịch'
+                : _isFromOcr
+                ? 'Kiểm tra dữ liệu OCR'
+                : 'Thêm giao dịch mới',
           ),
+        ),
+        body: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Form(
+            key: _formKey,
+            child: ListView(
+              children: [
+                if (_isFromOcr) ...[
+                  _OcrSummaryCard(data: widget.initialOcrData!),
+                  const SizedBox(height: 20),
+                ],
+                TextFormField(
+                  controller: _amountController,
+                  decoration: const InputDecoration(
+                    labelText: 'Số tiền (VNĐ)',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.money),
+                  ),
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                  ],
+                  validator: (value) {
+                    final amount = int.tryParse(value ?? '');
+                    if (amount == null || amount <= 0) {
+                      return 'Số tiền phải là số nguyên dương';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: _type,
+                  decoration: const InputDecoration(
+                    labelText: 'Loại',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.swap_horiz),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'thu', child: Text('Thu')),
+                    DropdownMenuItem(value: 'chi', child: Text('Chi')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) setState(() => _type = value);
+                  },
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: _category,
+                  decoration: const InputDecoration(
+                    labelText: 'Danh mục',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.category),
+                  ),
+                  items: _categories
+                      .map(
+                        (category) => DropdownMenuItem(
+                      value: category,
+                      child: Text(category),
+                    ),
+                  )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) setState(() => _category = value);
+                  },
+                ),
+                const SizedBox(height: 16),
+                InkWell(
+                  onTap: () => _selectDate(context),
+                  child: InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: 'Ngày giao dịch',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.calendar_today),
+                    ),
+                    child: Text(DateFormat('dd/MM/yyyy').format(_date)),
+                  ),
+                ),
+                const SizedBox(height: 32),
+                SizedBox(
+                  height: 50,
+                  child: FilledButton(
+                    onPressed: _isSaving ? null : _saveTransaction,
+                    child: _isSaving
+                        ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                      ),
+                    )
+                        : Text(_isEditing ? 'Cập nhật' : 'Tạo mới'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OcrSummaryCard extends StatelessWidget {
+  final OcrInvoiceData data;
+
+  const _OcrSummaryCard({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final money = NumberFormat.decimalPattern('vi_VN');
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '✨ Dữ liệu OCR mô phỏng',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const Divider(),
+            Text('Số hóa đơn: ${data.invoiceNumber}'),
+            Text('Đối tác: ${data.partnerName}'),
+            Text('Mã số thuế: ${data.taxCode}'),
+            Text('Tiền hàng: ${money.format(data.subTotal)} VNĐ'),
+            Text('VAT: ${data.vatRate.toStringAsFixed(0)}%'),
+            Text('Tổng cộng: ${money.format(data.totalAmount)} VNĐ'),
+          ],
         ),
       ),
     );
