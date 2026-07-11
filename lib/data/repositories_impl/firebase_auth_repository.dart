@@ -14,6 +14,11 @@ class FirebaseAuthRepository implements AuthRepository {
       photoUrl: user.photoURL ?? 'https://api.dicebear.com/7.x/adventurer/png?seed=${user.uid}',
       isAnonymous: user.isAnonymous,
       createdAt: user.metadata.creationTime ?? DateTime.now(),
+      fullName: user.displayName ?? 'Người dùng Firebase',
+      roleId: 'viewer', // default until synced with Firestore User db
+      taxCode: null,
+      isActive: true,
+      passwordHash: null,
     );
   }
 
