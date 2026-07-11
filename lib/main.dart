@@ -26,7 +26,9 @@ void main() async {
 
   // Initialize Firebase with Mock Fallback support
   final firebaseService = FirebaseService();
-  await firebaseService.initialize();
+  // await firebaseService.initialize();
+
+  firebaseService.forceMockMode(true);
 
   // Create repository wrappers that dynamically switch modes
   final authRepository = DynamicAuthRepository();
