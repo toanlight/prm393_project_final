@@ -207,3 +207,219 @@ Receipt Preview
 - Hoàn thành cơ chế tạo đồng thời Transaction và Invoice trong Mock Mode.
 - Hoàn thành cơ chế lưu ảnh tạm thời phục vụ Preview.
 - Chưa tích hợp Firebase Storage và chức năng xuất PDF do thuộc giai đoạn triển khai tiếp theo.
+
+---
+
+# CẬP NHẬT TIẾN ĐỘ (Update)
+
+## Cập nhật 1 - Hoàn thiện Mock OCR
+
+### Đã hoàn thành
+
+- Hoàn thiện luồng OCR Mock.
+- Bổ sung MockImageValidationService.
+- Kiểm tra ảnh đầu vào:
+    - JPG/JPEG/PNG/WEBP
+    - Kích thước tối thiểu 300x300
+    - Dung lượng tối đa 10MB
+- Hiển thị Snackbar khi ảnh không hợp lệ.
+- Hiệu ứng Scan Overlay khoảng 2 giây.
+- MockOcrService sinh dữ liệu OCR mẫu.
+- Điều hướng trực tiếp sang TransactionFormScreen.
+- Auto-fill dữ liệu từ OCR vào Form.
+
+---
+
+## Cập nhật 2 - Liên kết Transaction và Invoice
+
+### Đã hoàn thành
+
+Sau khi người dùng bấm **Tạo mới**
+
+Hệ thống thực hiện:
+
+1. Sinh transactionId.
+2. Sinh invoiceId.
+3. Tạo Transaction.
+4. Lưu Transaction Repository.
+5. Tạo Invoice.
+6. Lưu Invoice Repository.
+
+Đồng thời liên kết:
+
+- invoiceId
+- scanId
+- receiptImage
+
+vào TransactionModel.
+
+InvoiceModel được liên kết bằng transactionId.
+
+---
+
+## Cập nhật 3 - Mock Receipt Image
+
+### Đã hoàn thành
+
+Bổ sung
+
+```
+MockReceiptImageStore
+```
+
+Chức năng
+
+- lưu ảnh người dùng vừa chọn.
+- key theo scanId.
+- trả về Uint8List.
+- phục vụ Receipt Preview.
+
+Luồng
+
+```
+Gallery / Camera
+        │
+        ▼
+MockReceiptImageStore
+        │
+        ▼
+scanId
+        │
+        ▼
+Receipt Preview
+```
+
+Lưu ý
+
+Ảnh chỉ lưu trong RAM.
+
+Refresh Chrome hoặc Restart App sẽ mất ảnh.
+
+---
+
+## Cập nhật 4 - Receipt Preview
+
+### Đã hoàn thành
+
+Bổ sung màn hình
+
+```
+ReceiptImagePreviewScreen
+```
+
+Hiển thị
+
+- ảnh hóa đơn
+- số hóa đơn
+- công ty
+- MST
+- VAT
+- tiền hàng
+- tổng thanh toán
+
+Responsive
+
+- Mobile
+- Tablet
+- Desktop
+
+---
+
+## Cập nhật 5 - Điều hướng
+
+Đã bổ sung Route
+
+```
+/transactions/receipt
+```
+
+Luồng
+
+```
+Transaction List
+        │
+        ▼
+Icon hóa đơn
+        │
+        ▼
+Receipt Preview
+```
+
+Không còn sử dụng
+
+```
+Image.network(mock://...)
+```
+
+mà sử dụng
+
+```
+MockReceiptImageStore.get(scanId)
+```
+
+để lấy đúng ảnh đã scan.
+
+---
+
+## Cập nhật 6 - PDF (Đang thực hiện)
+
+Đã nghiên cứu
+
+- package pdf
+- package printing
+
+Phát hiện
+
+Package
+
+```
+printing 5.15.0
+```
+
+không tương thích với
+
+```
+Dart SDK 3.11.5
+```
+
+Đã chuyển sang
+
+```yaml
+pdf: ^3.12.0
+printing: 5.14.3
+```
+
+để tương thích với môi trường hiện tại.
+
+---
+
+## Tiến độ hiện tại
+
+| Hạng mục | Trạng thái |
+|-----------|------------|
+| Capture | ✅ |
+| Validation | ✅ |
+| Mock OCR | ✅ |
+| Scan Overlay | ✅ |
+| Auto Fill | ✅ |
+| Transaction | ✅ |
+| Invoice | ✅ |
+| Mock Receipt Store | ✅ |
+| Receipt Preview | ✅ |
+| Responsive Preview | ✅ |
+| Route Receipt | ✅ |
+| PDF Service | 🟡 |
+| PDF Preview | 🟡 |
+| PDF Export | 🟡 |
+| Firebase Storage | ❌ |
+| OCR thật | ❌ |
+
+---
+
+## Ghi chú
+
+- OCR hiện tại chỉ là Mock OCR.
+- Ảnh bất kỳ hợp lệ đều sinh dữ liệu mẫu.
+- Receipt Preview đã hiển thị đúng ảnh người dùng chọn.
+- PDF đang hoàn thiện theo package tương thích với Dart SDK hiện tại.
+- Firebase Storage sẽ được tích hợp khi chuyển sang Firebase Mode.
