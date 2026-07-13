@@ -14,6 +14,7 @@ import 'domain/repositories/category_repository.dart';
 import 'domain/repositories/ocr_scan_repository.dart';
 import 'presentation/providers/auth_provider.dart';
 import 'presentation/providers/theme_provider.dart';
+import 'presentation/providers/transaction_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,7 +24,9 @@ void main() async {
 
   // Initialize Firebase with Mock Fallback support
   final firebaseService = FirebaseService();
-  await firebaseService.initialize();
+  // await firebaseService.initialize();
+
+  firebaseService.forceMockMode(true);
 
   // Create repository wrappers that dynamically switch modes
   final authRepository = DynamicAuthRepository();
@@ -45,6 +48,11 @@ void main() async {
           create: (_) => AuthProvider(
             authRepository: authRepository,
             userRepository: userRepository,
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => TransactionProvider(
+            transactionRepository: transactionRepository,
           ),
         ),
       ],
