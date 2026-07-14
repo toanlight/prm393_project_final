@@ -1,6 +1,6 @@
 import 'package:hive/hive.dart';
-import '../../../domain/models/invoice_model.dart';
-import '../../../domain/repositories/invoice_repository.dart';
+import '../../domain/models/invoice_model.dart';
+import '../../domain/repositories/invoice_repository.dart';
 
 class MockInvoiceRepository implements InvoiceRepository {
   static const String _boxName = 'mock_invoices_box';

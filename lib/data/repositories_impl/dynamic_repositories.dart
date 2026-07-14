@@ -2,17 +2,20 @@ import '../../../domain/models/user_model.dart';
 import '../../../domain/models/transaction_model.dart';
 import '../../../domain/models/category_model.dart';
 import '../../../domain/models/ocr_scan_model.dart';
+import '../../../domain/models/invoice_model.dart';
 import '../../../domain/repositories/auth_repository.dart';
 import '../../../domain/repositories/user_repository.dart';
 import '../../../domain/repositories/transaction_repository.dart';
 import '../../../domain/repositories/category_repository.dart';
 import '../../../domain/repositories/ocr_scan_repository.dart';
+import '../../../domain/repositories/invoice_repository.dart';
 import '../services/firebase_service.dart';
 import 'mock_auth_repository.dart';
 import 'mock_user_repository.dart';
 import 'mock_transaction_repository.dart';
 import 'mock_category_repository.dart';
 import 'mock_ocr_scan_repository.dart';
+import 'mock_invoice_repository.dart';
 import 'firebase_auth_repository.dart';
 import 'firebase_user_repository.dart';
 import 'firebase_transaction_repository.dart';
@@ -144,4 +147,22 @@ class DynamicOCRScanRepository implements OCRScanRepository {
 
   @override
   Future<void> updateOCRScan(OCRScanModel scan) => _active.updateOCRScan(scan);
+}
+
+class DynamicInvoiceRepository implements InvoiceRepository {
+  final MockInvoiceRepository _mock = MockInvoiceRepository();
+
+  InvoiceRepository get _active => _mock;
+
+  @override
+  Future<InvoiceModel?> getInvoiceForTransaction(String transactionId) =>
+      _active.getInvoiceForTransaction(transactionId);
+
+  @override
+  Future<void> createInvoice(InvoiceModel invoice) =>
+      _active.createInvoice(invoice);
+
+  @override
+  Future<void> deleteInvoice(String transactionId, String invoiceId) =>
+      _active.deleteInvoice(transactionId, invoiceId);
 }
