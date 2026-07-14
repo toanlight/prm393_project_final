@@ -1,6 +1,6 @@
 import 'package:hive/hive.dart';
-import '../../../domain/models/invoice_model.dart';
-import '../../../domain/repositories/invoice_repository.dart';
+import '../../domain/models/invoice_model.dart';
+import '../../domain/repositories/invoice_repository.dart';
 
 /// Bản mock của InvoiceRepository, lưu bằng Hive để dữ liệu
 /// tồn tại qua các lần hot restart. Dùng cho dev/demo khi chưa

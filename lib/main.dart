@@ -12,6 +12,7 @@ import 'domain/repositories/user_repository.dart';
 import 'domain/repositories/transaction_repository.dart';
 import 'domain/repositories/category_repository.dart';
 import 'domain/repositories/ocr_scan_repository.dart';
+import 'domain/repositories/invoice_repository.dart';
 import 'presentation/providers/auth_provider.dart';
 import 'presentation/providers/theme_provider.dart';
 import 'presentation/providers/transaction_provider.dart';
@@ -34,6 +35,7 @@ void main() async {
   final transactionRepository = DynamicTransactionRepository();
   final categoryRepository = DynamicCategoryRepository();
   final ocrScanRepository = DynamicOCRScanRepository();
+  final invoiceRepository = DynamicInvoiceRepository();
 
   runApp(
     MultiProvider(
@@ -44,6 +46,7 @@ void main() async {
         Provider<TransactionRepository>.value(value: transactionRepository),
         Provider<CategoryRepository>.value(value: categoryRepository),
         Provider<OCRScanRepository>.value(value: ocrScanRepository),
+        Provider<InvoiceRepository>.value(value: invoiceRepository),
         ChangeNotifierProvider(
           create: (_) => AuthProvider(
             authRepository: authRepository,
