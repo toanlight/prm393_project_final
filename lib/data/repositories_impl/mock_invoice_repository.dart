@@ -29,7 +29,7 @@ class MockInvoiceRepository implements InvoiceRepository {
 
     final initialInvoice = InvoiceModel(
       invoiceId: 'mock_inv_1',
-      transactionId: 'mock_tx_2',
+      transactionId: 't3',
       invoiceNumber: 'INV-2026-0001',
       partnerName: 'Công ty Cổ phần Xây dựng Smart Building',
       partnerAddress: 'Khu Công nghệ cao, Quận 9, TP. Hồ Chí Minh',

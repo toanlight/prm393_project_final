@@ -33,7 +33,6 @@ class TransactionListDesktop extends StatelessWidget {
     return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -46,9 +45,13 @@ class TransactionListDesktop extends StatelessWidget {
           color: isDark ? AppDesignTokens.darkSurface : Colors.white,
           borderRadius: BorderRadius.circular(AppDesignTokens.radiusLg),
           border: Border.all(
-            color: isDark ? AppDesignTokens.darkBorder : AppDesignTokens.lightBorder,
+            color: isDark
+                ? AppDesignTokens.darkBorder
+                : AppDesignTokens.lightBorder,
           ),
-          boxShadow: isDark ? AppDesignTokens.darkShadow : AppDesignTokens.lightShadow,
+          boxShadow: isDark
+              ? AppDesignTokens.darkShadow
+              : AppDesignTokens.lightShadow,
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(AppDesignTokens.radiusLg),
@@ -115,12 +118,16 @@ class TransactionListDesktop extends StatelessWidget {
                         color: isIncome
                             ? AppDesignTokens.success.withOpacity(0.1)
                             : AppDesignTokens.error.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(AppDesignTokens.radiusXs),
+                        borderRadius: BorderRadius.circular(
+                          AppDesignTokens.radiusXs,
+                        ),
                       ),
                       child: Text(
                         isIncome ? 'Thu nhập' : 'Chi tiêu',
                         style: TextStyle(
-                          color: isIncome ? AppDesignTokens.success : AppDesignTokens.error,
+                          color: isIncome
+                              ? AppDesignTokens.success
+                              : AppDesignTokens.error,
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                         ),
@@ -132,62 +139,75 @@ class TransactionListDesktop extends StatelessWidget {
                       '${isIncome ? '+' : '-'}${_formatVnd(tx.amountVnd)}',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: isIncome ? AppDesignTokens.success : AppDesignTokens.error,
+                        color: isIncome
+                            ? AppDesignTokens.success
+                            : AppDesignTokens.error,
                       ),
                     ),
                   ),
                   DataCell(
                     tx.invoiceId != null && tx.scanId != null
                         ? Tooltip(
-                      message: 'Xem hóa đơn',
-                      child: IconButton(
-                        icon: const Icon(
-                          Icons.receipt_long_rounded,
-                          color: AppDesignTokens.primary,
-                        ),
-                        onPressed: () {
-                          context.push(
-                            '/transactions/receipt',
-                            extra: tx,
-                          );
-                        },
-                      ),
-                    )
+                            message: 'Xem hóa đơn',
+                            child: IconButton(
+                              icon: const Icon(
+                                Icons.receipt_long_rounded,
+                                color: AppDesignTokens.primary,
+                              ),
+                              onPressed: () {
+                                context.push(
+                                  '/transactions/receipt',
+                                  extra: tx,
+                                );
+                              },
+                            ),
+                          )
                         : Text(
-                      'Không có',
-                      style: TextStyle(
-                        color: isDark
-                            ? AppDesignTokens.darkTextSecondary.withOpacity(0.5)
-                            : AppDesignTokens.lightTextSecondary.withOpacity(0.5),
-                      ),
-                    ),
+                            'Không có',
+                            style: TextStyle(
+                              color: isDark
+                                  ? AppDesignTokens.darkTextSecondary
+                                        .withOpacity(0.5)
+                                  : AppDesignTokens.lightTextSecondary
+                                        .withOpacity(0.5),
+                            ),
+                          ),
                   ),
                   DataCell(
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.edit_outlined, color: AppDesignTokens.primary),
+                          icon: const Icon(
+                            Icons.edit_outlined,
+                            color: AppDesignTokens.primary,
+                          ),
                           tooltip: 'Sửa',
                           onPressed: () {
                             context.push('/transactions/edit', extra: tx);
                           },
                         ),
                         IconButton(
-                          icon: const Icon(Icons.delete_outline_rounded, color: AppDesignTokens.error),
+                          icon: const Icon(
+                            Icons.delete_outline_rounded,
+                            color: AppDesignTokens.error,
+                          ),
                           tooltip: 'Xóa',
                           onPressed: () async {
                             final confirm = await showDialog<bool>(
                               context: context,
                               barrierDismissible: false,
-                              builder: (context) => const TransactionConfirmDeleteDialog(),
+                              builder: (context) =>
+                                  const TransactionConfirmDeleteDialog(),
                             );
                             if (confirm == true) {
                               await onDelete(tx.id);
                               if (!context.mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text('Đã xóa giao dịch "${tx.category}"'),
+                                  content: Text(
+                                    'Đã xóa giao dịch "${tx.category}"',
+                                  ),
                                   behavior: SnackBarBehavior.floating,
                                   backgroundColor: AppDesignTokens.success,
                                 ),

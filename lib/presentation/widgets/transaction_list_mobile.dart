@@ -64,9 +64,16 @@ class TransactionListMobile extends StatelessWidget {
                       child: const Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.error_outline, color: Colors.white, size: 48),
+                          Icon(
+                            Icons.error_outline,
+                            color: Colors.white,
+                            size: 48,
+                          ),
                           SizedBox(height: 8),
-                          Text('Không thể tải hình ảnh', style: TextStyle(color: Colors.white)),
+                          Text(
+                            'Không thể tải hình ảnh',
+                            style: TextStyle(color: Colors.white),
+                          ),
                         ],
                       ),
                     );
@@ -101,7 +108,8 @@ class TransactionListMobile extends StatelessWidget {
         vertical: AppDesignTokens.spaceSm,
       ),
       itemCount: transactions.length,
-      separatorBuilder: (context, index) => const SizedBox(height: AppDesignTokens.spaceSm),
+      separatorBuilder: (context, index) =>
+          const SizedBox(height: AppDesignTokens.spaceSm),
       itemBuilder: (context, index) {
         final tx = transactions[index];
         final isIncome = tx.type == TransactionType.income;
@@ -128,7 +136,9 @@ class TransactionListMobile extends StatelessWidget {
           },
           background: Container(
             alignment: Alignment.centerRight,
-            padding: const EdgeInsets.symmetric(horizontal: AppDesignTokens.spaceLg),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppDesignTokens.spaceLg,
+            ),
             decoration: BoxDecoration(
               color: AppDesignTokens.error,
               borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
@@ -157,10 +167,14 @@ class TransactionListMobile extends StatelessWidget {
               color: isDark ? AppDesignTokens.darkSurface : Colors.white,
               borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
               border: Border.all(
-                color: isDark ? AppDesignTokens.darkBorder : AppDesignTokens.lightBorder,
+                color: isDark
+                    ? AppDesignTokens.darkBorder
+                    : AppDesignTokens.lightBorder,
                 width: 1,
               ),
-              boxShadow: isDark ? AppDesignTokens.darkShadow : AppDesignTokens.lightShadow,
+              boxShadow: isDark
+                  ? AppDesignTokens.darkShadow
+                  : AppDesignTokens.lightShadow,
             ),
             child: Material(
               color: Colors.transparent,
@@ -184,8 +198,12 @@ class TransactionListMobile extends StatelessWidget {
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
-                          isIncome ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
-                          color: isIncome ? AppDesignTokens.success : AppDesignTokens.error,
+                          isIncome
+                              ? Icons.arrow_downward_rounded
+                              : Icons.arrow_upward_rounded,
+                          color: isIncome
+                              ? AppDesignTokens.success
+                              : AppDesignTokens.error,
                           size: 24,
                         ),
                       ),
@@ -220,15 +238,22 @@ class TransactionListMobile extends StatelessWidget {
                       // Ảnh hóa đơn thu nhỏ (nếu có)
                       if (tx.receiptImageUrl != null) ...[
                         GestureDetector(
-                          onTap: () => _showImagePreview(context, tx.receiptImageUrl!),
+                          onTap: () =>
+                              _showImagePreview(context, tx.receiptImageUrl!),
                           child: Container(
                             width: 40,
                             height: 40,
-                            margin: const EdgeInsets.only(right: AppDesignTokens.spaceMd),
+                            margin: const EdgeInsets.only(
+                              right: AppDesignTokens.spaceMd,
+                            ),
                             decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
+                              borderRadius: BorderRadius.circular(
+                                AppDesignTokens.radiusSm,
+                              ),
                               border: Border.all(
-                                color: isDark ? AppDesignTokens.darkBorder : AppDesignTokens.lightBorder,
+                                color: isDark
+                                    ? AppDesignTokens.darkBorder
+                                    : AppDesignTokens.lightBorder,
                               ),
                               image: DecorationImage(
                                 image: NetworkImage(tx.receiptImageUrl!),
@@ -245,7 +270,9 @@ class TransactionListMobile extends StatelessWidget {
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
-                          color: isIncome ? AppDesignTokens.success : AppDesignTokens.error,
+                          color: isIncome
+                              ? AppDesignTokens.success
+                              : AppDesignTokens.error,
                         ),
                       ),
                     ],
