@@ -34,29 +34,25 @@ class AppRouter {
       initialLocation: '/splash',
       refreshListenable: authProvider,
       redirect: (context, state) {
-        final auth = authProvider;
         final isLoggingIn = state.matchedLocation == '/login';
         final isSplash = state.matchedLocation == '/splash';
 
-        // Wait until AuthProvider finishes its initial load
-        if (auth.isLoading && !isSplash) {
-          return '/splash';
+        // ── 1. Đang khởi tạo Auth → giữ màn hình Splash ──────────────────
+        if (authProvider.isLoading) {
+          return isSplash ? null : '/splash';
         }
 
-        // User is not authenticated
-        if (!auth.isAuthenticated) {
-          if (isLoggingIn || isSplash) {
-            return null; // Stay where we are
-          }
-          return '/login'; // Redirect to login
+        // ── 2. Auth xong, chưa đăng nhập → chuyển về Login ───────────────
+        if (!authProvider.isAuthenticated) {
+          return isLoggingIn ? null : '/login';
         }
 
-        // User is authenticated
-        if (isLoggingIn || isSplash) {
-          return '/'; // Go to homepage
+        // ── 3. Đã đăng nhập mà vẫn ở Splash / Login → vào trang chủ ──────
+        if (isSplash || isLoggingIn) {
+          return '/';
         }
 
-        return null; // Keep going
+        return null; // Tiếp tục điều hướng bình thường
       },
       routes: [
         GoRoute(

@@ -7,6 +7,7 @@ import 'core/routes/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'data/repositories_impl/dynamic_repositories.dart';
 import 'data/services/firebase_service.dart';
+import 'data/services/sync_service.dart';
 import 'domain/repositories/auth_repository.dart';
 import 'domain/repositories/user_repository.dart';
 import 'domain/repositories/transaction_repository.dart';
@@ -22,6 +23,9 @@ void main() async {
 
   // Initialize Hive
   await Hive.initFlutter();
+
+  // Initialize Sync Service (handles offline-first database synchronization)
+  await SyncService().initialize();
 
   // Initialize Firebase with Mock Fallback support
   final firebaseService = FirebaseService();

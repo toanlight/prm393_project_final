@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:hive/hive.dart';
 import '../../../domain/models/category_model.dart';
 import '../../../domain/repositories/category_repository.dart';
+import '../services/sync_service.dart';
 
 class FirebaseCategoryRepository implements CategoryRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -31,18 +32,51 @@ class FirebaseCategoryRepository implements CategoryRepository {
 
   @override
   Future<void> createCategory(CategoryModel category) async {
-    await _firestore
-        .collection('categories')
-        .doc(category.categoryId)
-        .set(category.toMap());
+    // 1. Save to local Hive Cache immediately
     final box = await Hive.openBox(_cacheBoxName);
     await box.put(category.categoryId, category.toMap());
+
+    // 2. Try Firestore write
+    try {
+      final isOnline = await SyncService().isDeviceOnline();
+      if (!isOnline) {
+        throw Exception('Offline');
+      }
+      await _firestore
+          .collection('categories')
+          .doc(category.categoryId)
+          .set(category.toMap());
+    } catch (e) {
+      // 3. Fallback to local Queue
+      await SyncService().enqueue(
+        collection: 'categories',
+        action: 'create',
+        documentId: category.categoryId,
+        payload: category.toMap(),
+      );
+    }
   }
 
   @override
   Future<void> deleteCategory(String categoryId) async {
-    await _firestore.collection('categories').doc(categoryId).delete();
+    // 1. Delete from local Hive Cache immediately
     final box = await Hive.openBox(_cacheBoxName);
     await box.delete(categoryId);
+
+    // 2. Try Firestore write
+    try {
+      final isOnline = await SyncService().isDeviceOnline();
+      if (!isOnline) {
+        throw Exception('Offline');
+      }
+      await _firestore.collection('categories').doc(categoryId).delete();
+    } catch (e) {
+      // 3. Fallback to local Queue
+      await SyncService().enqueue(
+        collection: 'categories',
+        action: 'delete',
+        documentId: categoryId,
+      );
+    }
   }
 }

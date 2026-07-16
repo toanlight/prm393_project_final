@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:hive/hive.dart';
 import '../../../domain/models/ocr_scan_model.dart';
 import '../../../domain/repositories/ocr_scan_repository.dart';
+import '../services/sync_service.dart';
 
 class FirebaseOCRScanRepository implements OCRScanRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -60,21 +61,55 @@ class FirebaseOCRScanRepository implements OCRScanRepository {
 
   @override
   Future<void> createOCRScan(OCRScanModel scan) async {
-    await _firestore
-        .collection('ocr_scans')
-        .doc(scan.scanId)
-        .set(scan.toMap());
+    // 1. Save to local Hive Cache immediately
     final box = await Hive.openBox(_cacheBoxName);
     await box.put(scan.scanId, scan.toMap());
+
+    // 2. Try Firestore write
+    try {
+      final isOnline = await SyncService().isDeviceOnline();
+      if (!isOnline) {
+        throw Exception('Offline');
+      }
+      await _firestore
+          .collection('ocr_scans')
+          .doc(scan.scanId)
+          .set(scan.toMap());
+    } catch (e) {
+      // 3. Fallback to local Queue
+      await SyncService().enqueue(
+        collection: 'ocr_scans',
+        action: 'create',
+        documentId: scan.scanId,
+        payload: scan.toMap(),
+      );
+    }
   }
 
   @override
   Future<void> updateOCRScan(OCRScanModel scan) async {
-    await _firestore
-        .collection('ocr_scans')
-        .doc(scan.scanId)
-        .update(scan.toMap());
+    // 1. Save to local Hive Cache immediately
     final box = await Hive.openBox(_cacheBoxName);
     await box.put(scan.scanId, scan.toMap());
+
+    // 2. Try Firestore write
+    try {
+      final isOnline = await SyncService().isDeviceOnline();
+      if (!isOnline) {
+        throw Exception('Offline');
+      }
+      await _firestore
+          .collection('ocr_scans')
+          .doc(scan.scanId)
+          .set(scan.toMap());
+    } catch (e) {
+      // 3. Fallback to local Queue
+      await SyncService().enqueue(
+        collection: 'ocr_scans',
+        action: 'update',
+        documentId: scan.scanId,
+        payload: scan.toMap(),
+      );
+    }
   }
 }

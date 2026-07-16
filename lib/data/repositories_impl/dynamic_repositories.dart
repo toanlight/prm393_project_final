@@ -21,6 +21,7 @@ import 'firebase_user_repository.dart';
 import 'firebase_transaction_repository.dart';
 import 'firebase_category_repository.dart';
 import 'firebase_ocr_scan_repository.dart';
+import 'firebase_invoice_repository.dart';
 
 class DynamicAuthRepository implements AuthRepository {
   final MockAuthRepository _mock = MockAuthRepository();
@@ -151,8 +152,11 @@ class DynamicOCRScanRepository implements OCRScanRepository {
 
 class DynamicInvoiceRepository implements InvoiceRepository {
   final MockInvoiceRepository _mock = MockInvoiceRepository();
+  FirebaseInvoiceRepository? _realInstance;
 
-  InvoiceRepository get _active => _mock;
+  FirebaseInvoiceRepository get _real => _realInstance ??= FirebaseInvoiceRepository();
+
+  InvoiceRepository get _active => FirebaseService().isMockMode ? _mock : _real;
 
   @override
   Future<InvoiceModel?> getInvoiceForTransaction(String transactionId) =>
