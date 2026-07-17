@@ -8,7 +8,8 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/responsive_helper.dart';
 import '../../data/services/firebase_service.dart';
 import '../../domain/models/category_model.dart';
-import '../../domain/models/mock_chart_data.dart';
+import '../../domain/models/mock_chart_data.dart' hide kpiCards, monthlyData, spendingData, trendData;
+import '../../domain/models/mock_chart_data.dart' as mock;
 import '../../domain/models/transaction_model.dart';
 import '../../domain/models/transaction_type.dart';
 import '../../domain/repositories/category_repository.dart';
@@ -95,20 +96,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final transactionProvider = context.read<TransactionProvider>();
     _allTransactions = transactionProvider.transactions;
 
-    // Filter transactions based on selected chip
-    final filtered = _getFilteredTransactions(_allTransactions);
+    if (_allTransactions.isEmpty) {
+      // Dữ liệu trống -> Sử dụng mock data tạm thời để thuyết trình
+      kpiCards = mock.kpiCards;
+      monthlyData = mock.monthlyData;
+      spendingData = mock.spendingData;
+      trendData = mock.trendData;
+    } else {
+      // Filter transactions based on selected chip
+      final filtered = _getFilteredTransactions(_allTransactions);
 
-    // Calculate dynamic KPI Metrics
-    kpiCards = _calculateKpis(filtered, _allTransactions);
+      // Calculate dynamic KPI Metrics
+      kpiCards = _calculateKpis(filtered, _allTransactions);
 
-    // Calculate dynamic Monthly comparative data (Last 6 Months)
-    monthlyData = _calculateMonthlyData(_allTransactions);
+      // Calculate dynamic Monthly comparative data (Last 6 Months)
+      monthlyData = _calculateMonthlyData(_allTransactions);
 
-    // Calculate dynamic Expenses category distribution
-    spendingData = _calculatePieData(filtered);
+      // Calculate dynamic Expenses category distribution
+      spendingData = _calculatePieData(filtered);
 
-    // Calculate dynamic Net Balance trend lines
-    trendData = _calculateTrendData(filtered, _allTransactions);
+      // Calculate dynamic Net Balance trend lines
+      trendData = _calculateTrendData(filtered, _allTransactions);
+    }
 
     setState(() {
       _isLoading = false;
