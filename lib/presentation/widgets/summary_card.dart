@@ -7,7 +7,7 @@ import '../../core/utils/currency_formatter.dart';
 class KpiCard extends StatelessWidget {
   final KpiData data;
 
-  const KpiCard({Key? key, required this.data}) : super(key: key);
+  const KpiCard({super.key, required this.data});
 
   @override
   Widget build(BuildContext context) {

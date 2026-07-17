@@ -63,10 +63,7 @@ class AppRouter {
           path: '/login',
           builder: (context, state) => const LoginScreen(),
         ),
-        GoRoute(
-          path: '/dashboard',
-          builder: (context, state) => const DashboardScreen(),
-        ),
+
         StatefulShellRoute.indexedStack(
           builder: (context, state, navigationShell) {
             return AppNavigationShell(
@@ -79,6 +76,10 @@ class AppRouter {
               routes: [
                 GoRoute(
                   path: '/',
+                  builder: (context, state) => const DashboardScreen(),
+                ),
+                GoRoute(
+                  path: '/home-debug',
                   builder: (context, state) => const HomeScreen(),
                 ),
               ],

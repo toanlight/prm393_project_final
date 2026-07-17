@@ -8,7 +8,7 @@ import '../../core/utils/currency_formatter.dart';
 class IncomeExpenseLineChart extends StatelessWidget {
   final List<TrendPoint> data;
 
-  const IncomeExpenseLineChart({Key? key, required this.data}) : super(key: key);
+  const IncomeExpenseLineChart({super.key, required this.data});
 
   @override
   Widget build(BuildContext context) {
@@ -84,8 +84,6 @@ class IncomeExpenseLineChart extends StatelessWidget {
           borderData: FlBorderData(show: false),
           minX: 0,
           maxX: (data.length - 1).toDouble(),
-          minY: 450, 
-          maxY: 650, 
           lineBarsData: [
             LineChartBarData(
               spots: _getSpots(),
