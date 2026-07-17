@@ -8,14 +8,26 @@ class MockAuthRepository implements AuthRepository {
 
   MockAuthRepository() {
     _currentUser = null;
-    _authStateController.add(null);
   }
 
   @override
   UserModel? get currentUser => _currentUser;
 
   @override
-  Stream<UserModel?> get onAuthStateChanged => _authStateController.stream;
+  Stream<UserModel?> get onAuthStateChanged {
+    // Create a controller for the subscriber
+    final controller = StreamController<UserModel?>();
+    // Emit the current state immediately
+    controller.add(_currentUser);
+    // Forward future events from the main controller
+    final subscription = _authStateController.stream.listen(
+      (user) => controller.add(user),
+      onError: (e) => controller.addError(e),
+      onDone: () => controller.close(),
+    );
+    controller.onCancel = () => subscription.cancel();
+    return controller.stream;
+  }
 
   @override
   Future<UserModel> signInAnonymously() async {

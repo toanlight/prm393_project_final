@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:hive/hive.dart';
 import '../../../domain/models/transaction_model.dart';
 import '../../../domain/repositories/transaction_repository.dart';
+import '../services/sync_service.dart';
 
 class FirebaseTransactionRepository implements TransactionRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -92,40 +93,81 @@ class FirebaseTransactionRepository implements TransactionRepository {
 
   @override
   Future<void> createTransaction(TransactionModel transaction) async {
-    // Save to Firestore
-    await _firestore
-        .collection('transactions')
-        .doc(transaction.transactionId)
-        .set(transaction.toMap());
-
-    // Save to local Hive Cache
+    // 1. Save to local Hive Cache immediately
     final box = await Hive.openBox(_cacheBoxName);
     await box.put(transaction.transactionId, transaction.toMap());
+
+    // 2. Try Firestore write
+    try {
+      final isOnline = await SyncService().isDeviceOnline();
+      if (!isOnline) {
+        throw Exception('Offline');
+      }
+      await _firestore
+          .collection('transactions')
+          .doc(transaction.transactionId)
+          .set(transaction.toMap());
+    } catch (e) {
+      // 3. Fallback to local Queue
+      await SyncService().enqueue(
+        collection: 'transactions',
+        action: 'create',
+        documentId: transaction.transactionId,
+        payload: transaction.toMap(),
+      );
+    }
   }
 
   @override
   Future<void> updateTransaction(TransactionModel transaction) async {
-    // Save to Firestore
-    await _firestore
-        .collection('transactions')
-        .doc(transaction.transactionId)
-        .update(transaction.toMap());
-
-    // Save to local Hive Cache
+    // 1. Save to local Hive Cache immediately
     final box = await Hive.openBox(_cacheBoxName);
     await box.put(transaction.transactionId, transaction.toMap());
+
+    // 2. Try Firestore write
+    try {
+      final isOnline = await SyncService().isDeviceOnline();
+      if (!isOnline) {
+        throw Exception('Offline');
+      }
+      await _firestore
+          .collection('transactions')
+          .doc(transaction.transactionId)
+          .set(transaction.toMap());
+    } catch (e) {
+      // 3. Fallback to local Queue
+      await SyncService().enqueue(
+        collection: 'transactions',
+        action: 'update',
+        documentId: transaction.transactionId,
+        payload: transaction.toMap(),
+      );
+    }
   }
 
   @override
   Future<void> deleteTransaction(String transactionId) async {
-    // Delete from Firestore
-    await _firestore
-        .collection('transactions')
-        .doc(transactionId)
-        .delete();
-
-    // Delete from local Hive Cache
+    // 1. Delete from local Hive Cache immediately
     final box = await Hive.openBox(_cacheBoxName);
     await box.delete(transactionId);
+
+    // 2. Try Firestore write
+    try {
+      final isOnline = await SyncService().isDeviceOnline();
+      if (!isOnline) {
+        throw Exception('Offline');
+      }
+      await _firestore
+          .collection('transactions')
+          .doc(transactionId)
+          .delete();
+    } catch (e) {
+      // 3. Fallback to local Queue
+      await SyncService().enqueue(
+        collection: 'transactions',
+        action: 'delete',
+        documentId: transactionId,
+      );
+    }
   }
 }
