@@ -31,33 +31,33 @@ class AppRouter {
 
     return GoRouter(
       navigatorKey: rootNavigatorKey,
-      initialLocation: '/splash',
-      refreshListenable: authProvider,
-      redirect: (context, state) {
-        final auth = authProvider;
-        final isLoggingIn = state.matchedLocation == '/login';
-        final isSplash = state.matchedLocation == '/splash';
-
-        // Wait until AuthProvider finishes its initial load
-        if (auth.isLoading && !isSplash) {
-          return '/splash';
-        }
-
-        // User is not authenticated
-        if (!auth.isAuthenticated) {
-          if (isLoggingIn || isSplash) {
-            return null; // Stay where we are
-          }
-          return '/login'; // Redirect to login
-        }
-
-        // User is authenticated
-        if (isLoggingIn || isSplash) {
-          return '/'; // Go to homepage
-        }
-
-        return null; // Keep going
-      },
+      initialLocation: '/dashboard',
+      // refreshListenable: authProvider,
+      // redirect: (context, state) {
+      //   final auth = authProvider;
+      //   final isLoggingIn = state.matchedLocation == '/login';
+      //   final isSplash = state.matchedLocation == '/splash';
+      //
+      //   // Wait until AuthProvider finishes its initial load
+      //   if (auth.isLoading && !isSplash) {
+      //     return '/splash';
+      //   }
+      //
+      //   // User is not authenticated
+      //   if (!auth.isAuthenticated) {
+      //     if (isLoggingIn || isSplash) {
+      //       return null; // Stay where we are
+      //     }
+      //     return '/login'; // Redirect to login
+      //   }
+      //
+      //   // User is authenticated
+      //   if (isLoggingIn || isSplash) {
+      //     return '/'; // Go to homepage
+      //   }
+      //
+      //   return null; // Keep going
+      // },
       routes: [
         GoRoute(
           path: '/splash',
@@ -67,10 +67,7 @@ class AppRouter {
           path: '/login',
           builder: (context, state) => const LoginScreen(),
         ),
-        GoRoute(
-          path: '/dashboard',
-          builder: (context, state) => const DashboardScreen(),
-        ),
+
         StatefulShellRoute.indexedStack(
           builder: (context, state, navigationShell) {
             return AppNavigationShell(
@@ -81,6 +78,10 @@ class AppRouter {
             StatefulShellBranch(
               navigatorKey: homeBranchKey,
               routes: [
+                GoRoute(
+                  path: '/dashboard',
+                  builder: (context, state) => const DashboardScreen(),
+                ),
                 GoRoute(
                   path: '/',
                   builder: (context, state) => const HomeScreen(),

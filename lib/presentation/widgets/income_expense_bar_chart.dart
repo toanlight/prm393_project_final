@@ -8,7 +8,7 @@ import '../../core/utils/currency_formatter.dart';
 class IncomeExpenseBarChart extends StatelessWidget {
   final List<MonthlyBar> data;
 
-  const IncomeExpenseBarChart({Key? key, required this.data}) : super(key: key);
+  const IncomeExpenseBarChart({super.key, required this.data});
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +17,6 @@ class IncomeExpenseBarChart extends StatelessWidget {
       child: BarChart(
         BarChartData(
           alignment: BarChartAlignment.spaceAround,
-          maxY: 200,
           barTouchData: BarTouchData(
             enabled: true,
             touchTooltipData: BarTouchTooltipData(

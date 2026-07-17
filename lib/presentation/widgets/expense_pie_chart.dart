@@ -5,7 +5,7 @@ import '../../domain/models/mock_chart_data.dart';
 class ExpensePieChart extends StatefulWidget {
   final List<PieSegment> data;
 
-  const ExpensePieChart({Key? key, required this.data}) : super(key: key);
+  const ExpensePieChart({super.key, required this.data});
 
   @override
   State<ExpensePieChart> createState() => _ExpensePieChartState();
