@@ -9,6 +9,7 @@ import '../../domain/models/transaction_type.dart';
 import '../../domain/repositories/invoice_repository.dart';
 import '../../domain/services/mock_ocr_service.dart';
 import '../../domain/services/mock_receipt_image_store.dart';
+import '../providers/auth_provider.dart';
 import '../providers/transaction_provider.dart';
 
 class TransactionFormScreen extends StatefulWidget {
@@ -110,8 +111,9 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     final invoiceId =
     _isFromOcr ? 'invoice_${now.microsecondsSinceEpoch}' : null;
 
-    final userId =
-    _isEditing ? widget.transactionToEdit!.userId : 'user_mock_123';
+    final userId = _isEditing
+        ? widget.transactionToEdit!.userId
+        : (context.read<AuthProvider>().user?.uid ?? 'user_mock_123');
 
     final transaction = TransactionModel(
       transactionId: transactionId,
@@ -169,7 +171,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
         ),
       );
 
-      context.pop();
+      context.pop(true);
     } catch (error) {
       // Tránh giao dịch mồ côi nếu tạo invoice thất bại trong luồng OCR.
       if (transactionCreated && _isFromOcr) {

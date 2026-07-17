@@ -6,6 +6,7 @@ import '../../domain/services/mock_ocr_service.dart';
 import '../../presentation/providers/auth_provider.dart';
 import '../../presentation/screens/home_screen.dart';
 import '../../presentation/screens/invoice_capture_screen.dart';
+import '../../presentation/screens/invoice_list_screen.dart';
 import '../../presentation/screens/login_screen.dart';
 import '../../presentation/screens/profile_screen.dart';
 import '../../presentation/screens/receipt_image_preview_screen.dart';
@@ -24,6 +25,8 @@ class AppRouter {
     GlobalKey<NavigatorState>(debugLabel: 'homeBranch');
     final transactionBranchKey =
     GlobalKey<NavigatorState>(debugLabel: 'transactionBranch');
+    final invoiceBranchKey =
+    GlobalKey<NavigatorState>(debugLabel: 'invoiceBranch');
     final profileBranchKey =
     GlobalKey<NavigatorState>(debugLabel: 'profileBranch');
     final settingsBranchKey =
@@ -128,6 +131,47 @@ class AppRouter {
                         state.extra as TransactionModel?;
                         return TransactionFormScreen(
                           transactionToEdit: transaction,
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            StatefulShellBranch(
+              navigatorKey: invoiceBranchKey,
+              routes: [
+                GoRoute(
+                  path: '/invoices',
+                  builder: (context, state) => const InvoiceListScreen(),
+                  routes: [
+                    GoRoute(
+                      path: 'create',
+                      builder: (context, state) {
+                        final extra = state.extra;
+                        return TransactionFormScreen(
+                          initialOcrData:
+                          extra is OcrInvoiceData ? extra : null,
+                        );
+                      },
+                    ),
+                    GoRoute(
+                      path: 'scan',
+                      builder: (context, state) =>
+                      const InvoiceCaptureScreen(),
+                    ),
+                    GoRoute(
+                      path: 'receipt',
+                      builder: (context, state) {
+                        final transaction =
+                        state.extra as TransactionModel?;
+                        if (transaction == null) {
+                          return const _InvalidRouteScreen(
+                            message: 'Không tìm thấy giao dịch của hóa đơn.',
+                          );
+                        }
+                        return ReceiptImagePreviewScreen(
+                          transaction: transaction,
                         );
                       },
                     ),
