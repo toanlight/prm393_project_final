@@ -34,25 +34,29 @@ class AppRouter {
       initialLocation: '/splash',
       refreshListenable: authProvider,
       redirect: (context, state) {
+        final auth = authProvider;
         final isLoggingIn = state.matchedLocation == '/login';
         final isSplash = state.matchedLocation == '/splash';
 
-        // ── 1. Đang khởi tạo Auth → giữ màn hình Splash ──────────────────
-        if (authProvider.isLoading) {
-          return isSplash ? null : '/splash';
+        // Wait until AuthProvider finishes its initial load
+        if (auth.isLoading && !isSplash) {
+          return '/splash';
         }
 
-        // ── 2. Auth xong, chưa đăng nhập → chuyển về Login ───────────────
-        if (!authProvider.isAuthenticated) {
-          return isLoggingIn ? null : '/login';
+        // User is not authenticated
+        if (!auth.isAuthenticated) {
+          if (isLoggingIn || isSplash) {
+            return null; // Stay where we are
+          }
+          return '/login'; // Redirect to login
         }
 
-        // ── 3. Đã đăng nhập mà vẫn ở Splash / Login → vào trang chủ ──────
-        if (isSplash || isLoggingIn) {
-          return '/';
+        // User is authenticated
+        if (isLoggingIn || isSplash) {
+          return '/'; // Go to homepage
         }
 
-        return null; // Tiếp tục điều hướng bình thường
+        return null; // Keep going
       },
       routes: [
         GoRoute(
@@ -75,11 +79,11 @@ class AppRouter {
               navigatorKey: homeBranchKey,
               routes: [
                 GoRoute(
-                  path: '/',
+                  path: '/dashboard',
                   builder: (context, state) => const DashboardScreen(),
                 ),
                 GoRoute(
-                  path: '/home-debug',
+                  path: '/',
                   builder: (context, state) => const HomeScreen(),
                 ),
               ],
