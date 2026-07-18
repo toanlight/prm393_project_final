@@ -85,4 +85,22 @@ class TransactionProvider with ChangeNotifier {
       rethrow;
     }
   }
+
+  Future<void> updateTransactionStatus(String id, String newStatus, String userId) async {
+    try {
+      final index = _transactions.indexWhere((t) => t.id == id);
+      if (index != -1) {
+        final currentTx = _transactions[index];
+        final updatedTx = currentTx.copyWith(status: newStatus);
+        await _transactionRepository.updateTransaction(updatedTx);
+        _transactions[index] = updatedTx;
+        notifyListeners();
+      }
+    } catch (e) {
+      _status = TransactionStatus.error;
+      _errorMessage = 'Không thể cập nhật trạng thái: ${e.toString()}';
+      notifyListeners();
+      rethrow;
+    }
+  }
 }

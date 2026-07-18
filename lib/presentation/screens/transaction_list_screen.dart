@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/utils/responsive_helper.dart';
+import '../../domain/models/transaction_model.dart';
 import '../../domain/models/transaction_type.dart';
 import '../providers/auth_provider.dart';
 import '../providers/transaction_provider.dart';
@@ -18,6 +19,157 @@ class TransactionListScreen extends StatefulWidget {
 }
 
 class _TransactionListScreenState extends State<TransactionListScreen> {
+  String _selectedType = 'all'; // 'all', 'income', 'expense'
+  String _selectedStatus = 'all'; // 'all', 'pending', 'confirmed', 'rejected'
+  String _searchQuery = '';
+
+  List<TransactionModel> _getFilteredTransactions(List<TransactionModel> txs) {
+    return txs.where((tx) {
+      if (_searchQuery.isNotEmpty) {
+        final query = _searchQuery.toLowerCase();
+        final matchesNote = tx.note.toLowerCase().contains(query);
+        final matchesCategory = tx.category.toLowerCase().contains(query);
+        if (!matchesNote && !matchesCategory) return false;
+      }
+      if (_selectedType != 'all') {
+        if (_selectedType == 'income' && tx.type != TransactionType.income) return false;
+        if (_selectedType == 'expense' && tx.type != TransactionType.expense) return false;
+      }
+      if (_selectedStatus != 'all') {
+        if (tx.status != _selectedStatus) return false;
+      }
+      return true;
+    }).toList();
+  }
+
+  Widget _buildFilterBar(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    // Search input
+    final searchField = TextField(
+      onChanged: (val) {
+        setState(() {
+          _searchQuery = val;
+        });
+      },
+      decoration: InputDecoration(
+        hintText: 'Tìm ghi chú, danh mục...',
+        prefixIcon: const Icon(Icons.search, size: 20),
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
+          borderSide: BorderSide(
+            color: isDark ? AppDesignTokens.darkBorder : AppDesignTokens.lightBorder,
+          ),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
+          borderSide: BorderSide(
+            color: isDark ? AppDesignTokens.darkBorder : AppDesignTokens.lightBorder,
+          ),
+        ),
+      ),
+    );
+
+    // Type filter dropdown
+    final typeDropdown = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
+        border: Border.all(
+          color: isDark ? AppDesignTokens.darkBorder : AppDesignTokens.lightBorder,
+        ),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedType,
+          isDense: true,
+          isExpanded: true,
+          items: const [
+            DropdownMenuItem(value: 'all', child: Text('Tất cả loại')),
+            DropdownMenuItem(value: 'income', child: Text('Thu nhập')),
+            DropdownMenuItem(value: 'expense', child: Text('Chi tiêu')),
+          ],
+          onChanged: (val) {
+            if (val != null) {
+              setState(() {
+                _selectedType = val;
+              });
+            }
+          },
+        ),
+      ),
+    );
+
+    // Status filter dropdown
+    final statusDropdown = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
+        border: Border.all(
+          color: isDark ? AppDesignTokens.darkBorder : AppDesignTokens.lightBorder,
+        ),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedStatus,
+          isDense: true,
+          isExpanded: true,
+          items: const [
+            DropdownMenuItem(value: 'all', child: Text('Tất cả trạng thái')),
+            DropdownMenuItem(value: 'pending', child: Text('Chờ duyệt')),
+            DropdownMenuItem(value: 'confirmed', child: Text('Đã duyệt')),
+            DropdownMenuItem(value: 'rejected', child: Text('Từ chối')),
+          ],
+          onChanged: (val) {
+            if (val != null) {
+              setState(() {
+                _selectedStatus = val;
+              });
+            }
+          },
+        ),
+      ),
+    );
+
+    // Responsive filter layout
+    return AppResponsiveLayout(
+      mobile: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          searchField,
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(child: typeDropdown),
+              const SizedBox(width: 8),
+              Expanded(child: statusDropdown),
+            ],
+          ),
+        ],
+      ),
+      tablet: Row(
+        children: [
+          Expanded(flex: 2, child: searchField),
+          const SizedBox(width: 12),
+          Expanded(child: typeDropdown),
+          const SizedBox(width: 12),
+          Expanded(child: statusDropdown),
+        ],
+      ),
+      desktop: Row(
+        children: [
+          Expanded(flex: 3, child: searchField),
+          const SizedBox(width: 16),
+          SizedBox(width: 160, child: typeDropdown),
+          const SizedBox(width: 16),
+          SizedBox(width: 180, child: statusDropdown),
+        ],
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -240,6 +392,19 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                 ),
               ),
 
+              // Bộ lọc giao dịch
+              Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: context.responsiveValue(
+                    mobile: AppDesignTokens.spaceMd,
+                    tablet: AppDesignTokens.spaceLg,
+                    desktop: AppDesignTokens.spaceXl,
+                  ),
+                ),
+                child: _buildFilterBar(context),
+              ),
+              const SizedBox(height: AppDesignTokens.spaceMd),
+
               // Danh sách / Bảng giao dịch
               Expanded(
                 child: Padding(
@@ -250,19 +415,43 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                       desktop: AppDesignTokens.spaceXl,
                     ),
                   ),
-                  child: AppResponsiveLayout(
-                    mobile: TransactionListMobile(
-                      transactions: provider.transactions,
-                      onDelete: (id) => provider.deleteTransaction(id, userId),
-                    ),
-                    tablet: TransactionListDesktop(
-                      transactions: provider.transactions,
-                      onDelete: (id) => provider.deleteTransaction(id, userId),
-                    ),
-                    desktop: TransactionListDesktop(
-                      transactions: provider.transactions,
-                      onDelete: (id) => provider.deleteTransaction(id, userId),
-                    ),
+                  child: Builder(
+                    builder: (context) {
+                      final filteredTxs = _getFilteredTransactions(provider.transactions);
+                      if (filteredTxs.isEmpty) {
+                        return const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(AppDesignTokens.spaceLg),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.filter_list_off, size: 48, color: Colors.grey),
+                                SizedBox(height: 8),
+                                Text(
+                                  'Không tìm thấy giao dịch phù hợp với bộ lọc.',
+                                  style: TextStyle(color: Colors.grey),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+
+                      return AppResponsiveLayout(
+                        mobile: TransactionListMobile(
+                          transactions: filteredTxs,
+                          onDelete: (id) => provider.deleteTransaction(id, userId),
+                        ),
+                        tablet: TransactionListDesktop(
+                          transactions: filteredTxs,
+                          onDelete: (id) => provider.deleteTransaction(id, userId),
+                        ),
+                        desktop: TransactionListDesktop(
+                          transactions: filteredTxs,
+                          onDelete: (id) => provider.deleteTransaction(id, userId),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ),
