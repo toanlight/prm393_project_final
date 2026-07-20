@@ -566,9 +566,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.start,
+            spacing: AppTheme.sp12,
+            runSpacing: AppTheme.sp8,
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -579,6 +581,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   _buildLegendDot(context, AppColors.success, 'Thu'),
                   const SizedBox(width: AppTheme.sp16),
@@ -677,9 +680,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.start,
+            spacing: AppTheme.sp12,
+            runSpacing: AppTheme.sp8,
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
