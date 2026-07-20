@@ -166,7 +166,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(width: AppDesignTokens.spaceSm),
                       Text(
-                        'VIPER',
+                        'SMART FINANCE',
                         style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                           fontWeight: FontWeight.w900,
                           letterSpacing: 1,

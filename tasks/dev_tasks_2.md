@@ -1,4 +1,4 @@
-# 📋 Viper Platform — Phân Chia Công Việc Chi Tiết Cho Dev 2, Dev 3, Dev 4, Dev 5 (Sprint 2 / Refactor)
+# 📋 Smart Finance Platform — Phân Chia Công Việc Chi Tiết Cho Dev 2, Dev 3, Dev 4, Dev 5 (Sprint 2 / Refactor)
 
 > **Dự án:** `project_final` (Flutter + Firebase)  
 > **Mục tiêu:** Tối ưu hóa hiệu năng, refactor kiến trúc và sửa lỗi tiềm ẩn từ Senior Code Review.  

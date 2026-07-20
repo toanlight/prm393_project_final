@@ -26,7 +26,7 @@ class MockUserRepository implements UserRepository {
   Future<Map<String, dynamic>> getAppConfiguration() async {
     await Future.delayed(const Duration(milliseconds: 600));
     return {
-      'appName': 'Viper Platform App',
+      'appName': 'Smart Finance App',
       'appVersion': '1.0.0-mock',
       'features': {
         'enablePremiumThemes': true,

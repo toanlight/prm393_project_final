@@ -253,7 +253,7 @@ class SeedDataService {
   static Future<Map<String, String>> _seedUsers(void Function(String) log) async {
     final usersToCreate = [
       {
-        'email': 'admin@viper.com',
+        'email': 'admin@smartfinance.com',
         'password': 'Admin@123',
         'displayName': 'Admin Hệ thống',
         'fullName': 'Nguyễn Văn Admin',
@@ -263,7 +263,7 @@ class SeedDataService {
         'photoUrl': 'https://api.dicebear.com/7.x/adventurer/png?seed=admin',
       },
       {
-        'email': 'chief@viper.com',
+        'email': 'chief@smartfinance.com',
         'password': 'Chief@123',
         'displayName': 'Kế toán trưởng',
         'fullName': 'Trần Thị Hương',
@@ -273,7 +273,7 @@ class SeedDataService {
         'photoUrl': 'https://api.dicebear.com/7.x/adventurer/png?seed=chief',
       },
       {
-        'email': 'accountant@viper.com',
+        'email': 'accountant@smartfinance.com',
         'password': 'Accountant@123',
         'displayName': 'Kế toán viên',
         'fullName': 'Lê Văn Kế',
@@ -283,7 +283,7 @@ class SeedDataService {
         'photoUrl': 'https://api.dicebear.com/7.x/adventurer/png?seed=accountant',
       },
       {
-        'email': 'sales@viper.com',
+        'email': 'sales@smartfinance.com',
         'password': 'Sales@123',
         'displayName': 'Nhân viên Bán hàng',
         'fullName': 'Phạm Thị Sales',
@@ -293,7 +293,7 @@ class SeedDataService {
         'photoUrl': 'https://api.dicebear.com/7.x/adventurer/png?seed=sales',
       },
       {
-        'email': 'manager@viper.com',
+        'email': 'manager@smartfinance.com',
         'password': 'Manager@123',
         'displayName': 'Quản lý',
         'fullName': 'Hoàng Văn Manager',
@@ -375,11 +375,11 @@ class SeedDataService {
   // TRANSACTIONS (15 records)
   // ─────────────────────────────────────────────────────────────
   static Future<void> _seedTransactions(Map<String, String> uidMap) async {
-    final adminUid = uidMap['admin@viper.com'] ?? 'uid_admin';
-    final chiefUid = uidMap['chief@viper.com'] ?? 'uid_chiefAccountant';
-    final acctUid = uidMap['accountant@viper.com'] ?? 'uid_accountant';
-    final salesUid = uidMap['sales@viper.com'] ?? 'uid_salesperson';
-    final managerUid = uidMap['manager@viper.com'] ?? 'uid_manager';
+    final adminUid = uidMap['admin@smartfinance.com'] ?? 'uid_admin';
+    final chiefUid = uidMap['chief@smartfinance.com'] ?? 'uid_chiefAccountant';
+    final acctUid = uidMap['accountant@smartfinance.com'] ?? 'uid_accountant';
+    final salesUid = uidMap['sales@smartfinance.com'] ?? 'uid_salesperson';
+    final managerUid = uidMap['manager@smartfinance.com'] ?? 'uid_manager';
 
     final now = DateTime.now();
     final txData = [
@@ -609,10 +609,10 @@ class SeedDataService {
   // OCR SCANS (12 records)
   // ─────────────────────────────────────────────────────────────
   static Future<void> _seedOCRScans(Map<String, String> uidMap) async {
-    final acctUid = uidMap['accountant@viper.com'] ?? 'uid_accountant';
-    final salesUid = uidMap['sales@viper.com'] ?? 'uid_salesperson';
-    final adminUid = uidMap['admin@viper.com'] ?? 'uid_admin';
-    final managerUid = uidMap['manager@viper.com'] ?? 'uid_manager';
+    final acctUid = uidMap['accountant@smartfinance.com'] ?? 'uid_accountant';
+    final salesUid = uidMap['sales@smartfinance.com'] ?? 'uid_salesperson';
+    final adminUid = uidMap['admin@smartfinance.com'] ?? 'uid_admin';
+    final managerUid = uidMap['manager@smartfinance.com'] ?? 'uid_manager';
     final now = DateTime.now();
 
     final scans = [
@@ -760,10 +760,10 @@ class SeedDataService {
   // INVOICES (12 records)
   // ─────────────────────────────────────────────────────────────
   static Future<void> _seedInvoices(Map<String, String> uidMap) async {
-    final acctUid = uidMap['accountant@viper.com'] ?? 'uid_accountant';
-    final salesUid = uidMap['sales@viper.com'] ?? 'uid_salesperson';
-    final adminUid = uidMap['admin@viper.com'] ?? 'uid_admin';
-    final managerUid = uidMap['manager@viper.com'] ?? 'uid_manager';
+    final acctUid = uidMap['accountant@smartfinance.com'] ?? 'uid_accountant';
+    final salesUid = uidMap['sales@smartfinance.com'] ?? 'uid_salesperson';
+    final adminUid = uidMap['admin@smartfinance.com'] ?? 'uid_admin';
+    final managerUid = uidMap['manager@smartfinance.com'] ?? 'uid_manager';
     final now = DateTime.now();
 
     final invoices = [
@@ -964,14 +964,14 @@ class SeedDataService {
   // ─────────────────────────────────────────────────────────────
   static Future<void> _seedAppConfig() async {
     await _firestore.collection('app_config').doc('settings').set({
-      'appName': 'Viper Platform',
+      'appName': 'Smart Finance Platform',
       'appVersion': '1.0.0',
       'features': {
         'enablePremiumThemes': true,
         'maintenanceMode': false,
         'maxUploadSizeMB': 50,
       },
-      'systemMessage': 'Chào mừng bạn đến với Viper Platform!',
+      'systemMessage': 'Chào mừng bạn đến với Smart Finance Platform!',
       'lastUpdated': DateTime.now().toIso8601String(),
     }, SetOptions(merge: true));
   }

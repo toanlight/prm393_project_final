@@ -91,7 +91,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                 const SizedBox(height: AppDesignTokens.spaceLg),
                 // Glowing text
                 Text(
-                  'VIPER PLATFORM',
+                  'SMART FINANCE',
                   style: Theme.of(context).textTheme.displayMedium?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,

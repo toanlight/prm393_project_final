@@ -35,7 +35,7 @@ class FirebaseUserRepository implements UserRepository {
       
       // Fallback configuration if document doesn't exist yet in Firestore
       return {
-        'appName': 'Viper Platform App (Firebase)',
+        'appName': 'Smart Finance App (Firebase)',
         'appVersion': '1.0.0-production',
         'features': {
           'enablePremiumThemes': true,
@@ -48,7 +48,7 @@ class FirebaseUserRepository implements UserRepository {
     } catch (e) {
       // Return default configuration if something fails (e.g. permission denied)
       return {
-        'appName': 'Viper Platform App (Firebase)',
+        'appName': 'Smart Finance App (Firebase)',
         'appVersion': '1.0.0-fallback',
         'features': {
           'enablePremiumThemes': false,
