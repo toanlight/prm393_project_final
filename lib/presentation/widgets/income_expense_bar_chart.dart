@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../domain/models/mock_chart_data.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/theme/design_tokens.dart';
 import '../../core/utils/currency_formatter.dart';
 
 class IncomeExpenseBarChart extends StatelessWidget {
@@ -12,6 +13,13 @@ class IncomeExpenseBarChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final gridLineColor = isDark ? AppDesignTokens.darkBorder : AppColors.border;
+    final tooltipBgColor = isDark ? AppDesignTokens.darkSurfaceCard : AppColors.card;
+    final labelStyle = AppTextStyles.label.copyWith(
+      color: isDark ? AppDesignTokens.darkTextSecondary : AppColors.mutedFg,
+    );
+
     return AspectRatio(
       aspectRatio: 2.0,
       child: BarChart(
@@ -20,7 +28,7 @@ class IncomeExpenseBarChart extends StatelessWidget {
           barTouchData: BarTouchData(
             enabled: true,
             touchTooltipData: BarTouchTooltipData(
-              getTooltipColor: (group) => AppColors.card,
+              getTooltipColor: (group) => tooltipBgColor,
               getTooltipItem: (group, groupIndex, rod, rodIndex) {
                 final isIncome = rodIndex == 0;
                 final value = rod.toY;
@@ -40,7 +48,7 @@ class IncomeExpenseBarChart extends StatelessWidget {
             horizontalInterval: 50,
             getDrawingHorizontalLine: (value) {
               return FlLine(
-                color: AppColors.border,
+                color: gridLineColor,
                 strokeWidth: 1,
               );
             },
@@ -56,7 +64,7 @@ class IncomeExpenseBarChart extends StatelessWidget {
                       padding: const EdgeInsets.only(top: 8.0),
                       child: Text(
                         data[value.toInt()].month, 
-                        style: AppTextStyles.label,
+                        style: labelStyle,
                       ),
                     );
                   }
@@ -72,7 +80,7 @@ class IncomeExpenseBarChart extends StatelessWidget {
                 getTitlesWidget: (value, meta) {
                   return Text(
                     CurrencyFormatter.short(value),
-                    style: AppTextStyles.label,
+                    style: labelStyle,
                   );
                 },
               ),
