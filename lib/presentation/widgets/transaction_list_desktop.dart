@@ -43,6 +43,7 @@ class TransactionListDesktop extends StatelessWidget {
       return DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: tx.status,
+          isExpanded: true,
           items: const [
             DropdownMenuItem(
               value: 'pending',
