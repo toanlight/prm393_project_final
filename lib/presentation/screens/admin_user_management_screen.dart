@@ -17,6 +17,8 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
   final TextEditingController _searchController = TextEditingController();
   String? _selectedRoleFilter;
   String _searchQuery = '';
+  int _currentPage = 1;
+  static const int _pageSize = 6;
 
   @override
   void initState() {
@@ -27,6 +29,7 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
     _searchController.addListener(() {
       setState(() {
         _searchQuery = _searchController.text.trim();
+        _currentPage = 1;
       });
     });
   }
@@ -98,6 +101,19 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
       return matchesSearch && matchesRole;
     }).toList();
 
+    // Pagination calculations
+    int totalPages = (filteredUsers.length / _pageSize).ceil();
+    if (totalPages == 0) totalPages = 1;
+    if (_currentPage > totalPages) {
+      _currentPage = totalPages;
+    }
+    final int startIndex = (_currentPage - 1) * _pageSize;
+    final int endIndex = startIndex + _pageSize;
+    final paginatedUsers = filteredUsers.sublist(
+      startIndex,
+      endIndex > filteredUsers.length ? filteredUsers.length : endIndex,
+    );
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Quản lý người dùng'),
@@ -166,7 +182,10 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
                             ChoiceChip(
                               label: const Text('Tất cả'),
                               selected: _selectedRoleFilter == null,
-                              onSelected: (_) => setState(() => _selectedRoleFilter = null),
+                              onSelected: (_) => setState(() {
+                                _selectedRoleFilter = null;
+                                _currentPage = 1;
+                              }),
                             ),
                             ..._roleMetas.entries.map((entry) {
                               final meta = entry.value;
@@ -176,6 +195,7 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
                                 onSelected: (selected) {
                                   setState(() {
                                     _selectedRoleFilter = selected ? entry.key : null;
+                                    _currentPage = 1;
                                   });
                                 },
                               );
@@ -284,9 +304,9 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
                                         mainAxisSpacing: AppDesignTokens.spaceSm,
                                         mainAxisExtent: 116,
                                       ),
-                                      itemCount: filteredUsers.length,
+                                      itemCount: paginatedUsers.length,
                                       itemBuilder: (context, index) {
-                                        final user = filteredUsers[index];
+                                        final user = paginatedUsers[index];
                                         final isSelf = user.uid == currentAdmin?.uid;
                                         final roleMeta = _getRoleMeta(user.roleId);
                                         return _buildUserCard(user, isSelf, roleMeta, isDark);
@@ -294,9 +314,9 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
                                     );
                                   } else {
                                     return ListView.builder(
-                                      itemCount: filteredUsers.length,
+                                      itemCount: paginatedUsers.length,
                                       itemBuilder: (context, index) {
-                                        final user = filteredUsers[index];
+                                        final user = paginatedUsers[index];
                                         final isSelf = user.uid == currentAdmin?.uid;
                                         final roleMeta = _getRoleMeta(user.roleId);
                                         return Padding(
@@ -309,6 +329,8 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
                                 },
                               ),
               ),
+              if (!provider.isLoading && provider.errorMessage == null && filteredUsers.isNotEmpty)
+                _buildPaginationControls(totalPages, filteredUsers.length, isDark),
             ],
           ),
         ),
@@ -767,6 +789,137 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
           },
         );
       },
+    );
+  }
+
+  Widget _buildPaginationControls(int totalPages, int totalItems, bool isDark) {
+    if (totalPages <= 1) return const SizedBox.shrink();
+
+    final startIndex = (_currentPage - 1) * _pageSize + 1;
+    final endIndex = _currentPage * _pageSize > totalItems ? totalItems : _currentPage * _pageSize;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: AppDesignTokens.spaceLg),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isSmall = constraints.maxWidth < 450;
+          
+          final infoText = Text(
+            'Hiển thị $startIndex-$endIndex trong số $totalItems người dùng',
+            style: TextStyle(
+              fontSize: 13,
+              color: isDark ? AppDesignTokens.darkTextSecondary : AppDesignTokens.lightTextSecondary,
+            ),
+          );
+
+          final buttons = Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildPageButton(
+                icon: Icons.chevron_left_rounded,
+                onPressed: _currentPage > 1 ? () => setState(() => _currentPage--) : null,
+                isDark: isDark,
+              ),
+              const SizedBox(width: AppDesignTokens.spaceXs),
+              ...List.generate(totalPages, (index) {
+                final page = index + 1;
+                final isSelected = page == _currentPage;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: _buildPageButton(
+                    text: '$page',
+                    isSelected: isSelected,
+                    onPressed: () => setState(() => _currentPage = page),
+                    isDark: isDark,
+                  ),
+                );
+              }),
+              const SizedBox(width: AppDesignTokens.spaceXs),
+              _buildPageButton(
+                icon: Icons.chevron_right_rounded,
+                onPressed: _currentPage < totalPages ? () => setState(() => _currentPage++) : null,
+                isDark: isDark,
+              ),
+            ],
+          );
+
+          if (isSmall) {
+            return Column(
+              children: [
+                infoText,
+                const SizedBox(height: AppDesignTokens.spaceSm),
+                buttons,
+              ],
+            );
+          } else {
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                infoText,
+                buttons,
+              ],
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _buildPageButton({
+    String? text,
+    IconData? icon,
+    bool isSelected = false,
+    VoidCallback? onPressed,
+    required bool isDark,
+  }) {
+    final bool isEnabled = onPressed != null;
+
+    Color getBgColor() {
+      if (isSelected) return AppDesignTokens.primary;
+      return Colors.transparent;
+    }
+
+    Color getTextColor() {
+      if (isSelected) return Colors.white;
+      if (!isEnabled) return isDark ? Colors.grey[700]! : Colors.grey[400]!;
+      return isDark ? Colors.white : Colors.black87;
+    }
+
+    return SizedBox(
+      width: 36,
+      height: 36,
+      child: Material(
+        color: getBgColor(),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
+          side: BorderSide(
+            color: isSelected
+                ? AppDesignTokens.primary
+                : (isDark ? AppDesignTokens.darkBorder : AppDesignTokens.lightBorder),
+            width: 1,
+          ),
+        ),
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
+          child: Center(
+            child: text != null
+                ? Text(
+                    text,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: getTextColor(),
+                    ),
+                  )
+                : Icon(
+                    icon,
+                    size: 18,
+                    color: getTextColor(),
+                  ),
+          ),
+        ),
+      ),
     );
   }
 }
