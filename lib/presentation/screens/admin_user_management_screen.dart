@@ -110,7 +110,7 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
       ),
       body: Center(
         child: Container(
-          constraints: const BoxConstraints(maxWidth: 800),
+          constraints: const BoxConstraints(maxWidth: 1200),
           padding: EdgeInsets.symmetric(
             horizontal: context.responsiveValue(
               mobile: AppDesignTokens.spaceMd,
@@ -274,7 +274,7 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
                             : LayoutBuilder(
                                 builder: (context, listConstraints) {
                                   final double width = listConstraints.maxWidth;
-                                  final int crossAxisCount = width > 600 ? 2 : 1;
+                                  final int crossAxisCount = width > 950 ? 3 : (width > 600 ? 2 : 1);
 
                                   if (crossAxisCount > 1) {
                                     return GridView.builder(
