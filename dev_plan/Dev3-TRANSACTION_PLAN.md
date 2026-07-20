@@ -55,6 +55,7 @@ Sau khi tiến hành merge code từ nhánh `main` và tích hợp với công v
 - Hệ thống tự động tính toán `Tổng tiền = Tiền hàng + VAT` và khóa trường số tiền chính (chuyển sang read-only) để tránh sai lệch số liệu.
 - Lưu trữ liên kết chéo: Khi Submit, hệ thống tự động tạo bản ghi `InvoiceModel` tương thích với PDF Viewer của Dev-4, lưu trữ bytes ảnh hóa đơn vào RAM (Mock Storage) và liên kết chéo qua `invoiceId` và `scanId`.
 - **Xem hóa đơn không kèm ảnh:** Nếu giao dịch Thu được tạo thủ công không kèm ảnh, nút xem hóa đơn vẫn xuất hiện trên cả Mobile/Desktop và mở được PDF preview bình thường (chỉ hiện thông báo không có ảnh chứng từ thân thiện thay vì crash).
+- **Đồng bộ hóa dữ liệu giả lập (Conflict Resolution):** Gỡ bỏ conflict trong `mock_invoice_repository.dart`, thống nhất sử dụng `transactionId: 't3'` cho hóa đơn mock ban đầu để liên kết chính xác với giao dịch `t3` trong `mock_transaction_repository.dart` từ nhánh `main`.
 
 ### B. Cơ chế Phân quyền Phê duyệt (Chief Accountant Role)
 - **Loại bỏ tính năng Sửa/Xóa:** Xóa bỏ hoàn toàn cột hành động và nút Sửa/Xóa trên Desktop; gỡ bỏ widget vuốt để xóa (`Dismissible`) và tắt điều hướng chỉnh sửa khi chạm trên Mobile đối với mọi người dùng (theo yêu cầu loại bỏ chức năng sửa/xóa cũ).
