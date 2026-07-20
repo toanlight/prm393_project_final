@@ -9,7 +9,8 @@ class AuthProvider extends ChangeNotifier {
   final UserRepository _userRepository;
 
   UserModel? _user;
-  bool _isLoading = true;
+  bool _isInitializing = true;
+  bool _isActionLoading = false;
   String? _errorMessage;
   StreamSubscription<UserModel?>? _authSubscription;
   Map<String, dynamic> _appConfig = {};
@@ -24,18 +25,15 @@ class AuthProvider extends ChangeNotifier {
 
   UserModel? get user => _user;
   bool get isAuthenticated => _user != null;
-  bool get isLoading => _isLoading;
+  bool get isInitializing => _isInitializing;
+  bool get isActionLoading => _isActionLoading;
+  bool get isLoading => _isInitializing || _isActionLoading;
   String? get errorMessage => _errorMessage;
   Map<String, dynamic> get appConfig => _appConfig;
 
   void _init() {
     _authSubscription = _authRepository.onAuthStateChanged.listen(
       (UserModel? user) async {
-        // Hold splash screen for a brief moment for smooth UI experience
-        if (_isLoading) {
-          await Future.delayed(const Duration(milliseconds: 1000));
-        }
-
         _user = user;
         _errorMessage = null;
         if (user != null) {
@@ -56,12 +54,14 @@ class AuthProvider extends ChangeNotifier {
         } else {
           _appConfig = {};
         }
-        _isLoading = false;
+        _isInitializing = false;
+        _isActionLoading = false;
         notifyListeners();
       },
       onError: (error) {
         _errorMessage = error.toString();
-        _isLoading = false;
+        _isInitializing = false;
+        _isActionLoading = false;
         notifyListeners();
       },
     );
@@ -82,54 +82,54 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> signInAnonymously() async {
-    _setLoading(true);
+    _setActionLoading(true);
     _clearError();
     try {
       await _authRepository.signInAnonymously();
     } catch (e) {
       _setError(e.toString());
     } finally {
-      _setLoading(false);
+      _setActionLoading(false);
     }
   }
 
   Future<void> signInWithEmailAndPassword(String email, String password) async {
-    _setLoading(true);
+    _setActionLoading(true);
     _clearError();
     try {
       await _authRepository.signInWithEmailAndPassword(email, password);
     } catch (e) {
       _setError(e.toString());
     } finally {
-      _setLoading(false);
+      _setActionLoading(false);
     }
   }
 
   Future<void> signUpWithEmailAndPassword(String email, String password, String displayName) async {
-    _setLoading(true);
+    _setActionLoading(true);
     _clearError();
     try {
       await _authRepository.signUpWithEmailAndPassword(email, password, displayName);
     } catch (e) {
       _setError(e.toString());
     } finally {
-      _setLoading(false);
+      _setActionLoading(false);
     }
   }
 
   Future<void> signOut() async {
-    _setLoading(true);
+    _setActionLoading(true);
     try {
       await _authRepository.signOut();
     } catch (e) {
       _setError(e.toString());
     } finally {
-      _setLoading(false);
+      _setActionLoading(false);
     }
   }
 
-  void _setLoading(bool value) {
-    _isLoading = value;
+  void _setActionLoading(bool value) {
+    _isActionLoading = value;
     notifyListeners();
   }
 
