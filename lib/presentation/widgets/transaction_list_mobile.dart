@@ -294,19 +294,23 @@ class TransactionListMobile extends StatelessWidget {
                               ),
                               if (tx.note.isNotEmpty) ...[
                                 const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: isDark ? Colors.white10 : Colors.black12,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    tx.category,
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: isDark
-                                          ? AppDesignTokens.darkTextSecondary
-                                          : AppDesignTokens.lightTextSecondary,
+                                Flexible(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: isDark ? Colors.white10 : Colors.black12,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      tx.category,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: isDark
+                                            ? AppDesignTokens.darkTextSecondary
+                                            : AppDesignTokens.lightTextSecondary,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -374,12 +378,15 @@ class TransactionListMobile extends StatelessWidget {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Text(
-                          '${isIncome ? '+' : '-'}${_formatVnd(tx.amountVnd)}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                            color: isIncome ? AppDesignTokens.success : AppDesignTokens.error,
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            '${isIncome ? '+' : '-'}${_formatVnd(tx.amountVnd)}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: isIncome ? AppDesignTokens.success : AppDesignTokens.error,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 4),

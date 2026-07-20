@@ -265,16 +265,19 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                 ],
               ),
               const SizedBox(height: 10),
-              Row(
-                children: [
-                  buildFilterChip('Tất cả', 'all'),
-                  const SizedBox(width: 6),
-                  buildFilterChip('Thu', 'income'),
-                  const SizedBox(width: 6),
-                  buildFilterChip('Chi', 'expense'),
-                  const Spacer(),
-                  filterStatusButton,
-                ],
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    buildFilterChip('Tất cả', 'all'),
+                    const SizedBox(width: 6),
+                    buildFilterChip('Thu', 'income'),
+                    const SizedBox(width: 6),
+                    buildFilterChip('Chi', 'expense'),
+                    const SizedBox(width: 12),
+                    filterStatusButton,
+                  ],
+                ),
               ),
             ],
           );
