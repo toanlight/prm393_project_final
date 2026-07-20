@@ -15,16 +15,12 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _nameController = TextEditingController();
-  
-  bool _isSignUp = false;
   bool _obscurePassword = true;
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
-    _nameController.dispose();
     super.dispose();
   }
 
@@ -34,28 +30,9 @@ class _LoginScreenState extends State<LoginScreen> {
     final authProvider = context.read<AuthProvider>();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
-    final name = _nameController.text.trim();
 
-    if (_isSignUp) {
-      await authProvider.signUpWithEmailAndPassword(email, password, name);
-    } else {
-      await authProvider.signInWithEmailAndPassword(email, password);
-    }
+    await authProvider.signInWithEmailAndPassword(email, password);
 
-    if (mounted && authProvider.errorMessage != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(authProvider.errorMessage!),
-          backgroundColor: AppDesignTokens.error,
-        ),
-      );
-      authProvider.clearError();
-    }
-  }
-
-  Future<void> _loginAnonymously() async {
-    final authProvider = context.read<AuthProvider>();
-    await authProvider.signInAnonymously();
     if (mounted && authProvider.errorMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -91,14 +68,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
                 ),
                 child: const Icon(
-                  Icons.layers_rounded,
+                  Icons.account_balance_wallet_rounded,
                   size: 40,
                   color: Colors.white,
                 ),
               ),
               const SizedBox(height: AppDesignTokens.spaceLg),
               const Text(
-                'Nền tảng khởi tạo tối ưu cho Flutter',
+                'Giải pháp Quản lý Tài chính Thông minh',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 36,
@@ -108,7 +85,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: AppDesignTokens.spaceMd),
               Text(
-                'Kiến trúc phân lớp chuẩn mực Clean Architecture, tích hợp Firebase linh hoạt và phản hồi nhanh chóng trên mọi thiết bị.',
+                'Theo dõi thu chi, quản lý hóa đơn chứng từ và tự động hóa báo cáo tài chính cho doanh nghiệp.',
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.8),
                   fontSize: 18,
@@ -159,9 +136,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
                         ),
                         child: const Icon(
-                          Icons.bolt_rounded,
+                          Icons.account_balance_wallet_rounded,
                           color: Colors.white,
-                          size: 24,
+                          size: 26,
                         ),
                       ),
                       const SizedBox(width: AppDesignTokens.spaceSm),
@@ -177,7 +154,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: AppDesignTokens.spaceLg),
                   
                   Text(
-                    _isSignUp ? 'Đăng ký tài khoản' : 'Chào mừng trở lại!',
+                    'Đăng nhập Hệ thống',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
@@ -185,32 +162,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: AppDesignTokens.spaceXs),
                   Text(
-                    _isSignUp
-                        ? 'Tạo tài khoản để trải nghiệm dịch vụ'
-                        : 'Vui lòng đăng nhập để tiếp tục sử dụng',
+                    'Vui lòng nhập tài khoản do Quản trị viên (Admin) cấp',
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+                    ),
                   ),
                   const SizedBox(height: AppDesignTokens.spaceLg),
-
-                  if (_isSignUp) ...[
-                    TextFormField(
-                      controller: _nameController,
-                      keyboardType: TextInputType.name,
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(
-                        labelText: 'Họ và tên',
-                        prefixIcon: Icon(Icons.person_outline),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Vui lòng nhập tên hiển thị';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: AppDesignTokens.spaceMd),
-                  ],
 
                   TextFormField(
                     controller: _emailController,
@@ -280,74 +238,33 @@ class _LoginScreenState extends State<LoginScreen> {
                               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
                           )
-                        : Text(_isSignUp ? 'Đăng ký' : 'Đăng nhập'),
-                  ),
-                  const SizedBox(height: AppDesignTokens.spaceMd),
-
-                  // Divider
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Divider(
-                          color: Theme.of(context).dividerColor.withOpacity(0.1),
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: AppDesignTokens.spaceSm),
-                        child: Text(
-                          'Hoặc',
-                          style: TextStyle(
-                            color: Theme.of(context).hintColor.withOpacity(0.6),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: Divider(
-                          color: Theme.of(context).dividerColor.withOpacity(0.1),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppDesignTokens.spaceMd),
-
-                  // Demo Login (Anonymous)
-                  OutlinedButton.icon(
-                    onPressed: authProvider.isLoading ? null : _loginAnonymously,
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
-                      ),
-                      side: BorderSide(
-                        color: AppDesignTokens.primary.withOpacity(0.4),
-                      ),
-                    ),
-                    icon: const Icon(Icons.person_pin_outlined),
-                    label: const Text('Đăng nhập Ẩn danh (Demo)'),
+                        : const Text('Đăng nhập'),
                   ),
                   const SizedBox(height: AppDesignTokens.spaceLg),
 
-                  // Toggle Login / Sign Up
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        _isSignUp ? 'Đã có tài khoản?' : 'Chưa có tài khoản?',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          setState(() {
-                            _isSignUp = !_isSignUp;
-                          });
-                        },
-                        child: Text(
-                          _isSignUp ? 'Đăng nhập' : 'Đăng ký ngay',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                  // Admin Notice Footer
+                  Container(
+                    padding: const EdgeInsets.all(AppDesignTokens.spaceSm),
+                    decoration: BoxDecoration(
+                      color: isDark 
+                          ? Colors.white.withOpacity(0.05) 
+                          : AppDesignTokens.primary.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.info_outline, size: 16, color: AppDesignTokens.primary),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Chưa có tài khoản? Vui lòng liên hệ Admin hệ thống để tạo mới.',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                            textAlign: TextAlign.center,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ],
               ),

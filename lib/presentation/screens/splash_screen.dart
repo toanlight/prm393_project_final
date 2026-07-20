@@ -83,7 +83,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                     ],
                   ),
                   child: const Icon(
-                    Icons.bolt_rounded,
+                    Icons.account_balance_wallet_rounded,
                     size: 60,
                     color: Colors.white,
                   ),
