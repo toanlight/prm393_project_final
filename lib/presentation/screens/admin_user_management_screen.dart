@@ -294,7 +294,7 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
                             : LayoutBuilder(
                                 builder: (context, listConstraints) {
                                   final double width = listConstraints.maxWidth;
-                                  final int crossAxisCount = width > 950 ? 3 : (width > 600 ? 2 : 1);
+                                  final int crossAxisCount = width > 1050 ? 3 : (width > 680 ? 2 : 1);
 
                                   if (crossAxisCount > 1) {
                                     return GridView.builder(
@@ -354,163 +354,185 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
           color: isDark ? AppDesignTokens.darkBorder : AppDesignTokens.lightBorder,
         ),
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: AppDesignTokens.spaceMd,
-          vertical: AppDesignTokens.spaceXs,
-        ),
-        leading: Hero(
-          tag: 'avatar_${user.uid}',
-          child: CircleAvatar(
-            radius: 22,
-            backgroundColor: roleMeta.color.withOpacity(0.1),
-            backgroundImage: user.photoUrl.isNotEmpty
-                ? NetworkImage(user.photoUrl)
-                : null,
-            child: user.photoUrl.isEmpty
-                ? Text(
-                    user.fullName.isNotEmpty
-                        ? user.fullName[0].toUpperCase()
-                        : '?',
-                    style: TextStyle(
-                      color: roleMeta.color,
-                      fontWeight: FontWeight.bold,
+      child: InkWell(
+        onTap: () => _showEditUserBottomSheet(user, isSelf),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
+        child: Padding(
+          padding: const EdgeInsets.all(AppDesignTokens.spaceMd),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Avatar
+              Hero(
+                tag: 'avatar_${user.uid}',
+                child: CircleAvatar(
+                  radius: 20,
+                  backgroundColor: roleMeta.color.withOpacity(0.1),
+                  backgroundImage: user.photoUrl.isNotEmpty
+                      ? NetworkImage(user.photoUrl)
+                      : null,
+                  child: user.photoUrl.isEmpty
+                      ? Text(
+                          user.fullName.isNotEmpty
+                              ? user.fullName[0].toUpperCase()
+                              : '?',
+                          style: TextStyle(
+                            color: roleMeta.color,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        )
+                      : null,
+                ),
+              ),
+              const SizedBox(width: AppDesignTokens.spaceSm),
+              // User Details
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Name & "BẠN" tag
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            user.fullName,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (isSelf)
+                          Container(
+                            margin: const EdgeInsets.only(left: 6),
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppDesignTokens.primary.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusXs),
+                            ),
+                            child: const Text(
+                              'BẠN',
+                              style: TextStyle(
+                                fontSize: 8,
+                                fontWeight: FontWeight.bold,
+                                color: AppDesignTokens.primary,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
-                  )
-                : null,
+                    const SizedBox(height: 2),
+                    // Email
+                    Text(
+                      user.email,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark
+                            ? AppDesignTokens.darkTextSecondary
+                            : AppDesignTokens.lightTextSecondary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+                    // Badges
+                    Wrap(
+                      spacing: 4,
+                      runSpacing: 4,
+                      children: [
+                        // Role Badge
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: roleMeta.color.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
+                            border: Border.all(
+                              color: roleMeta.color.withOpacity(0.2),
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(roleMeta.icon, size: 10, color: roleMeta.color),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  roleMeta.name,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: roleMeta.color,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Status Badge
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: (user.isActive
+                                    ? AppDesignTokens.success
+                                    : AppDesignTokens.error)
+                                .withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 5,
+                                height: 5,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: user.isActive
+                                      ? AppDesignTokens.success
+                                      : AppDesignTokens.error,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                user.isActive ? 'Đang hoạt động' : 'Đã khóa',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: user.isActive
+                                      ? AppDesignTokens.success
+                                      : AppDesignTokens.error,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              // Edit button
+              const SizedBox(width: AppDesignTokens.spaceXs),
+              IconButton(
+                icon: const Icon(Icons.edit_rounded, size: 18),
+                constraints: const BoxConstraints(),
+                padding: EdgeInsets.zero,
+                onPressed: () => _showEditUserBottomSheet(user, isSelf),
+              ),
+            ],
           ),
-        ),
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                user.fullName,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            if (isSelf)
-              Container(
-                margin: const EdgeInsets.only(left: 6),
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppDesignTokens.primary.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(AppDesignTokens.radiusXs),
-                ),
-                child: const Text(
-                  'BẠN',
-                  style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.bold,
-                    color: AppDesignTokens.primary,
-                  ),
-                ),
-              ),
-          ],
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 2),
-            Text(
-              user.email,
-              style: TextStyle(
-                fontSize: 13,
-                color: isDark
-                    ? AppDesignTokens.darkTextSecondary
-                    : AppDesignTokens.lightTextSecondary,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 6,
-              runSpacing: 4,
-              children: [
-                // Role Badge
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: roleMeta.color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
-                    border: Border.all(
-                      color: roleMeta.color.withOpacity(0.3),
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(roleMeta.icon, size: 12, color: roleMeta.color),
-                      const SizedBox(width: 4),
-                      Text(
-                        roleMeta.name,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: roleMeta.color,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Status Badge
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: (user.isActive
-                            ? AppDesignTokens.success
-                            : AppDesignTokens.error)
-                        .withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: user.isActive
-                              ? AppDesignTokens.success
-                              : AppDesignTokens.error,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        user.isActive ? 'Đang hoạt động' : 'Đã khóa',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: user.isActive
-                              ? AppDesignTokens.success
-                              : AppDesignTokens.error,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        trailing: IconButton(
-          icon: const Icon(Icons.edit_rounded),
-          onPressed: () => _showEditUserBottomSheet(user, isSelf),
         ),
       ),
     );
