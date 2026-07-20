@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -24,18 +25,15 @@ import 'presentation/providers/invoice_provider.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Hive
-  await Hive.initFlutter();
+  // 1. Parallelize critical startup initializations for maximum speed
+  await Future.wait([
+    Hive.initFlutter(),
+    FirebaseService().initialize(),
+  ]);
 
-  // Initialize Sync Service (handles offline-first database synchronization)
-  await SyncService().initialize();
-
-  // Initialize Firebase with Mock Fallback support
-  final firebaseService = FirebaseService();
-  await firebaseService.initialize();
-
-  // Auto-seed initial sample data to Firebase if Firestore is empty
-  await SeedDataService.seedIfEmpty();
+  // 2. Run background sync & seed services asynchronously without blocking the UI thread
+  unawaited(SyncService().initialize());
+  unawaited(SeedDataService.seedIfEmpty());
 
   // Create repository wrappers that dynamically switch modes
   final authRepository = DynamicAuthRepository();
