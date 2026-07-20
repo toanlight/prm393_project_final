@@ -66,17 +66,25 @@ class FirebaseInvoiceRepository implements InvoiceRepository {
     await box.put(invoice.invoiceId, invoice.toMap());
 
     try {
+      // 1. Save to sub-collection /transactions/{txId}/invoices/{invId}
       await _firestore
           .collection('transactions')
           .doc(invoice.transactionId)
           .collection('invoices')
           .doc(invoice.invoiceId)
           .set(invoice.toMap());
+
+      // 2. Save to top-level collection /invoices/{invId}
+      await _firestore
+          .collection('invoices')
+          .doc(invoice.invoiceId)
+          .set(invoice.toMap());
+
       debugPrint('🔥 Firestore: created invoice ${invoice.invoiceId}');
     } catch (e) {
       debugPrint('⚠️ Firestore create invoice failed, queued for sync: $e');
       await SyncService().enqueue(
-        collection: 'transactions/${invoice.transactionId}/invoices',
+        collection: 'invoices',
         action: 'create',
         documentId: invoice.invoiceId,
         payload: invoice.toMap(),

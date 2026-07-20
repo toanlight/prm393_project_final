@@ -15,6 +15,7 @@ import '../../domain/models/transaction_type.dart';
 import '../../domain/repositories/category_repository.dart';
 import '../../presentation/providers/auth_provider.dart';
 import '../../presentation/providers/transaction_provider.dart';
+import '../widgets/connection_status_banner.dart';
 import '../widgets/expense_pie_chart.dart';
 import '../widgets/income_expense_bar_chart.dart';
 import '../widgets/income_expense_line_chart.dart';
@@ -343,49 +344,56 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       backgroundColor: isDark ? AppDesignTokens.darkBackground : AppColors.background,
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _errorMessage != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppTheme.sp24),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.error_outline, size: 48, color: AppColors.danger),
-                        const SizedBox(height: AppTheme.sp16),
-                        Text(
-                          _errorMessage!,
-                          textAlign: TextAlign.center,
-                          style: AppTextStyles.h2.copyWith(color: AppColors.danger),
+      body: Column(
+        children: [
+          const ConnectionStatusBanner(),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _errorMessage != null
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(AppTheme.sp24),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.error_outline, size: 48, color: AppColors.danger),
+                              const SizedBox(height: AppTheme.sp16),
+                              Text(
+                                _errorMessage!,
+                                textAlign: TextAlign.center,
+                                style: AppTextStyles.h2.copyWith(color: AppColors.danger),
+                              ),
+                              const SizedBox(height: AppTheme.sp24),
+                              ElevatedButton(
+                                onPressed: _initDashboard,
+                                child: const Text('Thử lại'),
+                              ),
+                            ],
+                          ),
                         ),
-                        const SizedBox(height: AppTheme.sp24),
-                        ElevatedButton(
-                          onPressed: _initDashboard,
-                          child: const Text('Thử lại'),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: _initDashboard,
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.all(AppTheme.sp24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _buildHeader(context),
+                              const SizedBox(height: AppTheme.sp24),
+                              AppResponsiveLayout(
+                                mobile: _buildMobileLayout(context),
+                                desktop: _buildDesktopLayout(context),
+                              ),
+                            ],
+                          ),
                         ),
-                      ],
-                    ),
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _initDashboard,
-                  child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(AppTheme.sp24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildHeader(context),
-                        const SizedBox(height: AppTheme.sp24),
-                        AppResponsiveLayout(
-                          mobile: _buildMobileLayout(context),
-                          desktop: _buildDesktopLayout(context),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                      ),
+          ),
+        ],
+      ),
     );
   }
 

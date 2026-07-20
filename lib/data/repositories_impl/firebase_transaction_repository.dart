@@ -13,36 +13,45 @@ class FirebaseTransactionRepository implements TransactionRepository {
   @override
   Future<List<TransactionModel>> getTransactions(String userId) async {
     try {
-      final querySnapshot = await _firestore
-          .collection('transactions')
-          .where('userId', isEqualTo: userId)
-          .orderBy('transactionDate', descending: true)
-          .get();
+      QuerySnapshot querySnapshot;
+      if (userId.isEmpty) {
+        querySnapshot = await _firestore
+            .collection('transactions')
+            .orderBy('transactionDate', descending: true)
+            .get();
+      } else {
+        querySnapshot = await _firestore
+            .collection('transactions')
+            .where('userId', isEqualTo: userId)
+            .orderBy('transactionDate', descending: true)
+            .get();
+
+        // If user-specific query returned empty, try fetching all transactions (e.g. for Admin/ChiefAccountant or Seed Data preview)
+        if (querySnapshot.docs.isEmpty) {
+          querySnapshot = await _firestore
+              .collection('transactions')
+              .orderBy('transactionDate', descending: true)
+              .get();
+        }
+      }
 
       final list = querySnapshot.docs
-          .map((doc) => TransactionModel.fromMap({...doc.data(), 'transactionId': doc.id}))
+          .map((doc) => TransactionModel.fromMap({...Map<String, dynamic>.from(doc.data() as Map), 'transactionId': doc.id}))
           .toList();
 
       // Update offline Hive cache
       final box = await Hive.openBox(_cacheBoxName);
-      final keysToDelete = box.values
-          .where((e) => Map<String, dynamic>.from(e)['userId'] == userId)
-          .map((e) => Map<String, dynamic>.from(e)['transactionId'] as String)
-          .toList();
-      for (var key in keysToDelete) {
-        await box.delete(key);
-      }
       for (var tx in list) {
         await box.put(tx.transactionId, tx.toMap());
       }
 
       return list;
     } catch (e) {
+      debugPrint('⚠️ Firestore getTransactions offline/error fallback: $e');
       // Fallback to Hive Offline Cache
       final box = await Hive.openBox(_cacheBoxName);
       final list = box.values
           .map((e) => TransactionModel.fromMap(Map<String, dynamic>.from(e)))
-          .where((tx) => tx.userId == userId)
           .toList();
       list.sort((a, b) => b.transactionDate.compareTo(a.transactionDate));
       return list;
@@ -55,32 +64,31 @@ class FirebaseTransactionRepository implements TransactionRepository {
     final box = await Hive.openBox(_cacheBoxName);
     final cached = box.values
         .map((e) => TransactionModel.fromMap(Map<String, dynamic>.from(e)))
-        .where((tx) => tx.userId == userId)
         .toList();
     cached.sort((a, b) => b.transactionDate.compareTo(a.transactionDate));
     yield cached;
 
-    // Listen to real-time updates from Firestore with server-side ordering
+    // Listen to real-time updates from Firestore
     try {
-      await for (final querySnapshot in _firestore
-          .collection('transactions')
-          .where('userId', isEqualTo: userId)
-          .orderBy('transactionDate', descending: true)
-          .snapshots()) {
+      final queryStream = userId.isEmpty
+          ? _firestore.collection('transactions').orderBy('transactionDate', descending: true).snapshots()
+          : _firestore.collection('transactions').where('userId', isEqualTo: userId).orderBy('transactionDate', descending: true).snapshots();
 
-        final list = querySnapshot.docs
-            .map((doc) => TransactionModel.fromMap({...doc.data(), 'transactionId': doc.id}))
+      await for (final querySnapshot in queryStream) {
+        var list = querySnapshot.docs
+            .map((doc) => TransactionModel.fromMap({...Map<String, dynamic>.from(doc.data()), 'transactionId': doc.id}))
             .toList();
+
+        // If user-specific stream returned empty, fetch all transactions as fallback
+        if (list.isEmpty && userId.isNotEmpty) {
+          final allSnap = await _firestore.collection('transactions').orderBy('transactionDate', descending: true).get();
+          list = allSnap.docs
+              .map((doc) => TransactionModel.fromMap({...Map<String, dynamic>.from(doc.data()), 'transactionId': doc.id}))
+              .toList();
+        }
 
         // Update offline Hive cache
         final cacheBox = await Hive.openBox(_cacheBoxName);
-        final keysToDelete = cacheBox.values
-            .where((e) => Map<String, dynamic>.from(e)['userId'] == userId)
-            .map((e) => Map<String, dynamic>.from(e)['transactionId'] as String)
-            .toList();
-        for (var key in keysToDelete) {
-          await cacheBox.delete(key);
-        }
         for (var tx in list) {
           await cacheBox.put(tx.transactionId, tx.toMap());
         }
@@ -88,8 +96,14 @@ class FirebaseTransactionRepository implements TransactionRepository {
         yield list;
       }
     } catch (e) {
-      // Stream error handling: Emit error event for UI/Provider notification
-      yield* Stream.error(e);
+      debugPrint('⚠️ Firestore streamTransactions offline fallback: $e');
+      // Return cached list on stream error
+      final fallbackBox = await Hive.openBox(_cacheBoxName);
+      final list = fallbackBox.values
+          .map((e) => TransactionModel.fromMap(Map<String, dynamic>.from(e)))
+          .toList();
+      list.sort((a, b) => b.transactionDate.compareTo(a.transactionDate));
+      yield list;
     }
   }
 
