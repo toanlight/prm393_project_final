@@ -10,27 +10,42 @@ class FirebaseTransactionRepository implements TransactionRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static const String _cacheBoxName = 'firebase_transactions_cache';
 
+  bool _isManagerRole(String? roleId) {
+    return roleId == 'admin' ||
+        roleId == 'chiefAccountant' ||
+        roleId == 'accountant' ||
+        roleId == 'manager';
+  }
+
   @override
-  Future<List<TransactionModel>> getTransactions(String userId) async {
+  Future<List<TransactionModel>> getTransactions(String userId, {String? roleId}) async {
+    final isManager = _isManagerRole(roleId);
     try {
-      final querySnapshot = await _firestore
-          .collection('transactions')
-          .where('userId', isEqualTo: userId)
-          .orderBy('transactionDate', descending: true)
-          .get();
+      final Query query = isManager
+          ? _firestore.collection('transactions').orderBy('transactionDate', descending: true)
+          : _firestore
+              .collection('transactions')
+              .where('userId', isEqualTo: userId)
+              .orderBy('transactionDate', descending: true);
+
+      final querySnapshot = await query.get();
 
       final list = querySnapshot.docs
-          .map((doc) => TransactionModel.fromMap({...doc.data(), 'transactionId': doc.id}))
+          .map((doc) => TransactionModel.fromMap({...doc.data() as Map<String, dynamic>, 'transactionId': doc.id}))
           .toList();
 
       // Update offline Hive cache
       final box = await Hive.openBox(_cacheBoxName);
-      final keysToDelete = box.values
-          .where((e) => Map<String, dynamic>.from(e)['userId'] == userId)
-          .map((e) => Map<String, dynamic>.from(e)['transactionId'] as String)
-          .toList();
-      for (var key in keysToDelete) {
-        await box.delete(key);
+      if (isManager) {
+        await box.clear();
+      } else {
+        final keysToDelete = box.values
+            .where((e) => Map<String, dynamic>.from(e)['userId'] == userId)
+            .map((e) => Map<String, dynamic>.from(e)['transactionId'] as String)
+            .toList();
+        for (var key in keysToDelete) {
+          await box.delete(key);
+        }
       }
       for (var tx in list) {
         await box.put(tx.transactionId, tx.toMap());
@@ -42,7 +57,7 @@ class FirebaseTransactionRepository implements TransactionRepository {
       final box = await Hive.openBox(_cacheBoxName);
       final list = box.values
           .map((e) => TransactionModel.fromMap(Map<String, dynamic>.from(e)))
-          .where((tx) => tx.userId == userId)
+          .where((tx) => isManager || tx.userId == userId)
           .toList();
       list.sort((a, b) => b.transactionDate.compareTo(a.transactionDate));
       return list;
@@ -50,36 +65,44 @@ class FirebaseTransactionRepository implements TransactionRepository {
   }
 
   @override
-  Stream<List<TransactionModel>> streamTransactions(String userId) async* {
+  Stream<List<TransactionModel>> streamTransactions(String userId, {String? roleId}) async* {
+    final isManager = _isManagerRole(roleId);
+
     // Yield cached data first for instant UI loading
     final box = await Hive.openBox(_cacheBoxName);
     final cached = box.values
         .map((e) => TransactionModel.fromMap(Map<String, dynamic>.from(e)))
-        .where((tx) => tx.userId == userId)
+        .where((tx) => isManager || tx.userId == userId)
         .toList();
     cached.sort((a, b) => b.transactionDate.compareTo(a.transactionDate));
     yield cached;
 
     // Listen to real-time updates from Firestore with server-side ordering
     try {
-      await for (final querySnapshot in _firestore
-          .collection('transactions')
-          .where('userId', isEqualTo: userId)
-          .orderBy('transactionDate', descending: true)
-          .snapshots()) {
+      final Query query = isManager
+          ? _firestore.collection('transactions').orderBy('transactionDate', descending: true)
+          : _firestore
+              .collection('transactions')
+              .where('userId', isEqualTo: userId)
+              .orderBy('transactionDate', descending: true);
 
+      await for (final querySnapshot in query.snapshots()) {
         final list = querySnapshot.docs
-            .map((doc) => TransactionModel.fromMap({...doc.data(), 'transactionId': doc.id}))
+            .map((doc) => TransactionModel.fromMap({...doc.data() as Map<String, dynamic>, 'transactionId': doc.id}))
             .toList();
 
         // Update offline Hive cache
         final cacheBox = await Hive.openBox(_cacheBoxName);
-        final keysToDelete = cacheBox.values
-            .where((e) => Map<String, dynamic>.from(e)['userId'] == userId)
-            .map((e) => Map<String, dynamic>.from(e)['transactionId'] as String)
-            .toList();
-        for (var key in keysToDelete) {
-          await cacheBox.delete(key);
+        if (isManager) {
+          await cacheBox.clear();
+        } else {
+          final keysToDelete = cacheBox.values
+              .where((e) => Map<String, dynamic>.from(e)['userId'] == userId)
+              .map((e) => Map<String, dynamic>.from(e)['transactionId'] as String)
+              .toList();
+          for (var key in keysToDelete) {
+            await cacheBox.delete(key);
+          }
         }
         for (var tx in list) {
           await cacheBox.put(tx.transactionId, tx.toMap());
