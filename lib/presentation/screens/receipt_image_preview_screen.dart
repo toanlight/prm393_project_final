@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
@@ -34,6 +35,8 @@ class _ReceiptImagePreviewScreenState
 
   InvoiceModel? _invoice;
   Uint8List? _imageBytes;
+  String? _imageUrl;
+  Object? _imageError;
   Object? _error;
   bool _loading = true;
   bool _exporting = false;
@@ -48,29 +51,62 @@ class _ReceiptImagePreviewScreenState
     setState(() {
       _loading = true;
       _error = null;
+      _imageError = null;
     });
 
     try {
-      final scanId = widget.transaction.scanId;
-      final imageBytes =
-      scanId == null ? null : MockReceiptImageStore.get(scanId);
-
+      // Tải dữ liệu hóa đơn trước. Lỗi tải ảnh không được làm hỏng toàn bộ trang.
       final invoice = await context
           .read<InvoiceRepository>()
           .getInvoiceForTransaction(widget.transaction.transactionId);
 
       if (!mounted) return;
+
       setState(() {
-        _imageBytes = imageBytes;
         _invoice = invoice;
+        _imageUrl = widget.transaction.receiptImageUrl;
         _loading = false;
       });
+
+      await _loadReceiptImageBytes();
     } catch (error) {
       if (!mounted) return;
       setState(() {
         _error = error;
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _loadReceiptImageBytes() async {
+    final scanId = widget.transaction.scanId;
+    final imageUrl = widget.transaction.receiptImageUrl;
+
+    try {
+      Uint8List? bytes;
+
+      if (imageUrl != null &&
+          (imageUrl.startsWith('https://') || imageUrl.startsWith('http://'))) {
+        // Firebase Storage SDK hoạt động ổn định trên Web và dùng đúng auth token.
+        bytes = await FirebaseStorage.instance
+            .refFromURL(imageUrl)
+            .getData(10 * 1024 * 1024);
+      } else if (scanId != null) {
+        bytes = MockReceiptImageStore.get(scanId);
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _imageBytes = bytes;
+        _imageError = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _imageBytes = null;
+        _imageError = error;
+      });
+      debugPrint('[ReceiptPreview] Không thể tải ảnh gốc: $error');
     }
   }
 
@@ -151,10 +187,13 @@ class _ReceiptImagePreviewScreenState
 
   void _showReceiptImage() {
     final bytes = _imageBytes;
-    if (bytes == null) {
+    final imageUrl = _imageUrl;
+
+    if (bytes == null && (imageUrl == null || imageUrl.isEmpty)) {
       _showError(
-        'Không tìm thấy ảnh chứng từ trong bộ nhớ mock. '
-            'Ảnh có thể đã mất sau khi refresh/restart ứng dụng.',
+        _imageError == null
+            ? 'Không tìm thấy ảnh chứng từ.'
+            : 'Không thể tải ảnh chứng từ: $_imageError',
       );
       return;
     }
@@ -175,7 +214,19 @@ class _ReceiptImagePreviewScreenState
                   child: InteractiveViewer(
                     minScale: 0.5,
                     maxScale: 5,
-                    child: Image.memory(bytes, fit: BoxFit.contain),
+                    child: bytes != null
+                        ? Image.memory(bytes, fit: BoxFit.contain)
+                        : Image.network(
+                      imageUrl!,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, error, __) => Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Text(
+                          'Không thể tải ảnh: $error',
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -265,7 +316,8 @@ class _ReceiptImagePreviewScreenState
                   _ActionToolbar(
                     compact: isCompact,
                     exporting: _exporting,
-                    hasReceiptImage: _imageBytes != null,
+                    hasReceiptImage: _imageBytes != null ||
+                        (_imageUrl != null && _imageUrl!.isNotEmpty),
                     onBack: () => Navigator.of(context).pop(),
                     onExport: _sharePdf,
                     onPrint: _printPdf,

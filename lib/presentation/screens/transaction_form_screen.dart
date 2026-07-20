@@ -6,11 +6,14 @@ import 'package:provider/provider.dart';
 
 import '../../core/theme/design_tokens.dart';
 import '../../domain/models/invoice_model.dart';
+import '../../domain/models/ocr_scan_model.dart';
 import '../../domain/models/transaction_model.dart';
 import '../../domain/models/transaction_type.dart';
 import '../../domain/repositories/invoice_repository.dart';
+import '../../domain/repositories/ocr_scan_repository.dart';
 import '../../domain/services/mock_ocr_service.dart';
 import '../../domain/services/mock_receipt_image_store.dart';
+import '../../data/services/firebase_receipt_storage_service.dart';
 import '../providers/auth_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/invoice_provider.dart';
@@ -204,22 +207,53 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     // Khởi tạo các mã liên kết hóa đơn
     String? invoiceId = hasInvoiceInfo
         ? (_isEditing && widget.transactionToEdit!.invoiceId != null
-            ? widget.transactionToEdit!.invoiceId
-            : 'invoice_${now.microsecondsSinceEpoch}')
+        ? widget.transactionToEdit!.invoiceId
+        : 'invoice_${now.microsecondsSinceEpoch}')
         : null;
 
     String? scanId = _isFromOcr
         ? widget.initialOcrData!.scanId
         : (_isEditing ? widget.transactionToEdit!.scanId : null);
 
-    if (_pickedImageBytes != null) {
+    Uint8List? receiptBytes = _pickedImageBytes;
+
+    if (_isFromOcr && receiptBytes == null) {
+      receiptBytes = MockReceiptImageStore.get(widget.initialOcrData!.scanId);
+    }
+
+    if (receiptBytes != null) {
       scanId ??= 'scan_${_type}_${now.microsecondsSinceEpoch}';
-      MockReceiptImageStore.save(scanId: scanId, bytes: _pickedImageBytes!);
     }
 
     final userId = _isEditing
         ? widget.transactionToEdit!.userId
         : (authProvider.user?.uid ?? 'mock-user-123');
+
+    String? receiptDownloadUrl =
+    _isEditing ? widget.transactionToEdit!.receiptImage : null;
+
+    if (receiptBytes != null && scanId != null) {
+      try {
+        receiptDownloadUrl = await FirebaseReceiptStorageService.uploadReceipt(
+          userId: userId,
+          transactionId: transactionId,
+          scanId: scanId,
+          bytes: receiptBytes,
+          fileName: _pickedImage?.name,
+        );
+      } catch (error) {
+        if (!mounted) return;
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Không thể tải ảnh lên Firebase Storage: $error'),
+            backgroundColor: AppDesignTokens.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+    }
 
     final transaction = TransactionModel(
       transactionId: transactionId,
@@ -233,11 +267,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
           : TransactionType.expense,
       transactionDate: _date,
       note: _noteController.text.trim(),
-      receiptImage: _isFromOcr
-          ? 'mock://${widget.initialOcrData!.scanId}'
-          : (scanId != null
-              ? 'mock://$scanId'
-              : (_isEditing ? widget.transactionToEdit!.receiptImage : null)),
+      receiptImage: receiptDownloadUrl,
       status: _isEditing ? widget.transactionToEdit!.status : 'pending',
       createdAt: _isEditing ? widget.transactionToEdit!.createdAt : now,
     );
@@ -297,6 +327,24 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
 
         await invoiceRepository.createInvoice(manualInvoice);
         invoiceChanged = true;
+      }
+
+      if (scanId != null && receiptDownloadUrl != null && invoiceId != null) {
+        final ocrScan = OCRScanModel(
+          scanId: scanId,
+          userId: userId,
+          imagePath: receiptDownloadUrl,
+          extractedAmount: int.parse(_amountController.text),
+          extractedTaxCode: _taxCodeController.text.trim(),
+          extractedDate: _date,
+          rawJson: '{}',
+          status: 'completed',
+          transactionId: transactionId,
+          invoiceId: invoiceId,
+          createdAt: now,
+        );
+
+        await context.read<OCRScanRepository>().createOCRScan(ocrScan);
       }
 
       // Tải lại InvoiceProvider để đồng bộ trang Hóa đơn
@@ -364,12 +412,12 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                   _isEditing
                       ? 'Chỉnh sửa giao dịch'
                       : _isFromOcr
-                          ? 'Kiểm tra dữ liệu OCR'
-                          : 'Thêm giao dịch mới',
+                      ? 'Kiểm tra dữ liệu OCR'
+                      : 'Thêm giao dịch mới',
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 24,
-                      ),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 24,
+                  ),
                 ),
                 const SizedBox(height: 20),
 
@@ -531,10 +579,10 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                       items: cats
                           .map(
                             (cat) => DropdownMenuItem(
-                              value: cat.categoryId,
-                              child: Text(cat.categoryName),
-                            ),
-                          )
+                          value: cat.categoryId,
+                          child: Text(cat.categoryName),
+                        ),
+                      )
                           .toList(),
                       onChanged: (value) {
                         if (value != null) {
@@ -618,9 +666,9 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                           ? 'Thông tin hóa đơn (Bắt buộc)'
                           : 'Thông tin hóa đơn / Chứng từ (Tùy chọn)',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: _type == 'thu' ? AppDesignTokens.primary : AppDesignTokens.error,
-                          ),
+                        fontWeight: FontWeight.bold,
+                        color: _type == 'thu' ? AppDesignTokens.primary : AppDesignTokens.error,
+                      ),
                     ),
                   ],
                 ),
@@ -847,18 +895,18 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                           ),
                           child: _isSaving
                               ? const SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                                )
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          )
                               : const Text(
-                                  'Lưu giao dịch',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
+                            'Lưu giao dịch',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -902,9 +950,9 @@ class _OcrSummaryCard extends StatelessWidget {
               Text(
                 'Dữ liệu trích xuất từ hóa đơn (OCR)',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: AppDesignTokens.primary,
-                    ),
+                  fontWeight: FontWeight.bold,
+                  color: AppDesignTokens.primary,
+                ),
               ),
             ],
           ),

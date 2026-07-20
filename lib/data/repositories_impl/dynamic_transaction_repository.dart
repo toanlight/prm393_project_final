@@ -1,27 +1,35 @@
 import '../../../domain/models/transaction_model.dart';
 import '../../../domain/repositories/transaction_repository.dart';
+import '../services/firebase_service.dart';
+import 'firebase_transaction_repository.dart';
 import 'mock_transaction_repository.dart';
 
 class DynamicTransactionRepository implements TransactionRepository {
-  final MockTransactionRepository _mock = MockTransactionRepository();
-  
-  // Dev-2 sẽ tích hợp FirebaseTransactionRepository vào đây ở Ngày 2/3
-  // Bằng cách kế thừa tương tự DynamicAuthRepository/DynamicUserRepository
+  final MockTransactionRepository _mock;
+  final FirebaseTransactionRepository _firebase;
+  final FirebaseService _firebaseService;
 
-  // ==========================================
-  // [DEV-3 MOCK DATA] - CẦN THAY THẾ KHI TÍCH HỢP FIREBASE
-  // Chức năng: Quản lý active repo (cần trỏ sang FirebaseTransactionRepository)
-  // ==========================================
-  TransactionRepository get _active => _mock;
+  DynamicTransactionRepository({
+    MockTransactionRepository? mockRepository,
+    FirebaseTransactionRepository? firebaseRepository,
+    FirebaseService? firebaseService,
+  })  : _mock = mockRepository ?? MockTransactionRepository(),
+        _firebase =
+            firebaseRepository ?? FirebaseTransactionRepository(),
+        _firebaseService = firebaseService ?? FirebaseService();
 
-  @override
-  Stream<List<TransactionModel>> streamTransactions(String userId) {
-    return _active.streamTransactions(userId);
+  TransactionRepository get _active {
+    return _firebaseService.isMockMode ? _mock : _firebase;
   }
 
   @override
   Future<List<TransactionModel>> getTransactions(String userId) {
     return _active.getTransactions(userId);
+  }
+
+  @override
+  Stream<List<TransactionModel>> streamTransactions(String userId) {
+    return _active.streamTransactions(userId);
   }
 
   @override

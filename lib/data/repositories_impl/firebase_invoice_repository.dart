@@ -1,117 +1,385 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:hive/hive.dart';
 import 'package:flutter/foundation.dart';
+import 'package:hive/hive.dart';
+
 import '../../../domain/models/invoice_model.dart';
 import '../../../domain/repositories/invoice_repository.dart';
 import '../services/sync_service.dart';
 
 class FirebaseInvoiceRepository implements InvoiceRepository {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore;
+
   static const String _cacheBoxName = 'firebase_invoices_cache';
+  static const String _invoiceCollection = 'invoices';
+
+  FirebaseInvoiceRepository({
+    FirebaseFirestore? firestore,
+  }) : _firestore = firestore ?? FirebaseFirestore.instance;
 
   @override
-  Future<InvoiceModel?> getInvoiceForTransaction(String transactionId) async {
+  @override
+  Future<List<InvoiceModel>> getInvoicesByUser(
+      String userId,
+      ) async {
     try {
-      // 1. Thử đọc từ Sub-collection chuẩn /transactions/{transactionId}/invoices
-      final subSnap = await _firestore
-          .collection('transactions')
-          .doc(transactionId)
+      debugPrint(
+        '[InvoiceRepository] Tải invoice '
+            'cho createdBy=$userId',
+      );
+
+      final snapshot = await _firestore
           .collection('invoices')
+          .where(
+        'createdBy',
+        isEqualTo: userId,
+      )
           .get();
 
-      if (subSnap.docs.isNotEmpty) {
-        final doc = subSnap.docs.first;
-        final invoice = InvoiceModel.fromMap({...doc.data(), 'invoiceId': doc.id});
+      final invoices = snapshot.docs.map((document) {
+        return InvoiceModel.fromMap({
+          ...document.data(),
+          'invoiceId': document.id,
+        });
+      }).toList();
 
-        // Update offline Hive cache
-        final box = await Hive.openBox(_cacheBoxName);
-        await box.put(invoice.invoiceId, invoice.toMap());
+      invoices.sort((a, b) {
+        final aDate =
+            a.invoiceDate ??
+                DateTime.fromMillisecondsSinceEpoch(0);
 
-        return invoice;
+        final bDate =
+            b.invoiceDate ??
+                DateTime.fromMillisecondsSinceEpoch(0);
+
+        return bDate.compareTo(aDate);
+      });
+
+      debugPrint(
+        '[InvoiceRepository] Firestore trả về '
+            '${invoices.length} invoice',
+      );
+
+      for (final invoice in invoices) {
+        await _cacheInvoice(invoice);
       }
 
-      // 2. Fallback đọc từ top-level collection 'invoices' (nếu có)
-      final querySnapshot = await _firestore
-          .collection('invoices')
-          .where('transactionId', isEqualTo: transactionId)
-          .get();
+      return invoices;
+    } catch (error, stackTrace) {
+      debugPrint(
+        '[InvoiceRepository] getInvoicesByUser lỗi: $error',
+      );
+      debugPrintStack(stackTrace: stackTrace);
 
-      if (querySnapshot.docs.isNotEmpty) {
-        final doc = querySnapshot.docs.first;
-        final invoice = InvoiceModel.fromMap({...doc.data(), 'invoiceId': doc.id});
+      final box =
+      await Hive.openBox(_cacheBoxName);
 
-        final box = await Hive.openBox(_cacheBoxName);
-        await box.put(invoice.invoiceId, invoice.toMap());
+      final invoices = <InvoiceModel>[];
 
-        return invoice;
-      }
-
-      return null;
-    } catch (e) {
-      // Fallback to Hive Offline Cache
-      final box = await Hive.openBox(_cacheBoxName);
       for (final raw in box.values) {
-        final invoice = InvoiceModel.fromMap(Map<String, dynamic>.from(raw));
-        if (invoice.transactionId == transactionId) {
-          return invoice;
-        }
+        try {
+          final invoice = InvoiceModel.fromMap(
+            Map<String, dynamic>.from(raw as Map),
+          );
+
+          if (invoice.createdBy == userId) {
+            invoices.add(invoice);
+          }
+        } catch (_) {}
       }
-      return null;
+
+      return invoices;
     }
   }
 
   @override
-  Future<void> createInvoice(InvoiceModel invoice) async {
-    final box = await Hive.openBox(_cacheBoxName);
-    await box.put(invoice.invoiceId, invoice.toMap());
+  Future<InvoiceModel?> getInvoiceForTransaction(
+      String transactionId,
+      ) async {
+    try {
+      debugPrint(
+        '[InvoiceRepository] Tìm invoice cho '
+            'transactionId=$transactionId',
+      );
+
+      // Ưu tiên đọc collection top-level.
+      final topLevelSnapshot = await _firestore
+          .collection(_invoiceCollection)
+          .where(
+        'transactionId',
+        isEqualTo: transactionId,
+      )
+          .limit(1)
+          .get();
+
+      if (topLevelSnapshot.docs.isNotEmpty) {
+        final document = topLevelSnapshot.docs.first;
+
+        final invoice = InvoiceModel.fromMap({
+          ...document.data(),
+          'invoiceId': document.id,
+        });
+
+        await _cacheInvoice(invoice);
+
+        debugPrint(
+          '[InvoiceRepository] Tìm thấy top-level invoice: '
+              '${invoice.invoiceId}',
+        );
+
+        return invoice;
+      }
+
+      // Hỗ trợ dữ liệu cũ lưu dưới transaction.
+      final subCollectionSnapshot = await _firestore
+          .collection('transactions')
+          .doc(transactionId)
+          .collection('invoices')
+          .limit(1)
+          .get();
+
+      if (subCollectionSnapshot.docs.isNotEmpty) {
+        final document = subCollectionSnapshot.docs.first;
+
+        final invoice = InvoiceModel.fromMap({
+          ...document.data(),
+          'invoiceId': document.id,
+          'transactionId': transactionId,
+        });
+
+        await _cacheInvoice(invoice);
+
+        debugPrint(
+          '[InvoiceRepository] Tìm thấy subcollection invoice: '
+              '${invoice.invoiceId}',
+        );
+
+        return invoice;
+      }
+
+      return _findInvoiceInCache(transactionId);
+    } catch (error, stackTrace) {
+      debugPrint(
+        '[InvoiceRepository] getInvoiceForTransaction lỗi: $error',
+      );
+      debugPrintStack(stackTrace: stackTrace);
+
+      return _findInvoiceInCache(transactionId);
+    }
+  }
+
+  @override
+  Future<void> createInvoice(
+      InvoiceModel invoice,
+      ) async {
+    await _cacheInvoice(invoice);
 
     try {
-      // 1. Save to sub-collection /transactions/{txId}/invoices/{invId}
-      await _firestore
+      final data = invoice.toMap();
+      final batch = _firestore.batch();
+
+      final topLevelReference = _firestore
+          .collection(_invoiceCollection)
+          .doc(invoice.invoiceId);
+
+      final nestedReference = _firestore
           .collection('transactions')
           .doc(invoice.transactionId)
           .collection('invoices')
-          .doc(invoice.invoiceId)
-          .set(invoice.toMap());
+          .doc(invoice.invoiceId);
 
-      // 2. Save to top-level collection /invoices/{invId}
-      await _firestore
-          .collection('invoices')
-          .doc(invoice.invoiceId)
-          .set(invoice.toMap());
+      final transactionReference = _firestore
+          .collection('transactions')
+          .doc(invoice.transactionId);
 
-      debugPrint('🔥 Firestore: created invoice ${invoice.invoiceId}');
-    } catch (e) {
-      debugPrint('⚠️ Firestore create invoice failed, queued for sync: $e');
+      batch.set(topLevelReference, data);
+      batch.set(nestedReference, data);
+
+      batch.set(
+        transactionReference,
+        {
+          'invoiceId': invoice.invoiceId,
+          'scanId': invoice.scanId,
+        },
+        SetOptions(merge: true),
+      );
+
+      await batch.commit();
+
+      debugPrint(
+        '[InvoiceRepository] Đã lưu invoice='
+            '${invoice.invoiceId}, createdBy=${invoice.createdBy}',
+      );
+    } catch (error, stackTrace) {
+      debugPrint(
+        '[InvoiceRepository] createInvoice lỗi: $error',
+      );
+      debugPrintStack(stackTrace: stackTrace);
+
       await SyncService().enqueue(
-        collection: 'invoices',
+        collection: _invoiceCollection,
         action: 'create',
         documentId: invoice.invoiceId,
         payload: invoice.toMap(),
       );
+
+      rethrow;
     }
   }
 
   @override
-  Future<void> deleteInvoice(String transactionId, String invoiceId) async {
+  Future<void> deleteInvoice(
+      String transactionId,
+      String invoiceId,
+      ) async {
     final box = await Hive.openBox(_cacheBoxName);
     await box.delete(invoiceId);
 
     try {
-      await _firestore
-          .collection('transactions')
-          .doc(transactionId)
-          .collection('invoices')
-          .doc(invoiceId)
-          .delete();
-      debugPrint('🔥 Firestore: deleted invoice $invoiceId');
-    } catch (e) {
-      debugPrint('⚠️ Firestore delete invoice failed, queued for sync: $e');
+      final batch = _firestore.batch();
+
+      batch.delete(
+        _firestore
+            .collection(_invoiceCollection)
+            .doc(invoiceId),
+      );
+
+      batch.delete(
+        _firestore
+            .collection('transactions')
+            .doc(transactionId)
+            .collection('invoices')
+            .doc(invoiceId),
+      );
+
+      batch.set(
+        _firestore
+            .collection('transactions')
+            .doc(transactionId),
+        {
+          'invoiceId': FieldValue.delete(),
+          'scanId': FieldValue.delete(),
+        },
+        SetOptions(merge: true),
+      );
+
+      await batch.commit();
+    } catch (error, stackTrace) {
+      debugPrint(
+        '[InvoiceRepository] deleteInvoice lỗi: $error',
+      );
+      debugPrintStack(stackTrace: stackTrace);
+
       await SyncService().enqueue(
-        collection: 'transactions/$transactionId/invoices',
+        collection: _invoiceCollection,
         action: 'delete',
         documentId: invoiceId,
       );
+
+      rethrow;
     }
+  }
+
+  Future<void> _cacheInvoice(
+      InvoiceModel invoice,
+      ) async {
+    if (invoice.invoiceId.isEmpty) return;
+
+    final box = await Hive.openBox(_cacheBoxName);
+
+    await box.put(
+      invoice.invoiceId,
+      invoice.toMap(),
+    );
+  }
+
+  Future<void> _replaceUserInvoiceCache(
+      String userId,
+      List<InvoiceModel> invoices,
+      ) async {
+    final box = await Hive.openBox(_cacheBoxName);
+
+    final keysToDelete = <dynamic>[];
+
+    for (final key in box.keys) {
+      final raw = box.get(key);
+      if (raw == null) continue;
+
+      try {
+        final map = Map<String, dynamic>.from(raw as Map);
+
+        if (map['createdBy'] == userId) {
+          keysToDelete.add(key);
+        }
+      } catch (_) {
+        // Bỏ qua cache hỏng.
+      }
+    }
+
+    for (final key in keysToDelete) {
+      await box.delete(key);
+    }
+
+    for (final invoice in invoices) {
+      await box.put(
+        invoice.invoiceId,
+        invoice.toMap(),
+      );
+    }
+  }
+
+  Future<List<InvoiceModel>> _readUserInvoiceCache(
+      String userId,
+      ) async {
+    final box = await Hive.openBox(_cacheBoxName);
+    final invoices = <InvoiceModel>[];
+
+    for (final raw in box.values) {
+      try {
+        final invoice = InvoiceModel.fromMap(
+          Map<String, dynamic>.from(raw as Map),
+        );
+
+        if (invoice.createdBy == userId) {
+          invoices.add(invoice);
+        }
+      } catch (_) {
+        // Bỏ qua cache hỏng.
+      }
+    }
+
+    invoices.sort((a, b) {
+      final aDate = a.invoiceDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate = b.invoiceDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return bDate.compareTo(aDate);
+    });
+
+    debugPrint(
+      '[InvoiceRepository] Hive trả về '
+          '${invoices.length} invoice',
+    );
+
+    return invoices;
+  }
+
+  Future<InvoiceModel?> _findInvoiceInCache(
+      String transactionId,
+      ) async {
+    final box = await Hive.openBox(_cacheBoxName);
+
+    for (final raw in box.values) {
+      try {
+        final invoice = InvoiceModel.fromMap(
+          Map<String, dynamic>.from(raw as Map),
+        );
+
+        if (invoice.transactionId == transactionId) {
+          return invoice;
+        }
+      } catch (_) {
+        // Bỏ qua cache hỏng.
+      }
+    }
+
+    return null;
   }
 }

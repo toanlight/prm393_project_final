@@ -1,0 +1,18 @@
+[
+  {
+    "origin": [
+      "http://localhost:*",
+      "http://127.0.0.1:*"
+    ],
+    "method": ["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
+    "responseHeader": [
+      "Content-Type",
+      "Authorization",
+      "x-goog-resumable",
+      "x-goog-meta-userid",
+      "x-goog-meta-transactionid",
+      "x-goog-meta-scanid"
+    ],
+    "maxAgeSeconds": 3600
+  }
+]

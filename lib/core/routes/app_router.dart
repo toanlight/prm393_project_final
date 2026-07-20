@@ -77,19 +77,19 @@ class AppRouter {
             );
           },
           branches: [
-            StatefulShellBranch(
-              navigatorKey: homeBranchKey,
-              routes: [
-                GoRoute(
-                  path: '/',
-                  builder: (context, state) => const DashboardScreen(),
-                ),
-                GoRoute(
-                  path: '/home',
-                  builder: (context, state) => const HomeScreen(),
-                ),
-              ],
-            ),
+            // StatefulShellBranch(
+            //   navigatorKey: homeBranchKey,
+            //   routes: [
+            //     GoRoute(
+            //       path: '/',
+            //       builder: (context, state) => const DashboardScreen(),
+            //     ),
+            //     GoRoute(
+            //       path: '/home',
+            //       builder: (context, state) => const HomeScreen(),
+            //     ),
+            //   ],
+            // ),
             StatefulShellBranch(
               navigatorKey: transactionBranchKey,
               routes: [

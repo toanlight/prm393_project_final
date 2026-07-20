@@ -27,7 +27,7 @@ Tìm đoạn sau ở khoảng **dòng 32–34**:
 ```dart
 // Trước (SAI):
 // await firebaseService.initialize();
-firebaseService.forceMockMode(true);
+firebaseService.forceMockMode(false);
 ```
 
 Sửa thành:

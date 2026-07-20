@@ -68,4 +68,44 @@ class MockInvoiceRepository implements InvoiceRepository {
     final box = await _getBox();
     await box.delete(invoiceId);
   }
+
+  @override
+  Future<List<InvoiceModel>> getInvoicesByUser(
+      String userId,
+      ) async {
+    await Future.delayed(
+      const Duration(milliseconds: 150),
+    );
+
+    final box = await _getBox();
+
+    final invoices = box.values
+        .map(
+          (raw) => InvoiceModel.fromMap(
+        Map<String, dynamic>.from(raw),
+      ),
+    )
+        .where((invoice) {
+      return invoice.createdBy == userId ||
+          userId == 'mock-user-123';
+    })
+        .toList();
+
+    invoices.sort((a, b) {
+      final aDate =
+          a.invoiceDate ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+
+      final bDate =
+          b.invoiceDate ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+
+      return bDate.compareTo(aDate);
+    });
+
+    return invoices;
+  }
+
+
+
 }
