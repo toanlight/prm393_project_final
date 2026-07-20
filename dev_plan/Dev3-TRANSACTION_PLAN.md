@@ -49,10 +49,11 @@ Mọi UI và Validator phải khớp chính xác với cấu trúc dữ liệu s
 
 Sau khi tiến hành merge code từ nhánh `main` và khắc phục các conflict, phân hệ Giao dịch (Dev 3) đã hoàn thành và nâng cấp toàn bộ các hạng mục sau:
 
-### A. Giải quyết Conflict & Merge Code từ Main và feature/invoice-pdf-export
-- Gỡ bỏ hoàn toàn conflict trong `mock_invoice_repository.dart` và `mock_transaction_repository.dart`, thống nhất liên kết hóa đơn mock `t3` cho cả 2 repository.
-- Merge thành công nhánh `feature/invoice-pdf-export` vào `feature/transactions-ui-form`, gỡ conflict tại `transaction_form_screen.dart`, tích hợp cơ chế tự động tải lại `InvoiceProvider` khi lưu hóa đơn.
-- Kiểm tra `git status` đảm bảo working tree hoàn toàn clean và `flutter analyze` 0 lỗi.
+### A. Tích hợp Hóa đơn & Chứng từ đính kèm cho cả Giao dịch THU & CHI
+- **Cho khoản THU:** Yêu cầu các trường Hóa đơn (Số HĐ, Đối tác, MST, Tiền hàng, VAT %) và ảnh chứng từ. Tự động tính `Tổng tiền = Tiền hàng + VAT`.
+- **Cho khoản CHI:** Bổ sung khối **"Thông tin Hóa đơn / Chứng từ (Tùy chọn)"** bao gồm nút tải ảnh chứng từ/biên lai/hóa đơn chi tiêu và các trường thông tin hóa đơn mua vào.
+- **Tự động tạo `InvoiceModel` liên kết chéo:** Dù là Thu hay Chi, khi có thông tin chứng từ hoặc ảnh đính kèm (hoặc từ OCR sang), hệ thống tự động khởi tạo bản ghi `InvoiceModel`, lưu bytes ảnh chứng từ vào RAM (Mock Storage) và gọi `InvoiceProvider.loadInvoices(userId)` để hóa đơn xuất hiện ngay trên trang Hóa đơn.
+- **Merge & Đồng bộ:** Merge thành công nhánh `feature/invoice-pdf-export` vào `feature/transactions-ui-form`, gỡ conflict tại `transaction_form_screen.dart`, đảm bảo `flutter analyze` 0 lỗi.
 
 ### B. Chuẩn hóa Giao diện Màn hình Lịch sử Giao dịch (Transaction List Screen)
 - **Header & Subtitle:** Tiêu đề lớn `"Lịch sử giao dịch"` ở góc trên cùng bên trái. Dòng chữ nhỏ bên dưới hiển thị động số lượng giao dịch và thời gian (`"X giao dịch · Tháng M/YYYY"`).
