@@ -10,11 +10,15 @@ class FirebaseTransactionRepository implements TransactionRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static const String _cacheBoxName = 'firebase_transactions_cache';
 
+  static const _allAccessRoles = {'admin', 'chiefAccountant', 'accountant', 'manager'};
+
   @override
-  Future<List<TransactionModel>> getTransactions(String userId) async {
+  Future<List<TransactionModel>> getTransactions(String userId, {String? roleId}) async {
     try {
+      final isAllAccess = (roleId != null && _allAccessRoles.contains(roleId)) || userId.isEmpty;
       QuerySnapshot querySnapshot;
-      if (userId.isEmpty) {
+
+      if (isAllAccess) {
         querySnapshot = await _firestore
             .collection('transactions')
             .orderBy('transactionDate', descending: true)
@@ -26,7 +30,7 @@ class FirebaseTransactionRepository implements TransactionRepository {
             .orderBy('transactionDate', descending: true)
             .get();
 
-        // If user-specific query returned empty, try fetching all transactions (e.g. for Admin/ChiefAccountant or Seed Data preview)
+        // If user-specific query returned empty, try fetching all transactions as fallback for preview
         if (querySnapshot.docs.isEmpty) {
           querySnapshot = await _firestore
               .collection('transactions')
@@ -59,7 +63,9 @@ class FirebaseTransactionRepository implements TransactionRepository {
   }
 
   @override
-  Stream<List<TransactionModel>> streamTransactions(String userId) async* {
+  Stream<List<TransactionModel>> streamTransactions(String userId, {String? roleId}) async* {
+    final isAllAccess = (roleId != null && _allAccessRoles.contains(roleId)) || userId.isEmpty;
+
     // Yield cached data first for instant UI loading
     final box = await Hive.openBox(_cacheBoxName);
     final cached = box.values
@@ -70,7 +76,7 @@ class FirebaseTransactionRepository implements TransactionRepository {
 
     // Listen to real-time updates from Firestore
     try {
-      final queryStream = userId.isEmpty
+      final queryStream = isAllAccess
           ? _firestore.collection('transactions').orderBy('transactionDate', descending: true).snapshots()
           : _firestore.collection('transactions').where('userId', isEqualTo: userId).orderBy('transactionDate', descending: true).snapshots();
 
@@ -80,7 +86,7 @@ class FirebaseTransactionRepository implements TransactionRepository {
             .toList();
 
         // If user-specific stream returned empty, fetch all transactions as fallback
-        if (list.isEmpty && userId.isNotEmpty) {
+        if (list.isEmpty && !isAllAccess) {
           final allSnap = await _firestore.collection('transactions').orderBy('transactionDate', descending: true).get();
           list = allSnap.docs
               .map((doc) => TransactionModel.fromMap({...Map<String, dynamic>.from(doc.data()), 'transactionId': doc.id}))

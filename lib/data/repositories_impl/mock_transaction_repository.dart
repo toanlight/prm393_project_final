@@ -89,7 +89,7 @@ class MockTransactionRepository implements TransactionRepository {
   }
 
   @override
-  Future<List<TransactionModel>> getTransactions(String userId) async {
+  Future<List<TransactionModel>> getTransactions(String userId, {String? roleId}) async {
     await Future.delayed(const Duration(milliseconds: 150));
     final box = await _getBox();
     final list = box.values
@@ -100,7 +100,7 @@ class MockTransactionRepository implements TransactionRepository {
   }
 
   @override
-  Stream<List<TransactionModel>> streamTransactions(String userId) {
+  Stream<List<TransactionModel>> streamTransactions(String userId, {String? roleId}) {
     if (_streamController.isClosed) {
       _streamController = StreamController<List<TransactionModel>>.broadcast();
     }
