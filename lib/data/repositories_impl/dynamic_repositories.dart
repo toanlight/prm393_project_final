@@ -53,7 +53,12 @@ class DynamicAuthRepository implements AuthRepository {
       _active.signUpWithEmailAndPassword(email, password, displayName);
 
   @override
-  Future<void> signOut() => _active.signOut();
+  Future<void> signOut() async {
+    await _mock.signOut();
+    try {
+      await _real.signOut();
+    } catch (_) {}
+  }
 }
 
 class DynamicUserRepository implements UserRepository {

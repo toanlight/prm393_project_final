@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/utils/responsive_helper.dart';
@@ -7,6 +8,26 @@ import '../providers/auth_provider.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
+
+  static const Map<String, String> _roleLabels = {
+    'admin': 'Quản trị viên',
+    'chiefAccountant': 'Kế toán trưởng',
+    'accountant': 'Kế toán viên',
+    'salesperson': 'Nhân viên bán hàng',
+    'manager': 'Quản lý',
+    'partner': 'Đối tác',
+    'viewer': 'Người xem',
+  };
+
+  static const Map<String, Color> _roleColors = {
+    'admin': Color(0xFF7C3AED),
+    'chiefAccountant': Color(0xFF0369A1),
+    'accountant': Color(0xFF0891B2),
+    'salesperson': Color(0xFF16A34A),
+    'manager': Color(0xFFCA8A04),
+    'partner': Color(0xFFEA580C),
+    'viewer': Color(0xFF6B7280),
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -72,21 +93,51 @@ class ProfileScreen extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
+                if (user?.fullName != null && user!.fullName.isNotEmpty && user.fullName != user.displayName) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    user.fullName,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isDark
+                          ? AppDesignTokens.darkTextSecondary
+                          : AppDesignTokens.lightTextSecondary,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: AppDesignTokens.spaceXs),
                 
-                // Account Type Badge
-                Chip(
-                  label: Text(
-                    user?.isAnonymous == true ? 'Tài khoản khách (Demo)' : 'Tài khoản chính thức',
-                  ),
-                  backgroundColor: user?.isAnonymous == true
-                      ? AppDesignTokens.warning.withOpacity(0.1)
-                      : AppDesignTokens.success.withOpacity(0.1),
-                  labelStyle: TextStyle(
-                    color: user?.isAnonymous == true ? AppDesignTokens.warning : AppDesignTokens.success,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  side: BorderSide.none,
+                // Account Type & Role Badges
+                Wrap(
+                  spacing: 8,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    Chip(
+                      label: Text(
+                        user?.isAnonymous == true ? 'Tài khoản khách (Demo)' : 'Tài khoản chính thức',
+                      ),
+                      backgroundColor: user?.isAnonymous == true
+                          ? AppDesignTokens.warning.withOpacity(0.1)
+                          : AppDesignTokens.success.withOpacity(0.1),
+                      labelStyle: TextStyle(
+                        color: user?.isAnonymous == true ? AppDesignTokens.warning : AppDesignTokens.success,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      side: BorderSide.none,
+                    ),
+                    if (user?.roleId != null)
+                      Chip(
+                        avatar: const Icon(Icons.shield_outlined, size: 16),
+                        label: Text(_roleLabels[user!.roleId] ?? user.roleId),
+                        backgroundColor:
+                            (_roleColors[user.roleId] ?? Colors.grey).withOpacity(0.1),
+                        labelStyle: TextStyle(
+                          color: _roleColors[user.roleId] ?? Colors.grey,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        side: BorderSide.none,
+                      ),
+                  ],
                 ),
                 const SizedBox(height: AppDesignTokens.spaceLg),
 
@@ -114,8 +165,18 @@ class ProfileScreen extends StatelessWidget {
                 ListTile(
                   leading: const Icon(Icons.calendar_month_outlined, color: AppDesignTokens.primary),
                   title: const Text('Ngày tham gia'),
-                  subtitle: Text(user?.createdAt.toString().split(' ').first ?? 'N/A'),
+                  subtitle: Text(
+                    user?.createdAt != null
+                        ? DateFormat('dd/MM/yyyy').format(user!.createdAt)
+                        : 'N/A',
+                  ),
                 ),
+                if (user?.roleId == 'partner' && user?.taxCode != null)
+                  ListTile(
+                    leading: const Icon(Icons.receipt_long_outlined, color: AppDesignTokens.primary),
+                    title: const Text('Mã số thuế'),
+                    subtitle: Text(user!.taxCode!),
+                  ),
                 
                 const SizedBox(height: AppDesignTokens.spaceLg),
                 const Divider(),

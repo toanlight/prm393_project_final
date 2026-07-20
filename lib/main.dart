@@ -7,6 +7,7 @@ import 'core/routes/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'data/repositories_impl/dynamic_repositories.dart';
 import 'data/services/firebase_service.dart';
+import 'data/services/seed_data_service.dart';
 import 'data/services/sync_service.dart';
 import 'domain/repositories/auth_repository.dart';
 import 'domain/repositories/user_repository.dart';
@@ -15,6 +16,7 @@ import 'domain/repositories/category_repository.dart';
 import 'domain/repositories/ocr_scan_repository.dart';
 import 'domain/repositories/invoice_repository.dart';
 import 'presentation/providers/auth_provider.dart';
+import 'presentation/providers/category_provider.dart';
 import 'presentation/providers/theme_provider.dart';
 import 'presentation/providers/transaction_provider.dart';
 
@@ -29,9 +31,10 @@ void main() async {
 
   // Initialize Firebase with Mock Fallback support
   final firebaseService = FirebaseService();
-  // await firebaseService.initialize();
+  await firebaseService.initialize();
 
-  firebaseService.forceMockMode(true);
+  // Auto-seed initial sample data to Firebase if Firestore is empty
+  await SeedDataService.seedIfEmpty();
 
   // Create repository wrappers that dynamically switch modes
   final authRepository = DynamicAuthRepository();
@@ -60,6 +63,11 @@ void main() async {
         ChangeNotifierProvider(
           create: (_) => TransactionProvider(
             transactionRepository: transactionRepository,
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => CategoryProvider(
+            categoryRepository: categoryRepository,
           ),
         ),
       ],

@@ -9,6 +9,8 @@ import '../../domain/models/transaction_type.dart';
 import '../../domain/repositories/invoice_repository.dart';
 import '../../domain/services/mock_ocr_service.dart';
 import '../../domain/services/mock_receipt_image_store.dart';
+import '../providers/auth_provider.dart';
+import '../providers/category_provider.dart';
 import '../providers/transaction_provider.dart';
 
 class TransactionFormScreen extends StatefulWidget {
@@ -29,54 +31,50 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
   final _formKey = GlobalKey<FormState>();
 
   late final TextEditingController _amountController;
+  late final TextEditingController _noteController;
 
   String _type = 'chi';
-  String _category = 'Ăn uống';
+  String? _selectedCategoryId;
   DateTime _date = DateTime.now();
   bool _isSaving = false;
 
   bool get _isEditing => widget.transactionToEdit != null;
   bool get _isFromOcr => !_isEditing && widget.initialOcrData != null;
 
-  final List<String> _categories = const [
-    'Ăn uống',
-    'Di chuyển',
-    'Lương',
-    'Mua sắm',
-    'Kinh doanh',
-    'Hóa đơn',
-    'Khác',
-  ];
-
   @override
   void initState() {
     super.initState();
 
     String initialAmount = '';
+    String initialNote = '';
 
     if (_isEditing) {
       final tx = widget.transactionToEdit!;
       initialAmount = tx.amountVnd.toString();
       _type = tx.type == TransactionType.income ? 'thu' : 'chi';
-      _category =
-      _categories.contains(tx.category) ? tx.category : _categories.first;
+      _selectedCategoryId = tx.categoryId;
       _date = tx.date;
+      initialNote = tx.note;
     } else if (_isFromOcr) {
       final ocr = widget.initialOcrData!;
       initialAmount = ocr.totalAmount.toString();
       _type = 'chi';
-      _category = _categories.contains(ocr.suggestedCategory)
-          ? ocr.suggestedCategory
-          : 'Khác';
       _date = ocr.invoiceDate;
+      initialNote = '${ocr.invoiceNumber} - ${ocr.partnerName}';
     }
 
     _amountController = TextEditingController(text: initialAmount);
+    _noteController = TextEditingController(text: initialNote);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<CategoryProvider>().fetchCategories();
+    });
   }
 
   @override
   void dispose() {
     _amountController.dispose();
+    _noteController.dispose();
     super.dispose();
   }
 
@@ -101,6 +99,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
 
     final provider = context.read<TransactionProvider>();
     final invoiceRepository = context.read<InvoiceRepository>();
+    final authProvider = context.read<AuthProvider>();
     final now = DateTime.now();
 
     final transactionId = _isEditing
@@ -108,15 +107,16 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
         : 'tx_${now.microsecondsSinceEpoch}';
 
     final invoiceId =
-    _isFromOcr ? 'invoice_${now.microsecondsSinceEpoch}' : null;
+        _isFromOcr ? 'invoice_${now.microsecondsSinceEpoch}' : null;
 
-    final userId =
-    _isEditing ? widget.transactionToEdit!.userId : 'user_mock_123';
+    final userId = _isEditing
+        ? widget.transactionToEdit!.userId
+        : (authProvider.user?.uid ?? 'anonymous');
 
     final transaction = TransactionModel(
       transactionId: transactionId,
       userId: userId,
-      categoryId: _category,
+      categoryId: _selectedCategoryId ?? 'cat_khac',
       invoiceId: invoiceId,
       scanId: _isFromOcr ? widget.initialOcrData!.scanId : null,
       amount: int.parse(_amountController.text),
@@ -124,10 +124,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
           ? TransactionType.income
           : TransactionType.expense,
       transactionDate: _date,
-      note: _isFromOcr
-          ? '${widget.initialOcrData!.invoiceNumber} - '
-          '${widget.initialOcrData!.partnerName}'
-          : (_isEditing ? widget.transactionToEdit!.note : ''),
+      note: _noteController.text.trim(),
       receiptImage: _isFromOcr
           ? 'mock://${widget.initialOcrData!.scanId}'
           : (_isEditing ? widget.transactionToEdit!.receiptImage : null),
@@ -163,21 +160,18 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
             _isEditing
                 ? 'Cập nhật giao dịch thành công!'
                 : _isFromOcr
-                ? 'Đã tạo giao dịch và hóa đơn từ OCR!'
-                : 'Thêm giao dịch thành công!',
+                    ? 'Đã tạo giao dịch và hóa đơn từ OCR!'
+                    : 'Thêm giao dịch thành công!',
           ),
         ),
       );
 
       context.pop();
     } catch (error) {
-      // Tránh giao dịch mồ côi nếu tạo invoice thất bại trong luồng OCR.
       if (transactionCreated && _isFromOcr) {
         try {
           await provider.deleteTransaction(transactionId, userId);
-        } catch (_) {
-          // Không che mất lỗi gốc.
-        }
+        } catch (_) {}
       }
 
       if (!mounted) return;
@@ -202,26 +196,23 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
       onPopInvokedWithResult: (didPop, result) {
         if (didPop && _isFromOcr) {
           final scanId = widget.initialOcrData?.scanId;
-          if (scanId != null) {
-            // Chỉ xóa khi người dùng rời form mà chưa lưu.
-            // Nếu đã lưu, context.pop() xảy ra sau createInvoice; store vẫn cần giữ ảnh.
-          }
+          if (scanId != null) {}
         }
       },
       child: Scaffold(
         appBar: AppBar(
           leading: _isFromOcr
               ? IconButton(
-            onPressed: _cancelOcr,
-            icon: const Icon(Icons.arrow_back),
-          )
+                  onPressed: _cancelOcr,
+                  icon: const Icon(Icons.arrow_back),
+                )
               : null,
           title: Text(
             _isEditing
                 ? 'Chỉnh sửa giao dịch'
                 : _isFromOcr
-                ? 'Kiểm tra dữ liệu OCR'
-                : 'Thêm giao dịch mới',
+                    ? 'Kiểm tra dữ liệu OCR'
+                    : 'Thêm giao dịch mới',
           ),
         ),
         body: Padding(
@@ -270,23 +261,44 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  initialValue: _category,
-                  decoration: const InputDecoration(
-                    labelText: 'Danh mục',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.category),
-                  ),
-                  items: _categories
-                      .map(
-                        (category) => DropdownMenuItem(
-                      value: category,
-                      child: Text(category),
-                    ),
-                  )
-                      .toList(),
-                  onChanged: (value) {
-                    if (value != null) setState(() => _category = value);
+                Consumer<CategoryProvider>(
+                  builder: (context, catProvider, _) {
+                    final cats = _type == 'thu'
+                        ? catProvider.incomeCategories
+                        : catProvider.expenseCategories;
+
+                    if (catProvider.isLoading) {
+                      return const LinearProgressIndicator();
+                    }
+
+                    if (cats.isNotEmpty &&
+                        !cats.any((c) => c.categoryId == _selectedCategoryId)) {
+                      _selectedCategoryId = cats.first.categoryId;
+                    }
+
+                    return DropdownButtonFormField<String>(
+                      value: _selectedCategoryId,
+                      decoration: const InputDecoration(
+                        labelText: 'Danh mục',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.category),
+                      ),
+                      items: cats
+                          .map(
+                            (cat) => DropdownMenuItem(
+                              value: cat.categoryId,
+                              child: Text(cat.categoryName),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() => _selectedCategoryId = value);
+                        }
+                      },
+                      validator: (v) =>
+                          v == null ? 'Vui lòng chọn danh mục' : null,
+                    );
                   },
                 ),
                 const SizedBox(height: 16),
@@ -301,6 +313,17 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                     child: Text(DateFormat('dd/MM/yyyy').format(_date)),
                   ),
                 ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _noteController,
+                  decoration: const InputDecoration(
+                    labelText: 'Ghi chú (tùy chọn)',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.notes_rounded),
+                  ),
+                  maxLines: 2,
+                  textInputAction: TextInputAction.done,
+                ),
                 const SizedBox(height: 32),
                 SizedBox(
                   height: 50,
@@ -308,12 +331,12 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                     onPressed: _isSaving ? null : _saveTransaction,
                     child: _isSaving
                         ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                      ),
-                    )
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                            ),
+                          )
                         : Text(_isEditing ? 'Cập nhật' : 'Tạo mới'),
                   ),
                 ),

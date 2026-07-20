@@ -38,25 +38,22 @@ class AppRouter {
         final isLoggingIn = state.matchedLocation == '/login';
         final isSplash = state.matchedLocation == '/splash';
 
-        // Wait until AuthProvider finishes its initial load
-        if (auth.isLoading && !isSplash) {
-          return '/splash';
+        // 1. Wait until AuthProvider finishes its initial load
+        if (auth.isLoading) {
+          return isSplash ? null : '/splash';
         }
 
-        // User is not authenticated
+        // 2. User is not authenticated: stay on /login if already there, otherwise redirect to /login
         if (!auth.isAuthenticated) {
-          if (isLoggingIn || isSplash) {
-            return null; // Stay where we are
-          }
-          return '/login'; // Redirect to login
+          return isLoggingIn ? null : '/login';
         }
 
-        // User is authenticated
+        // 3. User is authenticated: redirect away from /login or /splash to home
         if (isLoggingIn || isSplash) {
-          return '/'; // Go to homepage
+          return '/';
         }
 
-        return null; // Keep going
+        return null;
       },
       routes: [
         GoRoute(
@@ -79,11 +76,11 @@ class AppRouter {
               navigatorKey: homeBranchKey,
               routes: [
                 GoRoute(
-                  path: '/dashboard',
+                  path: '/',
                   builder: (context, state) => const DashboardScreen(),
                 ),
                 GoRoute(
-                  path: '/',
+                  path: '/home',
                   builder: (context, state) => const HomeScreen(),
                 ),
               ],

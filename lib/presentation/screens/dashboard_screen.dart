@@ -6,7 +6,6 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/responsive_helper.dart';
-import '../../data/services/firebase_service.dart';
 import '../../domain/models/category_model.dart';
 import '../../domain/models/mock_chart_data.dart';
 import '../../domain/models/transaction_model.dart';
@@ -46,13 +45,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _initDashboard();
   }
 
-  @override
-  void dispose() {
-    // Restore mock mode when leaving the screen so we don't interfere with other developers
-    FirebaseService().forceMockMode(true);
-    super.dispose();
-  }
-
   Future<void> _initDashboard() async {
     setState(() {
       _isLoading = true;
@@ -60,12 +52,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
 
     try {
-      final firebaseService = FirebaseService();
-      if (firebaseService.isMockMode) {
-        await firebaseService.initialize();
-        firebaseService.forceMockMode(false); // Enable Real Mode to hit Firebase Firestore
-      }
-
       if (!mounted) return;
 
       // 1. Fetch Categories
