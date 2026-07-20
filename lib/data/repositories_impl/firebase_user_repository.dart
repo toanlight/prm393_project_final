@@ -26,6 +26,14 @@ class FirebaseUserRepository implements UserRepository {
   }
 
   @override
+  Future<List<UserModel>> getUsers() async {
+    final snapshot = await _usersCollection.get();
+    return snapshot.docs
+        .map((doc) => UserModel.fromMap(doc.data()))
+        .toList();
+  }
+
+  @override
   Future<Map<String, dynamic>> getAppConfiguration() async {
     try {
       final doc = await _firestore.collection('app_config').doc('settings').get();
