@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/design_tokens.dart';
 import '../../core/utils/responsive_helper.dart';
 import '../../data/services/firebase_service.dart';
 import '../../domain/models/category_model.dart';
@@ -353,8 +354,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: isDark ? AppDesignTokens.darkBackground : AppColors.background,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _errorMessage != null
@@ -388,7 +390,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _buildHeader(),
+                        _buildHeader(context),
                         const SizedBox(height: AppTheme.sp24),
                         AppResponsiveLayout(
                           mobile: _buildMobileLayout(context),
@@ -401,23 +403,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? AppDesignTokens.darkTextPrimary : AppColors.foreground;
+    final mutedTextColor = isDark ? AppDesignTokens.darkTextSecondary : AppColors.mutedFg;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Tổng quan', style: AppTextStyles.h1),
+        Text('Tổng quan', style: AppTextStyles.h1.copyWith(color: textColor)),
         const SizedBox(height: AppTheme.sp4),
         Text(
           '${_getCurrentDateRangeString()} - cập nhật lúc ${_getLastUpdatedTimeString()}',
-          style: AppTextStyles.caption,
+          style: AppTextStyles.caption.copyWith(color: mutedTextColor),
         ),
         const SizedBox(height: AppTheme.sp24),
-        _buildFilterChips(),
+        _buildFilterChips(context),
       ],
     );
   }
 
-  Widget _buildFilterChips() {
+  Widget _buildFilterChips(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final chipBg = isDark ? AppDesignTokens.darkSurface : AppColors.card;
+    final chipBorder = isDark ? AppDesignTokens.darkBorder : AppColors.border;
+    final unselectedText = isDark ? AppDesignTokens.darkTextSecondary : AppColors.mutedFg;
+
     final filters = ['Tháng này', 'Tháng trước', 'Quý này', 'Toàn bộ'];
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -437,14 +448,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                 decoration: BoxDecoration(
-                  color: isSelected ? AppColors.primary : AppColors.card,
+                  color: isSelected ? AppColors.primary : chipBg,
                   borderRadius: BorderRadius.circular(12),
-                  border: isSelected ? null : Border.all(color: AppColors.border),
+                  border: isSelected ? null : Border.all(color: chipBorder),
                 ),
                 child: Text(
                   filter,
                   style: AppTextStyles.body.copyWith(
-                    color: isSelected ? AppColors.primaryFg : AppColors.mutedFg,
+                    color: isSelected ? AppColors.primaryFg : unselectedText,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -536,9 +547,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  BoxDecoration _cardDecoration(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return BoxDecoration(
+      color: isDark ? AppDesignTokens.darkSurface : AppColors.card,
+      borderRadius: BorderRadius.circular(AppTheme.radiusXl),
+      border: Border.all(
+        color: isDark ? AppDesignTokens.darkBorder : AppColors.border,
+        width: 1,
+      ),
+      boxShadow: isDark ? AppDesignTokens.darkShadow : null,
+    );
+  }
+
   Widget _buildBarChartCard(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? AppDesignTokens.darkTextPrimary : AppColors.foreground;
+    final mutedTextColor = isDark ? AppDesignTokens.darkTextSecondary : AppColors.mutedFg;
+
     return Container(
-      decoration: AppTheme.cardDecoration,
+      decoration: _cardDecoration(context),
       padding: const EdgeInsets.all(AppTheme.sp24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -550,25 +578,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Thu & Chi theo tháng', style: AppTextStyles.h2),
+                  Text('Thu & Chi theo tháng', style: AppTextStyles.h2.copyWith(color: textColor)),
                   const SizedBox(height: AppTheme.sp4),
-                  Text('Đơn vị: triệu VND', style: AppTextStyles.caption),
+                  Text('Đơn vị: triệu VND', style: AppTextStyles.caption.copyWith(color: mutedTextColor)),
                 ],
               ),
               Row(
                 children: [
-                  _buildLegendDot(AppColors.success, 'Thu'),
+                  _buildLegendDot(context, AppColors.success, 'Thu'),
                   const SizedBox(width: AppTheme.sp16),
-                  _buildLegendDot(AppColors.danger, 'Chi'),
+                  _buildLegendDot(context, AppColors.danger, 'Chi'),
                 ],
               ),
             ],
           ),
           const SizedBox(height: AppTheme.sp24),
           monthlyData.isEmpty
-              ? const SizedBox(
+              ? SizedBox(
                   height: 200,
-                  child: Center(child: Text('Không có dữ liệu so sánh')),
+                  child: Center(child: Text('Không có dữ liệu so sánh', style: AppTextStyles.caption.copyWith(color: mutedTextColor))),
                 )
               : IncomeExpenseBarChart(data: monthlyData),
         ],
@@ -577,31 +605,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildPieChartCard(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? AppDesignTokens.darkTextPrimary : AppColors.foreground;
+    final mutedTextColor = isDark ? AppDesignTokens.darkTextSecondary : AppColors.mutedFg;
+
     return Container(
-      decoration: AppTheme.cardDecoration,
+      decoration: _cardDecoration(context),
       padding: const EdgeInsets.all(AppTheme.sp24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Cơ cấu chi phí', style: AppTextStyles.h2),
+          Text('Cơ cấu chi phí', style: AppTextStyles.h2.copyWith(color: textColor)),
           const SizedBox(height: AppTheme.sp4),
-          Text(_getCurrentDateRangeString(), style: AppTextStyles.caption),
+          Text(_getCurrentDateRangeString(), style: AppTextStyles.caption.copyWith(color: mutedTextColor)),
           const SizedBox(height: AppTheme.sp24),
           SizedBox(
             height: 180,
             child: spendingData.isEmpty
-                ? const Center(child: Text('Không có dữ liệu chi phí'))
+                ? Center(child: Text('Không có dữ liệu chi phí', style: AppTextStyles.caption.copyWith(color: mutedTextColor)))
                 : ExpensePieChart(data: spendingData),
           ),
           const SizedBox(height: AppTheme.sp24),
-          _buildPieLegend(),
+          _buildPieLegend(context),
         ],
       ),
     );
   }
 
-  Widget _buildPieLegend() {
+  Widget _buildPieLegend(BuildContext context) {
     if (spendingData.isEmpty) return const SizedBox();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? AppDesignTokens.darkTextSecondary : AppColors.mutedFg;
+
     return Column(
       children: spendingData.map((e) {
         return Padding(
@@ -620,7 +655,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ),
                   const SizedBox(width: AppTheme.sp8),
-                  Text(e.name, style: AppTextStyles.caption),
+                  Text(e.name, style: AppTextStyles.caption.copyWith(color: textColor)),
                 ],
               ),
               Text(
@@ -636,8 +671,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildLineChartCard(BuildContext context) {
     final netBalanceTrend = kpiCards.length > 2 ? kpiCards[2].trend : '0%';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? AppDesignTokens.darkTextPrimary : AppColors.foreground;
+    final mutedTextColor = isDark ? AppDesignTokens.darkTextSecondary : AppColors.mutedFg;
+    final badgeBg = isDark ? AppColors.primary.withOpacity(0.15) : const Color(0xFFDBEAFE);
+
     return Container(
-      decoration: AppTheme.cardDecoration,
+      decoration: _cardDecoration(context),
       padding: const EdgeInsets.all(AppTheme.sp24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -649,18 +689,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Xu hướng số dư ròng', style: AppTextStyles.h2),
+                  Text('Xu hướng số dư ròng', style: AppTextStyles.h2.copyWith(color: textColor)),
                   const SizedBox(height: AppTheme.sp4),
                   Text(
                     '${_getCurrentDateRangeString()} • Đơn vị: triệu VND',
-                    style: AppTextStyles.caption,
+                    style: AppTextStyles.caption.copyWith(color: mutedTextColor),
                   ),
                 ],
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: AppTheme.sp12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFDBEAFE),
+                  color: badgeBg,
                   borderRadius: BorderRadius.circular(AppTheme.radiusXl),
                 ),
                 child: Text(
@@ -675,9 +715,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const SizedBox(height: AppTheme.sp24),
           trendData.isEmpty
-              ? const SizedBox(
+              ? SizedBox(
                   height: 150,
-                  child: Center(child: Text('Không có dữ liệu xu hướng')),
+                  child: Center(child: Text('Không có dữ liệu xu hướng', style: AppTextStyles.caption.copyWith(color: mutedTextColor))),
                 )
               : IncomeExpenseLineChart(data: trendData),
         ],
@@ -685,7 +725,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildLegendDot(Color color, String label) {
+  Widget _buildLegendDot(BuildContext context, Color color, String label) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? AppDesignTokens.darkTextSecondary : AppColors.mutedFg;
+
     return Row(
       children: [
         Container(
@@ -697,7 +740,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
         const SizedBox(width: AppTheme.sp4),
-        Text(label, style: AppTextStyles.caption),
+        Text(label, style: AppTextStyles.caption.copyWith(color: textColor)),
       ],
     );
   }
