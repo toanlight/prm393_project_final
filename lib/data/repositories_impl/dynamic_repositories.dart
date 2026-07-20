@@ -95,14 +95,13 @@ class DynamicTransactionRepository implements TransactionRepository {
   TransactionRepository get _active => FirebaseService().isMockMode ? _mock : _real;
 
   @override
-  Future<List<TransactionModel>> getTransactions(String userId, {String? roleId}) =>
-      _active.getTransactions(userId, roleId: roleId);
+  Future<List<TransactionModel>> getTransactions(String userId) => _active.getTransactions(userId);
 
   @override
-  Stream<List<TransactionModel>> streamTransactions(String userId, {String? roleId}) {
+  Stream<List<TransactionModel>> streamTransactions(String userId) {
     return FirebaseService().isMockMode 
-        ? _mock.streamTransactions(userId, roleId: roleId) 
-        : _real.streamTransactions(userId, roleId: roleId);
+        ? _mock.streamTransactions(userId) 
+        : _real.streamTransactions(userId);
   }
 
   @override

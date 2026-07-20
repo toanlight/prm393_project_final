@@ -33,8 +33,7 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
   void _loadData() {
     final authProvider = context.read<AuthProvider>();
     final userId = authProvider.user?.uid ?? 'mock-user-123';
-    final roleId = authProvider.user?.roleId;
-    context.read<TransactionProvider>().fetchTransactions(userId, roleId: roleId);
+    context.read<TransactionProvider>().fetchTransactions(userId);
   }
 
   List<TransactionModel> _getFilteredTransactions(List<TransactionModel> txs) {
