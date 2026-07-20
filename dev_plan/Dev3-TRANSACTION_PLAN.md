@@ -49,9 +49,10 @@ Mọi UI và Validator phải khớp chính xác với cấu trúc dữ liệu s
 
 Sau khi tiến hành merge code từ nhánh `main` và khắc phục các conflict, phân hệ Giao dịch (Dev 3) đã hoàn thành và nâng cấp toàn bộ các hạng mục sau:
 
-### A. Giải quyết Conflict & Merge Code từ Main
+### A. Giải quyết Conflict & Merge Code từ Main và feature/invoice-pdf-export
 - Gỡ bỏ hoàn toàn conflict trong `mock_invoice_repository.dart` và `mock_transaction_repository.dart`, thống nhất liên kết hóa đơn mock `t3` cho cả 2 repository.
-- Xóa rác marker conflict và kiểm tra `git status` đảm bảo working tree hoàn toàn clean.
+- Merge thành công nhánh `feature/invoice-pdf-export` vào `feature/transactions-ui-form`, gỡ conflict tại `transaction_form_screen.dart`, tích hợp cơ chế tự động tải lại `InvoiceProvider` khi lưu hóa đơn.
+- Kiểm tra `git status` đảm bảo working tree hoàn toàn clean và `flutter analyze` 0 lỗi.
 
 ### B. Chuẩn hóa Giao diện Màn hình Lịch sử Giao dịch (Transaction List Screen)
 - **Header & Subtitle:** Tiêu đề lớn `"Lịch sử giao dịch"` ở góc trên cùng bên trái. Dòng chữ nhỏ bên dưới hiển thị động số lượng giao dịch và thời gian (`"X giao dịch · Tháng M/YYYY"`).
