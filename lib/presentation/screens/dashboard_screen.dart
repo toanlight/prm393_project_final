@@ -70,7 +70,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
 
       if (!mounted) return;
-      _processData();
+      setState(() {
+        _isLoading = false;
+      });
     } catch (e) {
       setState(() {
         _isLoading = false;
@@ -79,36 +81,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  void _processData() {
-    final transactionProvider = context.read<TransactionProvider>();
-    _allTransactions = transactionProvider.transactions;
+  void _processDataSync() {
+    // Phương án A: Chỉ tính toán và hiển thị các giao dịch ĐÃ PHÊ DUYỆT (status == 'confirmed')
+    final confirmedTransactions = _allTransactions.where((tx) => tx.status == 'confirmed').toList();
 
-    if (_allTransactions.isEmpty) {
-      // Dữ liệu trống -> Sử dụng mock data tạm thời để thuyết trình
-      kpiCards = mock.kpiCards;
-      monthlyData = mock.monthlyData;
-      spendingData = mock.spendingData;
-      trendData = mock.trendData;
-    } else {
-      // Filter transactions based on selected chip
-      final filtered = _getFilteredTransactions(_allTransactions);
+    // Filter transactions based on selected chip
+    final filtered = _getFilteredTransactions(confirmedTransactions);
 
-      // Calculate dynamic KPI Metrics
-      kpiCards = _calculateKpis(filtered, _allTransactions);
+    // Calculate dynamic KPI Metrics
+    kpiCards = _calculateKpis(filtered, confirmedTransactions);
 
-      // Calculate dynamic Monthly comparative data (Last 6 Months)
-      monthlyData = _calculateMonthlyData(_allTransactions);
+    // Calculate dynamic Monthly comparative data (Last 6 Months)
+    monthlyData = _calculateMonthlyData(confirmedTransactions);
 
-      // Calculate dynamic Expenses category distribution
-      spendingData = _calculatePieData(filtered);
+    // Calculate dynamic Expenses category distribution
+    spendingData = _calculatePieData(filtered);
 
-      // Calculate dynamic Net Balance trend lines
-      trendData = _calculateTrendData(filtered, _allTransactions);
-    }
-
-    setState(() {
-      _isLoading = false;
-    });
+    // Calculate dynamic Net Balance trend lines
+    trendData = _calculateTrendData(filtered, confirmedTransactions);
   }
 
   List<TransactionModel> _getFilteredTransactions(List<TransactionModel> allTxs) {
@@ -341,6 +331,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    // Auto-listen to TransactionProvider so Dashboard updates INSTANTLY when transactions change
+    final txProvider = context.watch<TransactionProvider>();
+    _allTransactions = txProvider.transactions;
+    _processDataSync();
+
     return Scaffold(
       backgroundColor: isDark ? AppDesignTokens.darkBackground : AppColors.background,
       body: _isLoading
@@ -427,7 +423,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               onTap: () {
                 setState(() {
                   selectedFilter = filter;
-                  _processData();
+                  _processDataSync();
                 });
               },
               borderRadius: BorderRadius.circular(12),
