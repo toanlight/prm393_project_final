@@ -648,7 +648,6 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                   ),
                   const SizedBox(height: 16),
                 ],
->>>>>>> origin/feature/transactions-ui-form
                 const SizedBox(height: 32),
                 SizedBox(
                   height: 50,
