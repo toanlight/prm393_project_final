@@ -160,33 +160,48 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
                       const SizedBox(height: AppDesignTokens.spaceMd),
                       
                       // Role filter list
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
+                      LayoutBuilder(
+                        builder: (context, filterConstraints) {
+                          final chips = [
                             ChoiceChip(
                               label: const Text('Tất cả'),
                               selected: _selectedRoleFilter == null,
                               onSelected: (_) => setState(() => _selectedRoleFilter = null),
                             ),
-                            const SizedBox(width: AppDesignTokens.spaceXs),
                             ..._roleMetas.entries.map((entry) {
                               final meta = entry.value;
-                              return Padding(
-                                padding: const EdgeInsets.only(right: AppDesignTokens.spaceXs),
-                                child: ChoiceChip(
-                                  label: Text(meta.name),
-                                  selected: _selectedRoleFilter == entry.key,
-                                  onSelected: (selected) {
-                                    setState(() {
-                                      _selectedRoleFilter = selected ? entry.key : null;
-                                    });
-                                  },
-                                ),
+                              return ChoiceChip(
+                                label: Text(meta.name),
+                                selected: _selectedRoleFilter == entry.key,
+                                onSelected: (selected) {
+                                  setState(() {
+                                    _selectedRoleFilter = selected ? entry.key : null;
+                                  });
+                                },
                               );
                             }),
-                          ],
-                        ),
+                          ];
+
+                          if (filterConstraints.maxWidth > 500) {
+                            return Wrap(
+                              spacing: AppDesignTokens.spaceXs,
+                              runSpacing: AppDesignTokens.spaceXs,
+                              children: chips,
+                            );
+                          } else {
+                            return SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: chips
+                                    .map((chip) => Padding(
+                                          padding: const EdgeInsets.only(right: AppDesignTokens.spaceXs),
+                                          child: chip,
+                                        ))
+                                    .toList(),
+                              ),
+                            );
+                          }
+                        },
                       ),
                     ],
                   ),
@@ -256,184 +271,224 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
                                   ],
                                 ),
                               )
-                            : ListView.builder(
-                                itemCount: filteredUsers.length,
-                                itemBuilder: (context, index) {
-                                  final user = filteredUsers[index];
-                                  final isSelf = user.uid == currentAdmin?.uid;
-                                  final roleMeta = _getRoleMeta(user.roleId);
+                            : LayoutBuilder(
+                                builder: (context, listConstraints) {
+                                  final double width = listConstraints.maxWidth;
+                                  final int crossAxisCount = width > 600 ? 2 : 1;
 
-                                  return Card(
-                                    margin: const EdgeInsets.only(bottom: AppDesignTokens.spaceSm),
-                                    elevation: 0,
-                                    color: isDark ? AppDesignTokens.darkSurface : Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
-                                      side: BorderSide(
-                                        color: isDark ? AppDesignTokens.darkBorder : AppDesignTokens.lightBorder,
+                                  if (crossAxisCount > 1) {
+                                    return GridView.builder(
+                                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount: crossAxisCount,
+                                        crossAxisSpacing: AppDesignTokens.spaceMd,
+                                        mainAxisSpacing: AppDesignTokens.spaceSm,
+                                        mainAxisExtent: 116,
                                       ),
-                                    ),
-                                    child: ListTile(
-                                      contentPadding: const EdgeInsets.symmetric(
-                                        horizontal: AppDesignTokens.spaceMd,
-                                        vertical: AppDesignTokens.spaceXs,
-                                      ),
-                                      leading: Hero(
-                                        tag: 'avatar_${user.uid}',
-                                        child: CircleAvatar(
-                                          radius: 22,
-                                          backgroundColor: roleMeta.color.withOpacity(0.1),
-                                          backgroundImage: user.photoUrl.isNotEmpty
-                                              ? NetworkImage(user.photoUrl)
-                                              : null,
-                                          child: user.photoUrl.isEmpty
-                                              ? Text(
-                                                  user.fullName.isNotEmpty
-                                                      ? user.fullName[0].toUpperCase()
-                                                      : '?',
-                                                  style: TextStyle(
-                                                    color: roleMeta.color,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                )
-                                              : null,
-                                        ),
-                                      ),
-                                      title: Row(
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              user.fullName,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 16,
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                          if (isSelf)
-                                            Container(
-                                              margin: const EdgeInsets.only(left: 6),
-                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                              decoration: BoxDecoration(
-                                                color: AppDesignTokens.primary.withOpacity(0.2),
-                                                borderRadius: BorderRadius.circular(AppDesignTokens.radiusXs),
-                                              ),
-                                              child: const Text(
-                                                'BẠN',
-                                                style: TextStyle(
-                                                  fontSize: 9,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: AppDesignTokens.primary,
-                                                ),
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                      subtitle: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            user.email,
-                                            style: TextStyle(
-                                              fontSize: 13,
-                                              color: isDark
-                                                  ? AppDesignTokens.darkTextSecondary
-                                                  : AppDesignTokens.lightTextSecondary,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 6),
-                                          Row(
-                                            children: [
-                                              // Role Badge
-                                              Container(
-                                                padding: const EdgeInsets.symmetric(
-                                                  horizontal: 8,
-                                                  vertical: 4,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  color: roleMeta.color.withOpacity(0.1),
-                                                  borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
-                                                  border: Border.all(
-                                                    color: roleMeta.color.withOpacity(0.3),
-                                                    width: 1,
-                                                  ),
-                                                ),
-                                                child: Row(
-                                                  mainAxisSize: MainAxisSize.min,
-                                                  children: [
-                                                    Icon(roleMeta.icon, size: 12, color: roleMeta.color),
-                                                    const SizedBox(width: 4),
-                                                    Text(
-                                                      roleMeta.name,
-                                                      style: TextStyle(
-                                                        fontSize: 11,
-                                                        fontWeight: FontWeight.bold,
-                                                        color: roleMeta.color,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
-
-                                              // Status Badge
-                                              Container(
-                                                padding: const EdgeInsets.symmetric(
-                                                  horizontal: 8,
-                                                  vertical: 4,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  color: (user.isActive
-                                                          ? AppDesignTokens.success
-                                                          : AppDesignTokens.error)
-                                                      .withOpacity(0.1),
-                                                  borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
-                                                ),
-                                                child: Row(
-                                                  mainAxisSize: MainAxisSize.min,
-                                                  children: [
-                                                    Container(
-                                                      width: 6,
-                                                      height: 6,
-                                                      decoration: BoxDecoration(
-                                                        shape: BoxShape.circle,
-                                                        color: user.isActive
-                                                            ? AppDesignTokens.success
-                                                            : AppDesignTokens.error,
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 6),
-                                                    Text(
-                                                      user.isActive ? 'Đang hoạt động' : 'Đã khóa',
-                                                      style: TextStyle(
-                                                        fontSize: 11,
-                                                        fontWeight: FontWeight.w600,
-                                                        color: user.isActive
-                                                            ? AppDesignTokens.success
-                                                            : AppDesignTokens.error,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                      trailing: IconButton(
-                                        icon: const Icon(Icons.edit_rounded),
-                                        onPressed: () => _showEditUserBottomSheet(user, isSelf),
-                                      ),
-                                    ),
-                                  );
+                                      itemCount: filteredUsers.length,
+                                      itemBuilder: (context, index) {
+                                        final user = filteredUsers[index];
+                                        final isSelf = user.uid == currentAdmin?.uid;
+                                        final roleMeta = _getRoleMeta(user.roleId);
+                                        return _buildUserCard(user, isSelf, roleMeta, isDark);
+                                      },
+                                    );
+                                  } else {
+                                    return ListView.builder(
+                                      itemCount: filteredUsers.length,
+                                      itemBuilder: (context, index) {
+                                        final user = filteredUsers[index];
+                                        final isSelf = user.uid == currentAdmin?.uid;
+                                        final roleMeta = _getRoleMeta(user.roleId);
+                                        return Padding(
+                                          padding: const EdgeInsets.only(bottom: AppDesignTokens.spaceSm),
+                                          child: _buildUserCard(user, isSelf, roleMeta, isDark),
+                                        );
+                                      },
+                                    );
+                                  }
                                 },
                               ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUserCard(
+    UserModel user,
+    bool isSelf,
+    _RoleMeta roleMeta,
+    bool isDark,
+  ) {
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 0,
+      color: isDark ? AppDesignTokens.darkSurface : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
+        side: BorderSide(
+          color: isDark ? AppDesignTokens.darkBorder : AppDesignTokens.lightBorder,
+        ),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppDesignTokens.spaceMd,
+          vertical: AppDesignTokens.spaceXs,
+        ),
+        leading: Hero(
+          tag: 'avatar_${user.uid}',
+          child: CircleAvatar(
+            radius: 22,
+            backgroundColor: roleMeta.color.withOpacity(0.1),
+            backgroundImage: user.photoUrl.isNotEmpty
+                ? NetworkImage(user.photoUrl)
+                : null,
+            child: user.photoUrl.isEmpty
+                ? Text(
+                    user.fullName.isNotEmpty
+                        ? user.fullName[0].toUpperCase()
+                        : '?',
+                    style: TextStyle(
+                      color: roleMeta.color,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  )
+                : null,
+          ),
+        ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                user.fullName,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (isSelf)
+              Container(
+                margin: const EdgeInsets.only(left: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppDesignTokens.primary.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(AppDesignTokens.radiusXs),
+                ),
+                child: const Text(
+                  'BẠN',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: AppDesignTokens.primary,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 2),
+            Text(
+              user.email,
+              style: TextStyle(
+                fontSize: 13,
+                color: isDark
+                    ? AppDesignTokens.darkTextSecondary
+                    : AppDesignTokens.lightTextSecondary,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                // Role Badge
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: roleMeta.color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
+                    border: Border.all(
+                      color: roleMeta.color.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(roleMeta.icon, size: 12, color: roleMeta.color),
+                      const SizedBox(width: 4),
+                      Text(
+                        roleMeta.name,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: roleMeta.color,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Status Badge
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: (user.isActive
+                            ? AppDesignTokens.success
+                            : AppDesignTokens.error)
+                        .withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: user.isActive
+                              ? AppDesignTokens.success
+                              : AppDesignTokens.error,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        user.isActive ? 'Đang hoạt động' : 'Đã khóa',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: user.isActive
+                              ? AppDesignTokens.success
+                              : AppDesignTokens.error,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        trailing: IconButton(
+          icon: const Icon(Icons.edit_rounded),
+          onPressed: () => _showEditUserBottomSheet(user, isSelf),
         ),
       ),
     );
