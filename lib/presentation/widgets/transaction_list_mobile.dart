@@ -4,8 +4,10 @@ import 'package:provider/provider.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../domain/models/transaction_model.dart';
 import '../../domain/models/transaction_type.dart';
+import '../../domain/repositories/invoice_repository.dart';
 import '../../domain/services/mock_receipt_image_store.dart';
 import '../providers/auth_provider.dart';
+import '../providers/invoice_provider.dart';
 import '../providers/transaction_provider.dart';
 
 class TransactionListMobile extends StatelessWidget {
@@ -121,8 +123,14 @@ class TransactionListMobile extends StatelessWidget {
   Future<void> _updateStatus(BuildContext context, String txId, String status, String userId) async {
     Navigator.pop(context); // Đóng BottomSheet
     try {
-      await context.read<TransactionProvider>().updateTransactionStatus(txId, status, userId);
+      await context.read<TransactionProvider>().updateTransactionStatus(
+            txId,
+            status,
+            userId,
+            invoiceRepository: context.read<InvoiceRepository>(),
+          );
       if (context.mounted) {
+        await context.read<InvoiceProvider>().loadInvoices(userId);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Đã cập nhật trạng thái thành: $status'),

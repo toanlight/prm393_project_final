@@ -34,6 +34,8 @@ class AppRouter {
 
     return GoRouter(
       navigatorKey: rootNavigatorKey,
+      // initialLocation: '/transactions',
+
       initialLocation: '/splash',
       refreshListenable: authProvider,
       redirect: (context, state) {

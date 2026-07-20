@@ -340,18 +340,16 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
               );
             }
 
-            if (provider.transactions.isEmpty) {
-              return TransactionEmptyState(onRefresh: _loadData);
-            }
-
-            // Tính toán tổng quan thu/chi và số dư
+            // Tính toán tổng quan thu/chi và số dư (Chỉ tính các giao dịch đã được phê duyệt 'confirmed')
             int totalIncome = 0;
             int totalExpense = 0;
             for (var tx in provider.transactions) {
-              if (tx.type == TransactionType.income) {
-                totalIncome += tx.amountVnd;
-              } else {
-                totalExpense += tx.amountVnd;
+              if (tx.status == 'confirmed') {
+                if (tx.type == TransactionType.income) {
+                  totalIncome += tx.amountVnd;
+                } else {
+                  totalExpense += tx.amountVnd;
+                }
               }
             }
             final balance = totalIncome - totalExpense;
@@ -446,38 +444,40 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                     padding: const EdgeInsets.symmetric(
                       horizontal: AppDesignTokens.spaceLg,
                     ),
-                    child: filteredTxs.isEmpty
-                        ? const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(AppDesignTokens.spaceLg),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.filter_list_off, size: 48, color: Colors.grey),
-                                  SizedBox(height: 8),
-                                  Text(
-                                    'Không tìm thấy giao dịch phù hợp với bộ lọc.',
-                                    style: TextStyle(color: Colors.grey),
+                    child: provider.transactions.isEmpty
+                        ? TransactionEmptyState(onRefresh: _loadData)
+                        : (filteredTxs.isEmpty
+                            ? const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(AppDesignTokens.spaceLg),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.filter_list_off, size: 48, color: Colors.grey),
+                                      SizedBox(height: 8),
+                                      Text(
+                                        'Không tìm thấy giao dịch phù hợp với bộ lọc.',
+                                        style: TextStyle(color: Colors.grey),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                            ),
-                          )
-                        : LayoutBuilder(
-                            builder: (context, constraints) {
-                              if (constraints.maxWidth >= 900) {
-                                return TransactionListDesktop(
-                                  transactions: filteredTxs,
-                                  onDelete: (id) => provider.deleteTransaction(id, userId),
-                                );
-                              } else {
-                                return TransactionListMobile(
-                                  transactions: filteredTxs,
-                                  onDelete: (id) => provider.deleteTransaction(id, userId),
-                                );
-                              }
-                            },
-                          ),
+                                ),
+                              )
+                            : LayoutBuilder(
+                                builder: (context, constraints) {
+                                  if (constraints.maxWidth >= 900) {
+                                    return TransactionListDesktop(
+                                      transactions: filteredTxs,
+                                      onDelete: (id) => provider.deleteTransaction(id, userId),
+                                    );
+                                  } else {
+                                    return TransactionListMobile(
+                                      transactions: filteredTxs,
+                                      onDelete: (id) => provider.deleteTransaction(id, userId),
+                                    );
+                                  }
+                                },
+                              )),
                   ),
                 ),
               ],

@@ -13,6 +13,7 @@ import '../../domain/services/mock_ocr_service.dart';
 import '../../domain/services/mock_receipt_image_store.dart';
 import '../providers/auth_provider.dart';
 import '../providers/category_provider.dart';
+import '../providers/invoice_provider.dart';
 import '../providers/transaction_provider.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -41,7 +42,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
   DateTime _date = DateTime.now();
   bool _isSaving = false;
 
-  // Cấu hình hóa đơn nhập tay khi _type == 'thu'
+  // Cấu hình hóa đơn nhập tay (Bắt buộc cho Thu, Tùy chọn cho Chi)
   final _invoiceNumberController = TextEditingController();
   final _partnerNameController = TextEditingController();
   final _partnerAddressController = TextEditingController();
@@ -80,6 +81,12 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
       _type = 'chi';
       _date = ocr.invoiceDate;
       initialNote = '${ocr.invoiceNumber} - ${ocr.partnerName}';
+      _invoiceNumberController.text = ocr.invoiceNumber;
+      _partnerNameController.text = ocr.partnerName;
+      _partnerAddressController.text = ocr.partnerAddress;
+      _taxCodeController.text = ocr.taxCode;
+      _subTotalController.text = ocr.subTotal.toString();
+      _vatRate = ocr.vatRate;
     }
 
     _amountController = TextEditingController(text: initialAmount);
@@ -188,27 +195,31 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
         ? widget.transactionToEdit!.transactionId
         : 'tx_${now.microsecondsSinceEpoch}';
 
-    // Khởi tạo các mã liên kết hóa đơn
-    String? invoiceId = _isFromOcr
-        ? 'invoice_${now.microsecondsSinceEpoch}'
-        : (_isEditing ? widget.transactionToEdit!.invoiceId : null);
-    String? scanId = _isEditing ? widget.transactionToEdit!.scanId : null;
+    final hasInvoiceInfo = _isFromOcr ||
+        _type == 'thu' ||
+        _pickedImageBytes != null ||
+        _invoiceNumberController.text.trim().isNotEmpty ||
+        _partnerNameController.text.trim().isNotEmpty;
 
-    if (_type == 'thu') {
-      invoiceId ??= 'invoice_${now.microsecondsSinceEpoch}';
-      if (_pickedImageBytes != null) {
-        scanId ??= 'scan_manual_${now.microsecondsSinceEpoch}';
-        MockReceiptImageStore.save(scanId: scanId, bytes: _pickedImageBytes!);
-      }
-    } else if (!_isFromOcr) {
-      // Nếu đổi từ thu sang chi, ta xóa liên kết hóa đơn
-      invoiceId = null;
-      scanId = null;
+    // Khởi tạo các mã liên kết hóa đơn
+    String? invoiceId = hasInvoiceInfo
+        ? (_isEditing && widget.transactionToEdit!.invoiceId != null
+            ? widget.transactionToEdit!.invoiceId
+            : 'invoice_${now.microsecondsSinceEpoch}')
+        : null;
+
+    String? scanId = _isFromOcr
+        ? widget.initialOcrData!.scanId
+        : (_isEditing ? widget.transactionToEdit!.scanId : null);
+
+    if (_pickedImageBytes != null) {
+      scanId ??= 'scan_${_type}_${now.microsecondsSinceEpoch}';
+      MockReceiptImageStore.save(scanId: scanId, bytes: _pickedImageBytes!);
     }
 
     final userId = _isEditing
         ? widget.transactionToEdit!.userId
-        : (authProvider.user?.uid ?? 'anonymous');
+        : (authProvider.user?.uid ?? 'mock-user-123');
 
     final transaction = TransactionModel(
       transactionId: transactionId,
@@ -226,12 +237,13 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
           ? 'mock://${widget.initialOcrData!.scanId}'
           : (scanId != null
               ? 'mock://$scanId'
-              : (_type == 'thu' && _isEditing ? widget.transactionToEdit!.receiptImage : null)),
-      status: _isEditing ? widget.transactionToEdit!.status : 'confirmed',
+              : (_isEditing ? widget.transactionToEdit!.receiptImage : null)),
+      status: _isEditing ? widget.transactionToEdit!.status : 'pending',
       createdAt: _isEditing ? widget.transactionToEdit!.createdAt : now,
     );
 
     bool transactionCreated = false;
+    bool invoiceChanged = false;
 
     try {
       if (_isEditing) {
@@ -241,6 +253,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
         transactionCreated = true;
       }
 
+      // Tạo/Cập nhật Hóa đơn nếu có thông tin chứng từ (cho cả Thu và Chi)
       if (_isFromOcr && invoiceId != null) {
         final invoice = widget.initialOcrData!.toInvoiceModel(
           invoiceId: invoiceId,
@@ -249,30 +262,46 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
         );
 
         await invoiceRepository.createInvoice(invoice);
-      } else if (_type == 'thu' && invoiceId != null) {
-        final subTotal = int.tryParse(_subTotalController.text) ?? 0;
-        final vatAmount = (subTotal * _vatRate / 100).round();
-        final totalAmount = subTotal + vatAmount;
+        invoiceChanged = true;
+      } else if (hasInvoiceInfo && invoiceId != null) {
+        final totalAmount = int.parse(_amountController.text);
+        final subTotal = int.tryParse(_subTotalController.text) ??
+            (_type == 'thu' ? totalAmount : (totalAmount / (1 + _vatRate / 100)).round());
+        final vatAmount = totalAmount - subTotal;
+
+        final invNumber = _invoiceNumberController.text.trim().isNotEmpty
+            ? _invoiceNumberController.text.trim()
+            : 'HĐ ${_type == 'thu' ? 'Thu' : 'Chi'} #${now.millisecondsSinceEpoch.toString().substring(5)}';
+
+        final partner = _partnerNameController.text.trim().isNotEmpty
+            ? _partnerNameController.text.trim()
+            : (_type == 'thu' ? 'Khách hàng' : 'Nhà cung cấp / Đối tác');
 
         final manualInvoice = InvoiceModel(
           invoiceId: invoiceId,
           transactionId: transactionId,
-          invoiceNumber: _invoiceNumberController.text.trim(),
-          partnerName: _partnerNameController.text.trim(),
+          invoiceNumber: invNumber,
+          partnerName: partner,
           partnerAddress: _partnerAddressController.text.trim(),
           taxCode: _taxCodeController.text.trim(),
           invoiceDate: _date,
           subTotal: subTotal,
           vatRate: _vatRate,
-          vatAmount: vatAmount,
+          vatAmount: vatAmount > 0 ? vatAmount : 0,
           totalAmount: totalAmount,
           pdfPath: 'invoices/pdf/$invoiceId.pdf',
           createdBy: userId,
           scanId: scanId,
-          status: 'confirmed',
+          status: transaction.status,
         );
 
         await invoiceRepository.createInvoice(manualInvoice);
+        invoiceChanged = true;
+      }
+
+      // Tải lại InvoiceProvider để đồng bộ trang Hóa đơn
+      if (invoiceChanged && mounted) {
+        await context.read<InvoiceProvider>().loadInvoices(userId);
       }
 
       if (!mounted) return;
@@ -289,7 +318,11 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
         ),
       );
 
-      context.pop();
+      if (_isFromOcr) {
+        context.go('/invoices');
+      } else {
+        context.pop();
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
@@ -571,79 +604,148 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                   ],
                 ),
 
-                // Cấu hình hóa đơn thủ công khi Loại = Thu
-                if (_type == 'thu') ...[
-                  const SizedBox(height: 24),
-                  Row(
+                // Cấu hình Hóa đơn & Chứng từ đính kèm (Bắt buộc cho Thu, Tùy chọn cho Chi)
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.receipt_long_rounded,
+                      color: _type == 'thu' ? AppDesignTokens.primary : AppDesignTokens.error,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _type == 'thu'
+                          ? 'Thông tin hóa đơn (Bắt buộc)'
+                          : 'Thông tin hóa đơn / Chứng từ (Tùy chọn)',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: _type == 'thu' ? AppDesignTokens.primary : AppDesignTokens.error,
+                          ),
+                    ),
+                  ],
+                ),
+                Divider(
+                  color: _type == 'thu' ? AppDesignTokens.primary : AppDesignTokens.error,
+                  thickness: 1,
+                ),
+                const SizedBox(height: 16),
+
+                // Khối tải ảnh chứng từ / Hóa đơn
+                Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: isDark ? AppDesignTokens.darkBorder : AppDesignTokens.lightBorder,
+                    ),
+                    borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
+                  ),
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.receipt_long_rounded, color: AppDesignTokens.primary),
-                      const SizedBox(width: 8),
                       Text(
-                        'Thông tin hóa đơn (Bắt buộc)',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: AppDesignTokens.primary,
+                        _type == 'thu' ? 'Ảnh hóa đơn chứng từ' : 'Ảnh hóa đơn / Biên lai chi (Tùy chọn)',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      if (_pickedImageBytes != null) ...[
+                        Stack(
+                          alignment: Alignment.topRight,
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
+                              child: Image.memory(
+                                _pickedImageBytes!,
+                                height: 140,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                              ),
                             ),
+                            CircleAvatar(
+                              backgroundColor: Colors.black54,
+                              radius: 16,
+                              child: IconButton(
+                                padding: EdgeInsets.zero,
+                                icon: const Icon(Icons.close, color: Colors.white, size: 18),
+                                onPressed: () {
+                                  setState(() {
+                                    _pickedImage = null;
+                                    _pickedImageBytes = null;
+                                  });
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                      OutlinedButton.icon(
+                        onPressed: _pickImage,
+                        icon: const Icon(Icons.camera_alt_outlined),
+                        label: Text(_pickedImageBytes != null ? 'Thay đổi ảnh chứng từ' : 'Chọn ảnh chứng từ từ thư viện'),
                       ),
                     ],
                   ),
-                  const Divider(color: AppDesignTokens.primary, thickness: 1),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _invoiceNumberController,
-                    decoration: InputDecoration(
-                      labelText: 'Số hóa đơn *',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
-                      ),
-                      prefixIcon: const Icon(Icons.numbers),
+                ),
+                const SizedBox(height: 16),
+
+                // Các trường chi tiết hóa đơn
+                TextFormField(
+                  controller: _invoiceNumberController,
+                  decoration: InputDecoration(
+                    labelText: _type == 'thu' ? 'Số hóa đơn *' : 'Số hóa đơn (Nếu có)',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
                     ),
-                    validator: (value) {
-                      if (_type == 'thu' && (value == null || value.trim().isEmpty)) {
-                        return 'Vui lòng nhập số hóa đơn';
-                      }
-                      return null;
-                    },
+                    prefixIcon: const Icon(Icons.numbers),
                   ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _partnerNameController,
-                    decoration: InputDecoration(
-                      labelText: 'Tên đối tác *',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
-                      ),
-                      prefixIcon: const Icon(Icons.business),
+                  validator: (value) {
+                    if (_type == 'thu' && (value == null || value.trim().isEmpty)) {
+                      return 'Vui lòng nhập số hóa đơn';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _partnerNameController,
+                  decoration: InputDecoration(
+                    labelText: _type == 'thu' ? 'Tên đối tác *' : 'Tên nhà cung cấp / Đối tác (Nếu có)',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
                     ),
-                    validator: (value) {
-                      if (_type == 'thu' && (value == null || value.trim().isEmpty)) {
-                        return 'Vui lòng nhập tên đối tác';
-                      }
-                      return null;
-                    },
+                    prefixIcon: const Icon(Icons.business),
                   ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _partnerAddressController,
-                    decoration: InputDecoration(
-                      labelText: 'Địa chỉ đối tác',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
-                      ),
-                      prefixIcon: const Icon(Icons.location_on_outlined),
+                  validator: (value) {
+                    if (_type == 'thu' && (value == null || value.trim().isEmpty)) {
+                      return 'Vui lòng nhập tên đối tác';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _partnerAddressController,
+                  decoration: InputDecoration(
+                    labelText: 'Địa chỉ đối tác',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
                     ),
+                    prefixIcon: const Icon(Icons.location_on_outlined),
                   ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _taxCodeController,
-                    decoration: InputDecoration(
-                      labelText: 'Mã số thuế',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
-                      ),
-                      prefixIcon: const Icon(Icons.badge_outlined),
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _taxCodeController,
+                  decoration: InputDecoration(
+                    labelText: 'Mã số thuế',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
                     ),
+                    prefixIcon: const Icon(Icons.badge_outlined),
                   ),
+                ),
+
+                if (_type == 'thu') ...[
                   const SizedBox(height: 16),
                   Row(
                     children: [
@@ -698,62 +800,6 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                         ),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: isDark ? AppDesignTokens.darkBorder : AppDesignTokens.lightBorder,
-                      ),
-                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
-                    ),
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Ảnh hóa đơn (Tùy chọn)',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 8),
-                        if (_pickedImageBytes != null) ...[
-                          Stack(
-                            alignment: Alignment.topRight,
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
-                                child: Image.memory(
-                                  _pickedImageBytes!,
-                                  height: 120,
-                                  width: double.infinity,
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                              CircleAvatar(
-                                backgroundColor: Colors.black54,
-                                radius: 16,
-                                child: IconButton(
-                                  padding: EdgeInsets.zero,
-                                  icon: const Icon(Icons.close, color: Colors.white, size: 18),
-                                  onPressed: () {
-                                    setState(() {
-                                      _pickedImage = null;
-                                      _pickedImageBytes = null;
-                                    });
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                        ],
-                        OutlinedButton.icon(
-                          onPressed: _pickImage,
-                          icon: const Icon(Icons.camera_alt_outlined),
-                          label: Text(_pickedImageBytes != null ? 'Thay đổi ảnh' : 'Chọn ảnh từ thư viện'),
-                        ),
-                      ],
-                    ),
                   ),
                 ],
                 const SizedBox(height: 32),
