@@ -53,6 +53,7 @@ Sau khi tiến hành merge code từ nhánh `main` và khắc phục các confli
 - **Cho khoản THU:** Yêu cầu các trường Hóa đơn (Số HĐ, Đối tác, MST, Tiền hàng, VAT %) và ảnh chứng từ. Tự động tính `Tổng tiền = Tiền hàng + VAT`.
 - **Cho khoản CHI:** Bổ sung khối **"Thông tin Hóa đơn / Chứng từ (Tùy chọn)"** bao gồm nút tải ảnh chứng từ/biên lai/hóa đơn chi tiêu và các trường thông tin hóa đơn mua vào.
 - **Tự động tạo `InvoiceModel` liên kết chéo:** Dù là Thu hay Chi, khi có thông tin chứng từ hoặc ảnh đính kèm (hoặc từ OCR sang), hệ thống tự động khởi tạo bản ghi `InvoiceModel`, lưu bytes ảnh chứng từ vào RAM (Mock Storage) và gọi `InvoiceProvider.loadInvoices(userId)` để hóa đơn xuất hiện ngay trên trang Hóa đơn.
+- **Điều hướng ngữ cảnh thông minh (Context-Aware Navigation):** Nếu khởi tạo từ luồng Quét OCR (`_isFromOcr == true`), hệ thống tự động đưa người dùng về danh sách Hóa đơn (`/invoices`). Nếu khởi tạo/chỉnh sửa từ màn hình Giao dịch, hệ thống sẽ quay về danh sách Giao dịch (`context.pop()`) để tạo trải nghiệm người dùng tự nhiên và không bị gián đoạn luồng làm việc.
 - **Merge & Đồng bộ:** Merge thành công nhánh `feature/invoice-pdf-export` vào `feature/transactions-ui-form`, gỡ conflict tại `transaction_form_screen.dart`, đảm bảo `flutter analyze` 0 lỗi.
 
 ### B. Chuẩn hóa Giao diện Màn hình Lịch sử Giao dịch (Transaction List Screen)

@@ -318,7 +318,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
         ),
       );
 
-      if (invoiceChanged) {
+      if (_isFromOcr) {
         context.go('/invoices');
       } else {
         context.pop();
