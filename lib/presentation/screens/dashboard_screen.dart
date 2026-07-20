@@ -65,41 +65,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       // 2. Fetch Transactions for the current authenticated user
       final auth = context.read<AuthProvider>();
-      final userId = auth.user?.uid;
-      if (userId != null) {
-        await context.read<TransactionProvider>().fetchTransactions(userId);
-      }
+      final userId = auth.user?.uid ?? '';
+      final txProvider = context.read<TransactionProvider>();
+      await txProvider.fetchTransactions(userId);
 
       if (!mounted) return;
+      _allTransactions = txProvider.transactions;
+      _processDataSync();
+
       setState(() {
         _isLoading = false;
       });
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = "Không thể tải dữ liệu từ Firebase: $e";
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = "Không thể tải dữ liệu từ Firebase: $e";
+        });
+      }
     }
   }
 
   void _processDataSync() {
-    // Phương án A: Chỉ tính toán và hiển thị các giao dịch ĐÃ PHÊ DUYỆT (status == 'confirmed')
+    // Ưu tiên tính toán các giao dịch đã phê duyệt (confirmed), nếu chưa có thì dùng tất cả giao dịch
     final confirmedTransactions = _allTransactions.where((tx) => tx.status == 'confirmed').toList();
+    final txsToCalculate = confirmedTransactions.isNotEmpty ? confirmedTransactions : _allTransactions;
 
     // Filter transactions based on selected chip
-    final filtered = _getFilteredTransactions(confirmedTransactions);
+    final filtered = _getFilteredTransactions(txsToCalculate);
 
     // Calculate dynamic KPI Metrics
-    kpiCards = _calculateKpis(filtered, confirmedTransactions);
+    kpiCards = _calculateKpis(filtered, txsToCalculate);
 
     // Calculate dynamic Monthly comparative data (Last 6 Months)
-    monthlyData = _calculateMonthlyData(confirmedTransactions);
+    monthlyData = _calculateMonthlyData(txsToCalculate);
 
     // Calculate dynamic Expenses category distribution
     spendingData = _calculatePieData(filtered);
 
     // Calculate dynamic Net Balance trend lines
-    trendData = _calculateTrendData(filtered, confirmedTransactions);
+    trendData = _calculateTrendData(filtered, txsToCalculate);
   }
 
   List<TransactionModel> _getFilteredTransactions(List<TransactionModel> allTxs) {
