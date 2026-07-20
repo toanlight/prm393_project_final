@@ -3,48 +3,11 @@ import 'package:provider/provider.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/utils/responsive_helper.dart';
 import '../../data/services/firebase_service.dart';
-import '../../data/services/seed_data_service.dart';
 import '../providers/theme_provider.dart';
 import '../providers/auth_provider.dart';
 
-class SettingsScreen extends StatefulWidget {
+class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
-
-  @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
-}
-
-class _SettingsScreenState extends State<SettingsScreen> {
-  bool _isSeeding = false;
-  final List<String> _seedLogs = [];
-
-  Future<void> _runSeed() async {
-    if (_isSeeding) return;
-    if (FirebaseService().isMockMode) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('⚠️ Vui lòng tắt Mock Mode trước khi seed dữ liệu Firebase.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-    setState(() {
-      _isSeeding = true;
-      _seedLogs.clear();
-    });
-    try {
-      await SeedDataService.run(
-        onStatus: (msg) {
-          if (mounted) setState(() => _seedLogs.add(msg));
-        },
-      );
-    } catch (e) {
-      if (mounted) setState(() => _seedLogs.add('❌ Lỗi: $e'));
-    } finally {
-      if (mounted) setState(() => _isSeeding = false);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +15,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final authProvider = context.watch<AuthProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final firebaseService = FirebaseService();
-    final isAdmin = authProvider.user?.roleId == 'admin';
 
     return Scaffold(
       appBar: AppBar(
@@ -178,92 +140,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: AppDesignTokens.spaceLg),
                 const Divider(),
                 const SizedBox(height: AppDesignTokens.spaceMd),
-
-                // ── SEED DATA SECTION (Admin only) ──────────────
-                if (isAdmin) ...[
-                  Row(
-                    children: [
-                      const Icon(Icons.cloud_upload_outlined, color: AppDesignTokens.primary, size: 22),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Dữ liệu Firebase (Dev/Admin)',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? AppDesignTokens.darkTextSecondary : AppDesignTokens.lightTextSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppDesignTokens.spaceSm),
-                  Text(
-                    'Tạo dữ liệu mẫu (categories, users, transactions, invoices…) lên Firebase. '
-                    'Chỉ dùng 1 lần khi khởi tạo dự án.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isDark ? AppDesignTokens.darkTextSecondary : AppDesignTokens.lightTextSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: AppDesignTokens.spaceSm),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _isSeeding ? null : _runSeed,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppDesignTokens.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
-                        ),
-                      ),
-                      icon: _isSeeding
-                          ? const SizedBox(
-                              width: 18, height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                            )
-                          : const Icon(Icons.rocket_launch_rounded),
-                      label: Text(_isSeeding ? 'Đang upload dữ liệu...' : '🚀 Seed dữ liệu lên Firebase'),
-                    ),
-                  ),
-
-                  // Live log output
-                  if (_seedLogs.isNotEmpty) ...[
-                    const SizedBox(height: AppDesignTokens.spaceSm),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(AppDesignTokens.spaceSm),
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF0A1628) : const Color(0xFFF0F4FF),
-                        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
-                        border: Border.all(
-                          color: isDark ? AppDesignTokens.darkBorder : AppDesignTokens.lightBorder,
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: _seedLogs.map((log) => Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 1),
-                          child: Text(
-                            log,
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 11,
-                              color: log.startsWith('❌')
-                                  ? Colors.redAccent
-                                  : log.startsWith('✅') || log.startsWith('🎉')
-                                      ? Colors.green
-                                      : isDark ? Colors.white70 : Colors.black87,
-                            ),
-                          ),
-                        )).toList(),
-                      ),
-                    ),
-                  ],
-
-                  const SizedBox(height: AppDesignTokens.spaceLg),
-                  const Divider(),
-                  const SizedBox(height: AppDesignTokens.spaceMd),
-                ],
 
                 // Version Info
                 Center(

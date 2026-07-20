@@ -31,6 +31,11 @@ class AuthProvider extends ChangeNotifier {
   void _init() {
     _authSubscription = _authRepository.onAuthStateChanged.listen(
       (UserModel? user) async {
+        // Hold splash screen for a brief moment for smooth UI experience
+        if (_isLoading) {
+          await Future.delayed(const Duration(milliseconds: 1000));
+        }
+
         _user = user;
         _errorMessage = null;
         if (user != null) {

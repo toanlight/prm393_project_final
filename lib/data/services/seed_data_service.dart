@@ -10,10 +10,55 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/foundation.dart';
+import 'firebase_service.dart';
 
 class SeedDataService {
   static final _firestore = FirebaseFirestore.instance;
   static final _auth = fb.FirebaseAuth.instance;
+
+  /// Kiểm tra xem Firebase Firestore đã có dữ liệu danh mục/người dùng chưa
+  static Future<bool> isDataSeeded() async {
+    if (FirebaseService().isMockMode) {
+      return true; // Trong chế độ Mock, không cần seed lên Firebase thật
+    }
+    try {
+      final snapshot = await _firestore.collection('categories').limit(1).get();
+      return snapshot.docs.isNotEmpty;
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') {
+        debugPrint('[SeedData] ⚠️ Firestore yêu cầu quyền truy cập (permission-denied). Bỏ qua tự động check khi chưa đăng nhập.');
+        return true; // Trả về true để không cố gắng seed khi chưa đủ quyền
+      }
+      debugPrint('[SeedData] ⚠️ Kiểm tra dữ liệu Firestore thất bại: $e');
+      return false;
+    } catch (e) {
+      debugPrint('[SeedData] ⚠️ Kiểm tra dữ liệu Firestore thất bại: $e');
+      return false;
+    }
+  }
+
+  /// Tự động seed dữ liệu lên Firebase nếu trên Firestore chưa có dữ liệu
+  static Future<bool> seedIfEmpty({void Function(String msg)? onStatus}) async {
+    if (FirebaseService().isMockMode) {
+      debugPrint('[SeedData] ⚙️ Đang ở Mock Mode, bỏ qua seed Firebase.');
+      return false;
+    }
+
+    try {
+      final seeded = await isDataSeeded();
+      if (!seeded) {
+        debugPrint('[SeedData] 🌱 Firestore chưa có dữ liệu. Tiến hành tự động seed dữ liệu mẫu...');
+        await run(onStatus: onStatus);
+        return true;
+      } else {
+        debugPrint('[SeedData] ✅ Firestore đã có dữ liệu. Bỏ qua tự động seed.');
+        return false;
+      }
+    } catch (e) {
+      debugPrint('[SeedData] ⚠️ Bỏ qua tự động seed dữ liệu do không đủ quyền (Permission Denied) hoặc lỗi kết nối: $e');
+      return false;
+    }
+  }
 
   /// Chạy toàn bộ quá trình seed (tạo users, categories, transactions, invoices, ocr_scans)
   static Future<void> run({void Function(String msg)? onStatus}) async {
@@ -25,15 +70,15 @@ class SeedDataService {
     log('🚀 Bắt đầu seed dữ liệu...');
 
     try {
-      // ─── 1. CATEGORIES ──────────────────────────────────────
-      log('📂 Tạo danh mục...');
-      await _seedCategories();
-      log('✅ Danh mục OK');
-
-      // ─── 2. USERS (Firebase Auth + Firestore) ──────────────
+      // ─── 1. USERS (Firebase Auth + Firestore) ──────────────
       log('👤 Tạo tài khoản người dùng...');
       final userIds = await _seedUsers(log);
       log('✅ Người dùng OK');
+
+      // ─── 2. CATEGORIES ──────────────────────────────────────
+      log('📂 Tạo danh mục...');
+      await _seedCategories();
+      log('✅ Danh mục OK');
 
       // ─── 3. TRANSACTIONS ────────────────────────────────────
       log('💸 Tạo giao dịch...');
@@ -552,8 +597,16 @@ class SeedDataService {
 
     final batch = _firestore.batch();
     for (final inv in invoices) {
-      final ref = _firestore.collection('invoices').doc(inv['invoiceId'] as String);
-      batch.set(ref, inv, SetOptions(merge: true));
+      final txId = inv['transactionId'] as String;
+      final invId = inv['invoiceId'] as String;
+
+      // Lưu chuẩn vào Sub-collection /transactions/{txId}/invoices/{invId}
+      final subRef = _firestore
+          .collection('transactions')
+          .doc(txId)
+          .collection('invoices')
+          .doc(invId);
+      batch.set(subRef, inv, SetOptions(merge: true));
     }
     await batch.commit();
   }

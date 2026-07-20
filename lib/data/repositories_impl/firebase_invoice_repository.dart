@@ -11,23 +11,41 @@ class FirebaseInvoiceRepository implements InvoiceRepository {
   @override
   Future<InvoiceModel?> getInvoiceForTransaction(String transactionId) async {
     try {
+      // 1. Thử đọc từ Sub-collection chuẩn /transactions/{transactionId}/invoices
+      final subSnap = await _firestore
+          .collection('transactions')
+          .doc(transactionId)
+          .collection('invoices')
+          .get();
+
+      if (subSnap.docs.isNotEmpty) {
+        final doc = subSnap.docs.first;
+        final invoice = InvoiceModel.fromMap({...doc.data(), 'invoiceId': doc.id});
+
+        // Update offline Hive cache
+        final box = await Hive.openBox(_cacheBoxName);
+        await box.put(invoice.invoiceId, invoice.toMap());
+
+        return invoice;
+      }
+
+      // 2. Fallback đọc từ top-level collection 'invoices' (nếu có)
       final querySnapshot = await _firestore
           .collection('invoices')
           .where('transactionId', isEqualTo: transactionId)
           .get();
 
-      if (querySnapshot.docs.isEmpty) {
-        return null;
+      if (querySnapshot.docs.isNotEmpty) {
+        final doc = querySnapshot.docs.first;
+        final invoice = InvoiceModel.fromMap({...doc.data(), 'invoiceId': doc.id});
+
+        final box = await Hive.openBox(_cacheBoxName);
+        await box.put(invoice.invoiceId, invoice.toMap());
+
+        return invoice;
       }
 
-      final doc = querySnapshot.docs.first;
-      final invoice = InvoiceModel.fromMap({...doc.data(), 'invoiceId': doc.id});
-
-      // Update offline Hive cache
-      final box = await Hive.openBox(_cacheBoxName);
-      await box.put(invoice.invoiceId, invoice.toMap());
-
-      return invoice;
+      return null;
     } catch (e) {
       // Fallback to Hive Offline Cache
       final box = await Hive.openBox(_cacheBoxName);
@@ -47,20 +65,22 @@ class FirebaseInvoiceRepository implements InvoiceRepository {
     final box = await Hive.openBox(_cacheBoxName);
     await box.put(invoice.invoiceId, invoice.toMap());
 
-    // 2. Try Firestore write
+    // 2. Try Firestore write to Sub-collection
     try {
       final isOnline = await SyncService().isDeviceOnline();
       if (!isOnline) {
         throw Exception('Offline');
       }
       await _firestore
+          .collection('transactions')
+          .doc(invoice.transactionId)
           .collection('invoices')
           .doc(invoice.invoiceId)
           .set(invoice.toMap());
     } catch (e) {
       // 3. Fallback to local Queue
       await SyncService().enqueue(
-        collection: 'invoices',
+        collection: 'transactions/${invoice.transactionId}/invoices',
         action: 'create',
         documentId: invoice.invoiceId,
         payload: invoice.toMap(),
@@ -81,13 +101,15 @@ class FirebaseInvoiceRepository implements InvoiceRepository {
         throw Exception('Offline');
       }
       await _firestore
+          .collection('transactions')
+          .doc(transactionId)
           .collection('invoices')
           .doc(invoiceId)
           .delete();
     } catch (e) {
       // 3. Fallback to local Queue
       await SyncService().enqueue(
-        collection: 'invoices',
+        collection: 'transactions/$transactionId/invoices',
         action: 'delete',
         documentId: invoiceId,
       );
