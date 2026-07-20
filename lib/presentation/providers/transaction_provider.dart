@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../domain/models/transaction_model.dart';
+import '../../domain/repositories/invoice_repository.dart';
 import '../../domain/repositories/transaction_repository.dart';
 
 enum TransactionStatus { initial, loading, success, error }
@@ -86,7 +87,12 @@ class TransactionProvider with ChangeNotifier {
     }
   }
 
-  Future<void> updateTransactionStatus(String id, String newStatus, String userId) async {
+  Future<void> updateTransactionStatus(
+    String id,
+    String newStatus,
+    String userId, {
+    InvoiceRepository? invoiceRepository,
+  }) async {
     try {
       final index = _transactions.indexWhere((t) => t.id == id);
       if (index != -1) {
@@ -94,6 +100,20 @@ class TransactionProvider with ChangeNotifier {
         final updatedTx = currentTx.copyWith(status: newStatus);
         await _transactionRepository.updateTransaction(updatedTx);
         _transactions[index] = updatedTx;
+
+        // Đồng bộ trạng thái Hóa đơn liên kết nếu có
+        if (currentTx.invoiceId != null && invoiceRepository != null) {
+          try {
+            final invoice = await invoiceRepository.getInvoiceForTransaction(currentTx.transactionId);
+            if (invoice != null) {
+              final updatedInvoice = invoice.copyWith(status: newStatus);
+              await invoiceRepository.createInvoice(updatedInvoice);
+            }
+          } catch (e) {
+            debugPrint('Lỗi đồng bộ trạng thái hóa đơn: $e');
+          }
+        }
+
         notifyListeners();
       }
     } catch (e) {

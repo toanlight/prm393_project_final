@@ -292,7 +292,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
           pdfPath: 'invoices/pdf/$invoiceId.pdf',
           createdBy: userId,
           scanId: scanId,
-          status: 'confirmed',
+          status: transaction.status,
         );
 
         await invoiceRepository.createInvoice(manualInvoice);
@@ -318,7 +318,11 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
         ),
       );
 
-      context.pop();
+      if (invoiceChanged) {
+        context.go('/invoices');
+      } else {
+        context.pop();
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);

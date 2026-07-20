@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../domain/models/transaction_model.dart';
 import '../../domain/models/transaction_type.dart';
+import '../../domain/repositories/invoice_repository.dart';
 import '../providers/auth_provider.dart';
+import '../providers/invoice_provider.dart';
 import '../providers/transaction_provider.dart';
 
 class TransactionListDesktop extends StatelessWidget {
@@ -61,12 +63,15 @@ class TransactionListDesktop extends StatelessWidget {
           onChanged: (newValue) async {
             if (newValue != null && newValue != tx.status) {
               try {
+                final userId = user?.uid ?? 'chief_mock';
                 await context.read<TransactionProvider>().updateTransactionStatus(
                       tx.id,
                       newValue,
-                      user?.uid ?? 'chief_mock',
+                      userId,
+                      invoiceRepository: context.read<InvoiceRepository>(),
                     );
                 if (context.mounted) {
+                  await context.read<InvoiceProvider>().loadInvoices(userId);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('Đã chuyển trạng thái sang: $newValue'),

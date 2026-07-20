@@ -53,6 +53,42 @@ class InvoiceModel {
     );
   }
 
+  InvoiceModel copyWith({
+    String? invoiceId,
+    String? transactionId,
+    String? invoiceNumber,
+    String? partnerName,
+    String? partnerAddress,
+    String? taxCode,
+    DateTime? invoiceDate,
+    int? subTotal,
+    double? vatRate,
+    int? vatAmount,
+    int? totalAmount,
+    String? status,
+    String? pdfPath,
+    String? createdBy,
+    String? scanId,
+  }) {
+    return InvoiceModel(
+      invoiceId: invoiceId ?? this.invoiceId,
+      transactionId: transactionId ?? this.transactionId,
+      invoiceNumber: invoiceNumber ?? this.invoiceNumber,
+      partnerName: partnerName ?? this.partnerName,
+      partnerAddress: partnerAddress ?? this.partnerAddress,
+      taxCode: taxCode ?? this.taxCode,
+      invoiceDate: invoiceDate ?? this.invoiceDate,
+      subTotal: subTotal ?? this.subTotal,
+      vatRate: vatRate ?? this.vatRate,
+      vatAmount: vatAmount ?? this.vatAmount,
+      totalAmount: totalAmount ?? this.totalAmount,
+      status: status ?? this.status,
+      pdfPath: pdfPath ?? this.pdfPath,
+      createdBy: createdBy ?? this.createdBy,
+      scanId: scanId ?? this.scanId,
+    );
+  }
+
   Map<String, dynamic> toMap() => {
     'invoiceId': invoiceId,
     'transactionId': transactionId,

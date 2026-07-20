@@ -340,14 +340,16 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
               );
             }
 
-            // Tính toán tổng quan thu/chi và số dư
+            // Tính toán tổng quan thu/chi và số dư (Chỉ tính các giao dịch đã được phê duyệt 'confirmed')
             int totalIncome = 0;
             int totalExpense = 0;
             for (var tx in provider.transactions) {
-              if (tx.type == TransactionType.income) {
-                totalIncome += tx.amountVnd;
-              } else {
-                totalExpense += tx.amountVnd;
+              if (tx.status == 'confirmed') {
+                if (tx.type == TransactionType.income) {
+                  totalIncome += tx.amountVnd;
+                } else {
+                  totalExpense += tx.amountVnd;
+                }
               }
             }
             final balance = totalIncome - totalExpense;
