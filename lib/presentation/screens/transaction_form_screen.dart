@@ -13,6 +13,7 @@ import '../../domain/services/mock_ocr_service.dart';
 import '../../domain/services/mock_receipt_image_store.dart';
 import '../providers/auth_provider.dart';
 import '../providers/category_provider.dart';
+import '../providers/invoice_provider.dart';
 import '../providers/transaction_provider.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -192,7 +193,9 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     String? invoiceId = _isFromOcr
         ? 'invoice_${now.microsecondsSinceEpoch}'
         : (_isEditing ? widget.transactionToEdit!.invoiceId : null);
-    String? scanId = _isEditing ? widget.transactionToEdit!.scanId : null;
+    String? scanId = _isFromOcr
+        ? widget.initialOcrData!.scanId
+        : (_isEditing ? widget.transactionToEdit!.scanId : null);
 
     if (_type == 'thu') {
       invoiceId ??= 'invoice_${now.microsecondsSinceEpoch}';
@@ -208,7 +211,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
 
     final userId = _isEditing
         ? widget.transactionToEdit!.userId
-        : (authProvider.user?.uid ?? 'anonymous');
+        : (authProvider.user?.uid ?? 'mock-user-123');
 
     final transaction = TransactionModel(
       transactionId: transactionId,
@@ -232,6 +235,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     );
 
     bool transactionCreated = false;
+    bool invoiceChanged = false;
 
     try {
       if (_isEditing) {
@@ -249,6 +253,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
         );
 
         await invoiceRepository.createInvoice(invoice);
+        invoiceChanged = true;
       } else if (_type == 'thu' && invoiceId != null) {
         final subTotal = int.tryParse(_subTotalController.text) ?? 0;
         final vatAmount = (subTotal * _vatRate / 100).round();
@@ -273,6 +278,15 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
         );
 
         await invoiceRepository.createInvoice(manualInvoice);
+        invoiceChanged = true;
+      }
+
+      // StatefulShellRoute giữ nguyên trạng thái của tab Hóa đơn.
+      // Vì vậy, sau khi tạo/cập nhật hóa đơn từ tab Giao dịch,
+      // cần chủ động tải lại InvoiceProvider để hóa đơn xuất hiện ngay
+      // khi người dùng chuyển sang trang Hóa đơn.
+      if (invoiceChanged && mounted) {
+        await context.read<InvoiceProvider>().loadInvoices(userId);
       }
 
       if (!mounted) return;
@@ -289,7 +303,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
         ),
       );
 
-      context.pop();
+      context.pop(true);
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
@@ -331,12 +345,12 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                   _isEditing
                       ? 'Chỉnh sửa giao dịch'
                       : _isFromOcr
-                          ? 'Kiểm tra dữ liệu OCR'
-                          : 'Thêm giao dịch mới',
+                      ? 'Kiểm tra dữ liệu OCR'
+                      : 'Thêm giao dịch mới',
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 24,
-                      ),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 24,
+                  ),
                 ),
                 const SizedBox(height: 20),
 
@@ -498,10 +512,10 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                       items: cats
                           .map(
                             (cat) => DropdownMenuItem(
-                              value: cat.categoryId,
-                              child: Text(cat.categoryName),
-                            ),
-                          )
+                          value: cat.categoryId,
+                          child: Text(cat.categoryName),
+                        ),
+                      )
                           .toList(),
                       onChanged: (value) {
                         if (value != null) {
@@ -581,9 +595,9 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                       Text(
                         'Thông tin hóa đơn (Bắt buộc)',
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: AppDesignTokens.primary,
-                            ),
+                          fontWeight: FontWeight.bold,
+                          color: AppDesignTokens.primary,
+                        ),
                       ),
                     ],
                   ),
@@ -802,18 +816,18 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                           ),
                           child: _isSaving
                               ? const SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                                )
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          )
                               : const Text(
-                                  'Lưu giao dịch',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
+                            'Lưu giao dịch',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -857,9 +871,9 @@ class _OcrSummaryCard extends StatelessWidget {
               Text(
                 'Dữ liệu trích xuất từ hóa đơn (OCR)',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: AppDesignTokens.primary,
-                    ),
+                  fontWeight: FontWeight.bold,
+                  color: AppDesignTokens.primary,
+                ),
               ),
             ],
           ),

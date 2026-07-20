@@ -31,7 +31,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
   }
 
   Future<void> _loadData() async {
-    final userId = context.read<AuthProvider>().user?.uid ?? 'user_mock_123';
+    final userId = context.read<AuthProvider>().user?.uid ?? 'mock-user-123';
     await context.read<InvoiceProvider>().loadInvoices(userId);
   }
 

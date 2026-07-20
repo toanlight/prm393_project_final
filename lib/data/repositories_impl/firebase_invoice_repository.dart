@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:hive/hive.dart';
+import 'package:flutter/foundation.dart';
 import '../../../domain/models/invoice_model.dart';
 import '../../../domain/repositories/invoice_repository.dart';
 import '../services/sync_service.dart';
@@ -61,24 +62,19 @@ class FirebaseInvoiceRepository implements InvoiceRepository {
 
   @override
   Future<void> createInvoice(InvoiceModel invoice) async {
-    // 1. Save to local Hive Cache
     final box = await Hive.openBox(_cacheBoxName);
     await box.put(invoice.invoiceId, invoice.toMap());
 
-    // 2. Try Firestore write to Sub-collection
     try {
-      final isOnline = await SyncService().isDeviceOnline();
-      if (!isOnline) {
-        throw Exception('Offline');
-      }
       await _firestore
           .collection('transactions')
           .doc(invoice.transactionId)
           .collection('invoices')
           .doc(invoice.invoiceId)
           .set(invoice.toMap());
+      debugPrint('🔥 Firestore: created invoice ${invoice.invoiceId}');
     } catch (e) {
-      // 3. Fallback to local Queue
+      debugPrint('⚠️ Firestore create invoice failed, queued for sync: $e');
       await SyncService().enqueue(
         collection: 'transactions/${invoice.transactionId}/invoices',
         action: 'create',
@@ -90,24 +86,19 @@ class FirebaseInvoiceRepository implements InvoiceRepository {
 
   @override
   Future<void> deleteInvoice(String transactionId, String invoiceId) async {
-    // 1. Delete from local Hive Cache
     final box = await Hive.openBox(_cacheBoxName);
     await box.delete(invoiceId);
 
-    // 2. Try Firestore write
     try {
-      final isOnline = await SyncService().isDeviceOnline();
-      if (!isOnline) {
-        throw Exception('Offline');
-      }
       await _firestore
           .collection('transactions')
           .doc(transactionId)
           .collection('invoices')
           .doc(invoiceId)
           .delete();
+      debugPrint('🔥 Firestore: deleted invoice $invoiceId');
     } catch (e) {
-      // 3. Fallback to local Queue
+      debugPrint('⚠️ Firestore delete invoice failed, queued for sync: $e');
       await SyncService().enqueue(
         collection: 'transactions/$transactionId/invoices',
         action: 'delete',
