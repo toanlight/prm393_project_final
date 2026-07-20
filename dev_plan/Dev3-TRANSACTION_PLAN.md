@@ -81,3 +81,8 @@ Sau khi tiến hành merge code từ nhánh `main` và tích hợp với công v
 - Thêm ô nhập liệu Ghi chú vào biểu mẫu giao dịch mới.
 - Lưu trữ trực tiếp dữ liệu ghi chú của người dùng nhập vào thuộc tính `note` của `TransactionModel` thay vì tự động sinh chuỗi mã hóa đơn cứng như trước.
 - Hiển thị trực tiếp nội dung Ghi chú làm tiêu đề (Mobile) hoặc cột thứ 2 (Desktop). Nếu trống, hệ thống tự động fallback hiển thị tên Danh mục để đảm bảo tính mỹ quan.
+
+### F. Hoàn thành 3 Tasks Tối ưu hóa backend (Dev 3 - dev_tasks_2.md)
+- **Task 3.1 (Memory Leak Safety):** Bổ sung quản lý `StreamController` và hàm `dispose()` trong `MockTransactionRepository`. Tự động khởi tạo lại `StreamController.broadcast()` nếu stream đã bị đóng, loại bỏ triệt để nguy cơ rò rỉ bộ nhớ giữa các phiên làm việc.
+- **Task 3.2 (Stream Error Handling):** Cập nhật `FirebaseTransactionRepository.streamTransactions()` đẩy sự kiện lỗi qua `yield* Stream.error(e)` lên UI/Provider khi gặp sự kiện từ chối truy cập/mất kết nối thay vì nuốt lỗi âm thầm.
+- **Task 3.3 (Server-side Ordering):** Áp dụng truy vấn `.orderBy('transactionDate', descending: true)` trực tiếp trên Firestore ở cả `getTransactions()` và `streamTransactions()`, giảm tải việc sắp xếp mảng trên RAM thiết bị.
