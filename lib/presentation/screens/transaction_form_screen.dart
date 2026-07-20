@@ -254,13 +254,13 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
         final vatAmount = (subTotal * _vatRate / 100).round();
         final totalAmount = subTotal + vatAmount;
 
-        final invoice = InvoiceModel(
+        final manualInvoice = InvoiceModel(
           invoiceId: invoiceId,
           transactionId: transactionId,
-          invoiceNumber: _invoiceNumberController.text,
-          partnerName: _partnerNameController.text,
-          partnerAddress: _partnerAddressController.text,
-          taxCode: _taxCodeController.text,
+          invoiceNumber: _invoiceNumberController.text.trim(),
+          partnerName: _partnerNameController.text.trim(),
+          partnerAddress: _partnerAddressController.text.trim(),
+          taxCode: _taxCodeController.text.trim(),
           invoiceDate: _date,
           subTotal: subTotal,
           vatRate: _vatRate,
@@ -269,15 +269,10 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
           pdfPath: 'invoices/pdf/$invoiceId.pdf',
           createdBy: userId,
           scanId: scanId,
-          status: 'confirmed', // Phê duyệt để xem được PDF
+          status: 'confirmed',
         );
 
-        await invoiceRepository.createInvoice(invoice);
-      } else if (_isEditing && widget.transactionToEdit!.type == TransactionType.income && _type == 'chi') {
-        // Chuyển từ Thu sang Chi, xóa hóa đơn cũ
-        if (widget.transactionToEdit!.invoiceId != null) {
-          await invoiceRepository.deleteInvoice(transactionId, widget.transactionToEdit!.invoiceId!);
-        }
+        await invoiceRepository.createInvoice(manualInvoice);
       }
 
       if (!mounted) return;
@@ -285,81 +280,181 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            _isEditing
-                ? 'Cập nhật giao dịch thành công!'
-                : _isFromOcr
-                    ? 'Đã tạo giao dịch và hóa đơn từ OCR!'
-                    : 'Thêm giao dịch thành công!',
+            transactionCreated
+                ? 'Đã tạo giao dịch mới thành công'
+                : 'Đã cập nhật giao dịch',
           ),
+          backgroundColor: AppDesignTokens.success,
+          behavior: SnackBarBehavior.floating,
         ),
       );
 
-      context.pop(true);
-    } catch (error) {
-      if (transactionCreated && _isFromOcr) {
-        try {
-          await provider.deleteTransaction(transactionId, userId);
-        } catch (_) {}
-      }
-
+      context.pop();
+    } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Không thể lưu dữ liệu: $error')),
-      );
       setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Không thể lưu giao dịch: $e'),
+          backgroundColor: AppDesignTokens.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
   void _cancelOcr() {
-    final scanId = widget.initialOcrData?.scanId;
-    if (scanId != null) {
-      MockReceiptImageStore.remove(scanId);
-    }
     context.pop();
   }
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop && _isFromOcr) {
-          final scanId = widget.initialOcrData?.scanId;
-          if (scanId != null) {}
-        }
-      },
-      child: Scaffold(
-        appBar: AppBar(
-          leading: _isFromOcr
-              ? IconButton(
-                  onPressed: _cancelOcr,
-                  icon: const Icon(Icons.arrow_back),
-                )
-              : null,
-          title: Text(
-            _isEditing
-                ? 'Chỉnh sửa giao dịch'
-                : _isFromOcr
-                    ? 'Kiểm tra dữ liệu OCR'
-                    : 'Thêm giao dịch mới',
-          ),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(
+          onPressed: _isFromOcr ? _cancelOcr : () => context.pop(),
+          icon: const Icon(Icons.arrow_back),
         ),
-        body: Padding(
-          padding: const EdgeInsets.all(16),
+        elevation: 0,
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppDesignTokens.spaceLg),
           child: Form(
             key: _formKey,
             child: ListView(
               children: [
+                // 1. Tiêu đề lớn
+                Text(
+                  _isEditing
+                      ? 'Chỉnh sửa giao dịch'
+                      : _isFromOcr
+                          ? 'Kiểm tra dữ liệu OCR'
+                          : 'Thêm giao dịch mới',
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 24,
+                      ),
+                ),
+                const SizedBox(height: 20),
+
                 if (_isFromOcr) ...[
                   _OcrSummaryCard(data: widget.initialOcrData!),
                   const SizedBox(height: 20),
                 ],
+
+                // 2. Loại giao dịch * (Segmented Toggle Control)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Loại giao dịch *',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? AppDesignTokens.darkTextSecondary : AppDesignTokens.lightTextSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: isDark ? AppDesignTokens.darkSurfaceCard : Colors.grey.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
+                        border: Border.all(
+                          color: isDark ? AppDesignTokens.darkBorder : AppDesignTokens.lightBorder,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: () {
+                                setState(() {
+                                  _type = 'thu';
+                                  _updateTotalAmount();
+                                });
+                              },
+                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 150),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: _type == 'thu' ? AppDesignTokens.success : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  'Thu',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: _type == 'thu'
+                                        ? Colors.white
+                                        : (isDark ? AppDesignTokens.darkTextPrimary : AppDesignTokens.lightTextPrimary),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () {
+                                setState(() {
+                                  _type = 'chi';
+                                  _updateTotalAmount();
+                                });
+                              },
+                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 150),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: _type == 'chi' ? AppDesignTokens.error : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  'Chi',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: _type == 'chi'
+                                        ? Colors.white
+                                        : (isDark ? AppDesignTokens.darkTextPrimary : AppDesignTokens.lightTextPrimary),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // 3. Số tiền (VND) *
                 TextFormField(
                   controller: _amountController,
                   readOnly: _type == 'thu', // Khóa không cho sửa tiền trực tiếp khi là Thu
                   decoration: InputDecoration(
-                    labelText: _type == 'thu' ? 'Số tiền (Tổng tiền hàng + VAT)' : 'Số tiền (VNĐ)',
-                    border: const OutlineInputBorder(),
-                    prefixIcon: const Icon(Icons.money),
+                    labelText: _type == 'thu' ? 'Số tiền (Tổng tiền hàng + VAT) *' : 'Số tiền (VND) *',
+                    hintText: '0',
+                    suffixIcon: const Padding(
+                      padding: EdgeInsets.all(14),
+                      child: Text(
+                        'đ',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
+                    ),
+                    prefixIcon: const Icon(Icons.payments_outlined),
                   ),
                   keyboardType: TextInputType.number,
                   inputFormatters: [
@@ -373,29 +468,9 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  initialValue: _type,
-                  decoration: const InputDecoration(
-                    labelText: 'Loại',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.swap_horiz),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'thu', child: Text('Thu')),
-                    DropdownMenuItem(value: 'chi', child: Text('Chi')),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() {
-                        _type = value;
-                        // Reset hoặc cập nhật tính toán lại tiền khi đổi loại
-                        _updateTotalAmount();
-                      });
-                    }
-                  },
-                ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
+
+                // Danh mục
                 Consumer<CategoryProvider>(
                   builder: (context, catProvider, _) {
                     final cats = _type == 'thu'
@@ -413,10 +488,12 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
 
                     return DropdownButtonFormField<String>(
                       value: _selectedCategoryId,
-                      decoration: const InputDecoration(
-                        labelText: 'Danh mục',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.category),
+                      decoration: InputDecoration(
+                        labelText: 'Danh mục *',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
+                        ),
+                        prefixIcon: const Icon(Icons.category_outlined),
                       ),
                       items: cats
                           .map(
@@ -431,39 +508,75 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                           setState(() => _selectedCategoryId = value);
                         }
                       },
-                      validator: (v) =>
-                          v == null ? 'Vui lòng chọn danh mục' : null,
+                      validator: (v) => v == null ? 'Vui lòng chọn danh mục' : null,
                     );
                   },
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
+
+                // Ngày giao dịch
                 InkWell(
                   onTap: () => _selectDate(context),
                   child: InputDecorator(
-                    decoration: const InputDecoration(
-                      labelText: 'Ngày giao dịch',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.calendar_today),
+                    decoration: InputDecoration(
+                      labelText: 'Ngày giao dịch *',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
+                      ),
+                      prefixIcon: const Icon(Icons.calendar_today_outlined),
                     ),
                     child: Text(DateFormat('dd/MM/yyyy').format(_date)),
                   ),
                 ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _noteController,
-                  decoration: const InputDecoration(
-                    labelText: 'Ghi chú (tùy chọn)',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.notes_rounded),
-                  ),
-                  maxLines: 2,
-                  textInputAction: TextInputAction.done,
+                const SizedBox(height: 20),
+
+                // 4. Ghi chú (Multiline + Bộ đếm 0/200)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Ghi chú',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? AppDesignTokens.darkTextSecondary : AppDesignTokens.lightTextSecondary,
+                          ),
+                        ),
+                        Text(
+                          '${_noteController.text.length}/200',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDark ? AppDesignTokens.darkTextSecondary : AppDesignTokens.lightTextSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    TextFormField(
+                      controller: _noteController,
+                      maxLength: 200,
+                      maxLines: 3,
+                      onChanged: (_) => setState(() {}),
+                      decoration: InputDecoration(
+                        hintText: 'Ghi chú thêm về giao dịch...',
+                        counterText: '',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
+
+                // Cấu hình hóa đơn thủ công khi Loại = Thu
                 if (_type == 'thu') ...[
                   const SizedBox(height: 24),
                   Row(
                     children: [
-                      Icon(Icons.receipt_long_rounded, color: AppDesignTokens.primary),
+                      const Icon(Icons.receipt_long_rounded, color: AppDesignTokens.primary),
                       const SizedBox(width: 8),
                       Text(
                         'Thông tin hóa đơn (Bắt buộc)',
@@ -474,14 +587,16 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                       ),
                     ],
                   ),
-                  Divider(color: AppDesignTokens.primary, thickness: 1),
+                  const Divider(color: AppDesignTokens.primary, thickness: 1),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _invoiceNumberController,
-                    decoration: const InputDecoration(
-                      labelText: 'Số hóa đơn',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.numbers),
+                    decoration: InputDecoration(
+                      labelText: 'Số hóa đơn *',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
+                      ),
+                      prefixIcon: const Icon(Icons.numbers),
                     ),
                     validator: (value) {
                       if (_type == 'thu' && (value == null || value.trim().isEmpty)) {
@@ -493,10 +608,12 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _partnerNameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Tên đối tác',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.business),
+                    decoration: InputDecoration(
+                      labelText: 'Tên đối tác *',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
+                      ),
+                      prefixIcon: const Icon(Icons.business),
                     ),
                     validator: (value) {
                       if (_type == 'thu' && (value == null || value.trim().isEmpty)) {
@@ -508,39 +625,24 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _partnerAddressController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Địa chỉ đối tác',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.location_on),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
+                      ),
+                      prefixIcon: const Icon(Icons.location_on_outlined),
                     ),
-                    validator: (value) {
-                      if (_type == 'thu' && (value == null || value.trim().isEmpty)) {
-                        return 'Vui lòng nhập địa chỉ đối tác';
-                      }
-                      return null;
-                    },
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _taxCodeController,
-                    decoration: const InputDecoration(
-                      labelText: 'Mã số thuế đối tác',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.badge),
+                    decoration: InputDecoration(
+                      labelText: 'Mã số thuế',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
+                      ),
+                      prefixIcon: const Icon(Icons.badge_outlined),
                     ),
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    validator: (value) {
-                      if (_type == 'thu') {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Vui lòng nhập mã số thuế';
-                        }
-                        if (value.length < 10 || value.length > 13) {
-                          return 'Mã số thuế phải từ 10 đến 13 chữ số';
-                        }
-                      }
-                      return null;
-                    },
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -549,42 +651,46 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                         flex: 2,
                         child: TextFormField(
                           controller: _subTotalController,
-                          decoration: const InputDecoration(
-                            labelText: 'Tiền hàng (chưa thuế)',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.attach_money),
+                          decoration: InputDecoration(
+                            labelText: 'Tiền hàng *',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
+                            ),
+                            prefixIcon: const Icon(Icons.monetization_on_outlined),
                           ),
                           keyboardType: TextInputType.number,
                           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                           validator: (value) {
                             if (_type == 'thu') {
-                              final sub = int.tryParse(value ?? '');
-                              if (sub == null || sub <= 0) {
-                                return 'Nhập số tiền hàng';
+                              final amount = int.tryParse(value ?? '');
+                              if (amount == null || amount <= 0) {
+                                return 'Nhập tiền hàng';
                               }
                             }
                             return null;
                           },
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 12),
                       Expanded(
+                        flex: 1,
                         child: DropdownButtonFormField<double>(
                           value: _vatRate,
-                          decoration: const InputDecoration(
-                            labelText: 'VAT',
-                            border: OutlineInputBorder(),
+                          decoration: InputDecoration(
+                            labelText: 'VAT %',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
+                            ),
                           ),
                           items: const [
                             DropdownMenuItem(value: 0.0, child: Text('0%')),
-                            DropdownMenuItem(value: 5.0, child: Text('5%')),
                             DropdownMenuItem(value: 8.0, child: Text('8%')),
                             DropdownMenuItem(value: 10.0, child: Text('10%')),
                           ],
-                          onChanged: (value) {
-                            if (value != null) {
+                          onChanged: (val) {
+                            if (val != null) {
                               setState(() {
-                                _vatRate = value;
+                                _vatRate = val;
                                 _updateTotalAmount();
                               });
                             }
@@ -594,76 +700,126 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  // Đính kèm ảnh hóa đơn
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Ảnh hóa đơn (Tùy chọn)',
-                            style: TextStyle(fontWeight: FontWeight.bold),
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: isDark ? AppDesignTokens.darkBorder : AppDesignTokens.lightBorder,
+                      ),
+                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
+                    ),
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Ảnh hóa đơn (Tùy chọn)',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        if (_pickedImageBytes != null) ...[
+                          Stack(
+                            alignment: Alignment.topRight,
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
+                                child: Image.memory(
+                                  _pickedImageBytes!,
+                                  height: 120,
+                                  width: double.infinity,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                              CircleAvatar(
+                                backgroundColor: Colors.black54,
+                                radius: 16,
+                                child: IconButton(
+                                  padding: EdgeInsets.zero,
+                                  icon: const Icon(Icons.close, color: Colors.white, size: 18),
+                                  onPressed: () {
+                                    setState(() {
+                                      _pickedImage = null;
+                                      _pickedImageBytes = null;
+                                    });
+                                  },
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 8),
-                          if (_pickedImageBytes != null) ...[
-                            Stack(
-                              alignment: Alignment.topRight,
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
-                                  child: Image.memory(
-                                    _pickedImageBytes!,
-                                    height: 120,
-                                    width: double.infinity,
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                                CircleAvatar(
-                                  backgroundColor: Colors.black54,
-                                  radius: 16,
-                                  child: IconButton(
-                                    padding: EdgeInsets.zero,
-                                    icon: const Icon(Icons.close, color: Colors.white, size: 18),
-                                    onPressed: () {
-                                      setState(() {
-                                        _pickedImage = null;
-                                        _pickedImageBytes = null;
-                                      });
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                          ],
-                          OutlinedButton.icon(
-                            onPressed: _pickImage,
-                            icon: const Icon(Icons.camera_alt_outlined),
-                            label: Text(_pickedImageBytes != null ? 'Thay đổi ảnh' : 'Chọn ảnh từ thư viện'),
-                          ),
                         ],
-                      ),
+                        OutlinedButton.icon(
+                          onPressed: _pickImage,
+                          icon: const Icon(Icons.camera_alt_outlined),
+                          label: Text(_pickedImageBytes != null ? 'Thay đổi ảnh' : 'Chọn ảnh từ thư viện'),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 16),
                 ],
+
                 const SizedBox(height: 32),
-                SizedBox(
-                  height: 50,
-                  child: FilledButton(
-                    onPressed: _isSaving ? null : _saveTransaction,
-                    child: _isSaving
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
+
+                // 8. Thanh điều hướng dưới cùng (2 Button nằm ngang: Hủy 45%, Lưu 55%)
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 45,
+                      child: SizedBox(
+                        height: 48,
+                        child: OutlinedButton(
+                          onPressed: () => context.pop(),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(
+                              color: isDark ? AppDesignTokens.darkBorder : AppDesignTokens.lightBorder,
                             ),
-                          )
-                        : Text(_isEditing ? 'Cập nhật' : 'Tạo mới'),
-                  ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
+                            ),
+                          ),
+                          child: Text(
+                            'Hủy',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? AppDesignTokens.darkTextPrimary : AppDesignTokens.lightTextPrimary,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 55,
+                      child: SizedBox(
+                        height: 48,
+                        child: ElevatedButton(
+                          onPressed: _isSaving ? null : _saveTransaction,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppDesignTokens.primary,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
+                            ),
+                          ),
+                          child: _isSaving
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                )
+                              : const Text(
+                                  'Lưu giao dịch',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 24),
               ],
             ),
           ),
@@ -680,27 +836,43 @@ class _OcrSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final money = NumberFormat.decimalPattern('vi_VN');
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '✨ Dữ liệu OCR mô phỏng',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const Divider(),
-            Text('Số hóa đơn: ${data.invoiceNumber}'),
-            Text('Đối tác: ${data.partnerName}'),
-            Text('Mã số thuế: ${data.taxCode}'),
-            Text('Tiền hàng: ${money.format(data.subTotal)} VNĐ'),
-            Text('VAT: ${data.vatRate.toStringAsFixed(0)}%'),
-            Text('Tổng cộng: ${money.format(data.totalAmount)} VNĐ'),
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.all(AppDesignTokens.spaceMd),
+      decoration: BoxDecoration(
+        color: isDark
+            ? AppDesignTokens.primary.withOpacity(0.15)
+            : AppDesignTokens.primary.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
+        border: Border.all(color: AppDesignTokens.primary.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.auto_awesome, color: AppDesignTokens.primary, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Dữ liệu trích xuất từ hóa đơn (OCR)',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: AppDesignTokens.primary,
+                    ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppDesignTokens.spaceSm),
+          Text('• Số HĐ: ${data.invoiceNumber}'),
+          Text('• Đối tác: ${data.partnerName}'),
+          Text('• MST: ${data.taxCode}'),
+          Text('• Tiền hàng: ${data.subTotal} đ | VAT (${data.vatRate}%): ${data.vatAmount} đ'),
+          Text(
+            '• Tổng cộng: ${data.totalAmount} đ',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ],
       ),
     );
   }
