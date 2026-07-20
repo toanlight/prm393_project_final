@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../domain/models/mock_chart_data.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/theme/design_tokens.dart';
 import '../../core/utils/currency_formatter.dart';
 
 class KpiCard extends StatelessWidget {
@@ -11,8 +13,19 @@ class KpiCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? AppDesignTokens.darkSurface : AppColors.card;
+    final borderColor = isDark ? AppDesignTokens.darkBorder : AppColors.border;
+    final badgeBg = isDark ? data.color.withOpacity(0.15) : data.bgColor;
+    final labelColor = isDark ? AppDesignTokens.darkTextSecondary : AppColors.mutedFg;
+
     return Container(
-      decoration: AppTheme.cardDecoration,
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(AppTheme.radiusXl),
+        border: Border.all(color: borderColor, width: 1),
+        boxShadow: isDark ? AppDesignTokens.darkShadow : null,
+      ),
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -26,11 +39,11 @@ class KpiCard extends StatelessWidget {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: data.bgColor,
+                  color: badgeBg,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
-                  _getIconForLabel(data.label), // The prompt didn't specify icons in KpiData, we will infer
+                  _getIconForLabel(data.label),
                   color: data.color,
                   size: 18,
                 ),
@@ -40,7 +53,7 @@ class KpiCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: data.bgColor,
+                  color: badgeBg,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -54,7 +67,7 @@ class KpiCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          Text(data.label, style: AppTextStyles.caption),
+          Text(data.label, style: AppTextStyles.caption.copyWith(color: labelColor)),
           const SizedBox(height: 4),
           Text(
             data.label == 'Số giao dịch' ? data.value.toString() : CurrencyFormatter.format(data.value),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../domain/models/mock_chart_data.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/theme/design_tokens.dart';
 import '../../core/utils/currency_formatter.dart';
 
 class IncomeExpenseLineChart extends StatelessWidget {
@@ -12,6 +13,14 @@ class IncomeExpenseLineChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final gridLineColor = isDark ? AppDesignTokens.darkBorder : AppColors.border;
+    final tooltipBgColor = isDark ? AppDesignTokens.darkSurfaceCard : AppColors.card;
+    final dotStrokeColor = isDark ? AppDesignTokens.darkSurface : AppColors.card;
+    final labelStyle = AppTextStyles.label.copyWith(
+      color: isDark ? AppDesignTokens.darkTextSecondary : AppColors.mutedFg,
+    );
+
     return AspectRatio(
       aspectRatio: 3.5,
       child: LineChart(
@@ -19,7 +28,7 @@ class IncomeExpenseLineChart extends StatelessWidget {
           lineTouchData: LineTouchData(
             handleBuiltInTouches: true,
             touchTooltipData: LineTouchTooltipData(
-              getTooltipColor: (touchedSpot) => AppColors.card,
+              getTooltipColor: (touchedSpot) => tooltipBgColor,
               getTooltipItems: (List<LineBarSpot> touchedSpots) {
                 return touchedSpots.map((spot) {
                   return LineTooltipItem(
@@ -39,7 +48,7 @@ class IncomeExpenseLineChart extends StatelessWidget {
             horizontalInterval: 50,
             getDrawingHorizontalLine: (value) {
               return FlLine(
-                color: AppColors.border,
+                color: gridLineColor,
                 strokeWidth: 1,
               );
             },
@@ -59,7 +68,7 @@ class IncomeExpenseLineChart extends StatelessWidget {
                       padding: const EdgeInsets.only(top: 8.0),
                       child: Text(
                         data[value.toInt()].date, 
-                        style: AppTextStyles.label,
+                        style: labelStyle,
                       ),
                     );
                   }
@@ -75,7 +84,7 @@ class IncomeExpenseLineChart extends StatelessWidget {
                 getTitlesWidget: (value, meta) {
                   return Text(
                     CurrencyFormatter.short(value),
-                    style: AppTextStyles.label,
+                    style: labelStyle,
                   );
                 },
               ),
@@ -98,7 +107,7 @@ class IncomeExpenseLineChart extends StatelessWidget {
                     radius: 4,
                     color: AppColors.primary,
                     strokeWidth: 2,
-                    strokeColor: AppColors.card,
+                    strokeColor: dotStrokeColor,
                   );
                 },
               ),

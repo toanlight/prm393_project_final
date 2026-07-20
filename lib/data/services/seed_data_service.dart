@@ -60,7 +60,7 @@ class SeedDataService {
     }
   }
 
-  /// Chạy toàn bộ quá trình seed (tạo users, categories, transactions, invoices, ocr_scans)
+  /// Chạy toàn bộ quá trình seed (tạo roles, users, categories, transactions, invoices, ocr_scans, app_config)
   static Future<void> run({void Function(String msg)? onStatus}) async {
     void log(String msg) {
       debugPrint('[SeedData] $msg');
@@ -69,64 +69,174 @@ class SeedDataService {
 
     log('🚀 Bắt đầu seed dữ liệu...');
 
+    // ─── 0. XÓA DỮ LIỆU CŨ (Clean & Re-seed) ────────────────
     try {
-      // ─── 1. USERS (Firebase Auth + Firestore) ──────────────
-      log('👤 Tạo tài khoản người dùng...');
-      final userIds = await _seedUsers(log);
-      log('✅ Người dùng OK');
+      await _clearExistingData(log);
+    } catch (e) {
+      log('⚠️ Bỏ qua xóa dữ liệu cũ do vướng phân quyền Firestore: $e');
+    }
 
-      // ─── 2. CATEGORIES ──────────────────────────────────────
+    // ─── 1. ROLES ───────────────────────────────────────────
+    try {
+      log('🛡️ Tạo danh sách vai trò (Roles)...');
+      await _seedRoles();
+      log('✅ Roles OK');
+    } catch (e) {
+      log('⚠️ Lỗi seed Roles: $e');
+    }
+
+    // ─── 2. USERS (Firebase Auth + Firestore) ──────────────
+    Map<String, String> userIds = {};
+    try {
+      log('👤 Tạo tài khoản người dùng mẫu (1 account / role)...');
+      userIds = await _seedUsers(log);
+      log('✅ Người dùng OK');
+    } catch (e) {
+      log('⚠️ Lỗi seed Users: $e');
+    }
+
+    // ─── 3. CATEGORIES ──────────────────────────────────────
+    try {
       log('📂 Tạo danh mục...');
       await _seedCategories();
       log('✅ Danh mục OK');
+    } catch (e) {
+      log('⚠️ Lỗi seed Categories: $e');
+    }
 
-      // ─── 3. TRANSACTIONS ────────────────────────────────────
-      log('💸 Tạo giao dịch...');
+    // ─── 4. TRANSACTIONS ────────────────────────────────────
+    try {
+      log('💸 Tạo 15 giao dịch mẫu...');
       await _seedTransactions(userIds);
       log('✅ Giao dịch OK');
+    } catch (e) {
+      log('⚠️ Lỗi seed Transactions: $e');
+    }
 
-      // ─── 4. OCR SCANS ───────────────────────────────────────
-      log('🔍 Tạo bản ghi quét OCR...');
+    // ─── 5. OCR SCANS ───────────────────────────────────────
+    try {
+      log('🔍 Tạo 12 bản ghi quét OCR...');
       await _seedOCRScans(userIds);
       log('✅ OCR Scans OK');
+    } catch (e) {
+      log('⚠️ Lỗi seed OCR Scans: $e');
+    }
 
-      // ─── 5. INVOICES ────────────────────────────────────────
-      log('📄 Tạo hóa đơn...');
+    // ─── 6. INVOICES ────────────────────────────────────────
+    try {
+      log('📄 Tạo 12 hóa đơn chứng từ...');
       await _seedInvoices(userIds);
       log('✅ Hóa đơn OK');
+    } catch (e) {
+      log('⚠️ Lỗi seed Invoices: $e');
+    }
 
-      // ─── 6. APP CONFIG ──────────────────────────────────────
+    // ─── 7. APP CONFIG ──────────────────────────────────────
+    try {
       log('⚙️ Tạo cấu hình ứng dụng...');
       await _seedAppConfig();
       log('✅ App Config OK');
-
-      log('🎉 Seed dữ liệu hoàn tất!');
-    } catch (e, st) {
-      log('❌ Lỗi seed: $e\n$st');
-      rethrow;
+    } catch (e) {
+      log('⚠️ Lỗi seed App Config: $e');
     }
+
+    log('🎉 Quá trình Seed dữ liệu hoàn tất!');
   }
 
   // ─────────────────────────────────────────────────────────────
-  // CATEGORIES
+  // CLEAN DATA — Xóa toàn bộ dữ liệu cũ trên Firestore trước khi Seed
+  // ─────────────────────────────────────────────────────────────
+  static Future<void> _clearExistingData(void Function(String) log) async {
+    log('🧹 Đang xóa sạch dữ liệu cũ trên Firestore (Clean & Re-seed)...');
+    final collections = ['roles', 'categories', 'transactions', 'ocr_scans', 'invoices'];
+    for (final colName in collections) {
+      try {
+        final snapshot = await _firestore.collection(colName).get();
+        if (snapshot.docs.isNotEmpty) {
+          final batch = _firestore.batch();
+          for (final doc in snapshot.docs) {
+            if (colName == 'transactions') {
+              final subInvoices = await doc.reference.collection('invoices').get();
+              for (final subDoc in subInvoices.docs) {
+                batch.delete(subDoc.reference);
+              }
+            }
+            batch.delete(doc.reference);
+          }
+          await batch.commit();
+        }
+      } catch (e) {
+        log('  ⚠️ Cảnh báo dọn dẹp $colName: $e');
+      }
+    }
+    log('✅ Dọn dẹp dữ liệu cũ hoàn tất!');
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // ROLES
+  // ─────────────────────────────────────────────────────────────
+  static Future<void> _seedRoles() async {
+    final roles = [
+      {
+        'roleId': 'admin',
+        'roleName': 'Admin Hệ thống',
+        'description': 'Quản trị viên có toàn quyền truy cập, phân quyền và cấu hình hệ thống',
+      },
+      {
+        'roleId': 'chiefAccountant',
+        'roleName': 'Kế toán trưởng',
+        'description': 'Phê duyệt báo cáo tài chính, duyệt hóa đơn và kiểm soát toàn bộ giao dịch',
+      },
+      {
+        'roleId': 'accountant',
+        'roleName': 'Kế toán viên',
+        'description': 'Tạo và cập nhật giao dịch, lập hóa đơn, quét chứng từ OCR',
+      },
+      {
+        'roleId': 'salesperson',
+        'roleName': 'Nhân viên Bán hàng',
+        'description': 'Nhập thông tin giao dịch bán hàng và tạo chứng từ doanh thu',
+      },
+      {
+        'roleId': 'manager',
+        'roleName': 'Quản lý',
+        'description': 'Xem báo cáo doanh thu chi phí, theo dõi tiến độ tài chính',
+      },
+      {
+        'roleId': 'partner',
+        'roleName': 'Đối tác Doanh nghiệp',
+        'description': 'Xem hóa đơn và công nợ liên quan đến doanh nghiệp đối tác',
+      },
+    ];
+
+    final batch = _firestore.batch();
+    for (final role in roles) {
+      final ref = _firestore.collection('roles').doc(role['roleId']);
+      batch.set(ref, role, SetOptions(merge: true));
+    }
+    await batch.commit();
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // CATEGORIES (15 records)
   // ─────────────────────────────────────────────────────────────
   static Future<void> _seedCategories() async {
     final categories = [
-      {'categoryId': 'cat_doanhthu',   'categoryName': 'Doanh thu',       'type': 'income'},
-      {'categoryId': 'cat_luong',      'categoryName': 'Lương',            'type': 'income'},
-      {'categoryId': 'cat_kinhdoanh',  'categoryName': 'Kinh doanh',       'type': 'income'},
-      {'categoryId': 'cat_dautu',      'categoryName': 'Đầu tư',           'type': 'income'},
-      {'categoryId': 'cat_thuong',     'categoryName': 'Thưởng',           'type': 'income'},
-      {'categoryId': 'cat_anuong',     'categoryName': 'Ăn uống',          'type': 'expense'},
-      {'categoryId': 'cat_muasam',     'categoryName': 'Mua sắm',          'type': 'expense'},
-      {'categoryId': 'cat_dichuyen',   'categoryName': 'Di chuyển',        'type': 'expense'},
-      {'categoryId': 'cat_matbang',    'categoryName': 'Mặt bằng',         'type': 'expense'},
-      {'categoryId': 'cat_tiendien',   'categoryName': 'Tiền điện',        'type': 'expense'},
-      {'categoryId': 'cat_tiennuoc',   'categoryName': 'Tiền nước',        'type': 'expense'},
-      {'categoryId': 'cat_internet',   'categoryName': 'Internet',         'type': 'expense'},
-      {'categoryId': 'cat_congtac',    'categoryName': 'Công tác',         'type': 'expense'},
+      {'categoryId': 'cat_doanhthu',    'categoryName': 'Doanh thu',       'type': 'income'},
+      {'categoryId': 'cat_luong',       'categoryName': 'Lương',            'type': 'income'},
+      {'categoryId': 'cat_kinhdoanh',   'categoryName': 'Kinh doanh',       'type': 'income'},
+      {'categoryId': 'cat_dautu',       'categoryName': 'Đầu tư',           'type': 'income'},
+      {'categoryId': 'cat_thuong',      'categoryName': 'Thưởng',           'type': 'income'},
+      {'categoryId': 'cat_anuong',      'categoryName': 'Ăn uống',          'type': 'expense'},
+      {'categoryId': 'cat_muasam',      'categoryName': 'Mua sắm',          'type': 'expense'},
+      {'categoryId': 'cat_dichuyen',    'categoryName': 'Di chuyển',        'type': 'expense'},
+      {'categoryId': 'cat_matbang',     'categoryName': 'Mặt bằng',         'type': 'expense'},
+      {'categoryId': 'cat_tiendien',    'categoryName': 'Tiền điện',        'type': 'expense'},
+      {'categoryId': 'cat_tiennuoc',    'categoryName': 'Tiền nước',        'type': 'expense'},
+      {'categoryId': 'cat_internet',    'categoryName': 'Internet',         'type': 'expense'},
+      {'categoryId': 'cat_congtac',     'categoryName': 'Công tác',         'type': 'expense'},
       {'categoryId': 'cat_vanphongpham','categoryName': 'Văn phòng phẩm',  'type': 'expense'},
-      {'categoryId': 'cat_thuexe',     'categoryName': 'Thuê xe',          'type': 'expense'},
+      {'categoryId': 'cat_thuexe',      'categoryName': 'Thuê xe',          'type': 'expense'},
     ];
 
     final batch = _firestore.batch();
@@ -138,7 +248,7 @@ class SeedDataService {
   }
 
   // ─────────────────────────────────────────────────────────────
-  // USERS — tạo Firebase Auth + Firestore document
+  // USERS — 1 account per role
   // ─────────────────────────────────────────────────────────────
   static Future<Map<String, String>> _seedUsers(void Function(String) log) async {
     final usersToCreate = [
@@ -202,26 +312,15 @@ class SeedDataService {
         'isActive': true,
         'photoUrl': 'https://api.dicebear.com/7.x/adventurer/png?seed=partner1',
       },
-      {
-        'email': 'partner2@techsolution.vn',
-        'password': 'Partner2@123',
-        'displayName': 'Đối tác Tech Solution',
-        'fullName': 'Phan Thị Đối Tác 2',
-        'roleId': 'partner',
-        'taxCode': '0987654321',
-        'isActive': true,
-        'photoUrl': 'https://api.dicebear.com/7.x/adventurer/png?seed=partner2',
-      },
     ];
 
     final Map<String, String> uidMap = {};
-    final currentUserBeforeSeed = _auth.currentUser;
 
     for (final u in usersToCreate) {
       final email = u['email'] as String;
+      String uid = 'uid_${u['roleId']}'; // Fixed fallback UID matching role
       try {
-        String uid;
-        // Try to create in Firebase Auth
+        // Try to create/get in Firebase Auth if available
         try {
           final cred = await _auth.createUserWithEmailAndPassword(
             email: email,
@@ -229,18 +328,21 @@ class SeedDataService {
           );
           uid = cred.user!.uid;
           await cred.user!.updateDisplayName(u['displayName'] as String);
-          log('  ✔ Tạo user Auth: $email (uid: $uid)');
+          log('  ✔ Tạo user Auth thành công: $email (uid: $uid)');
         } on fb.FirebaseAuthException catch (e) {
           if (e.code == 'email-already-in-use') {
-            // Find existing UID via sign-in (temporary)
-            final cred = await _auth.signInWithEmailAndPassword(
-              email: email,
-              password: u['password'] as String,
-            );
-            uid = cred.user!.uid;
-            log('  ⚠ User đã tồn tại, dùng uid cũ: $email ($uid)');
+            try {
+              final cred = await _auth.signInWithEmailAndPassword(
+                email: email,
+                password: u['password'] as String,
+              );
+              uid = cred.user!.uid;
+              log('  ⚠ User đã tồn tại trên Auth, sử dụng uid: $email ($uid)');
+            } catch (_) {
+              log('  ⚠ Không đăng nhập được $email, sử dụng fallback UID');
+            }
           } else {
-            rethrow;
+            log('  ⚠️ FirebaseAuth warning: ${e.message}');
           }
         }
 
@@ -262,29 +364,26 @@ class SeedDataService {
         uidMap[email] = uid;
       } catch (e) {
         log('  ❌ Lỗi với user $email: $e');
+        uidMap[email] = uid;
       }
-    }
-
-    // Re-sign in original user if needed
-    if (currentUserBeforeSeed != null && _auth.currentUser?.uid != currentUserBeforeSeed.uid) {
-      log('  🔄 Khôi phục phiên đăng nhập ban đầu...');
     }
 
     return uidMap;
   }
 
   // ─────────────────────────────────────────────────────────────
-  // TRANSACTIONS
+  // TRANSACTIONS (15 records)
   // ─────────────────────────────────────────────────────────────
   static Future<void> _seedTransactions(Map<String, String> uidMap) async {
-    // Use known accountant/admin uid (fallback to 'seed_user' if not found)
-    final acctUid = uidMap['accountant@viper.com'] ?? 'seed_accountant_uid';
-    final adminUid = uidMap['admin@viper.com'] ?? 'seed_admin_uid';
-    final salesUid = uidMap['sales@viper.com'] ?? 'seed_sales_uid';
+    final adminUid = uidMap['admin@viper.com'] ?? 'uid_admin';
+    final chiefUid = uidMap['chief@viper.com'] ?? 'uid_chiefAccountant';
+    final acctUid = uidMap['accountant@viper.com'] ?? 'uid_accountant';
+    final salesUid = uidMap['sales@viper.com'] ?? 'uid_salesperson';
+    final managerUid = uidMap['manager@viper.com'] ?? 'uid_manager';
 
     final now = DateTime.now();
     final txData = [
-      // Income transactions
+      // Income transactions (5 entries)
       {
         'transactionId': 'tx_seed_001',
         'userId': adminUid,
@@ -317,7 +416,7 @@ class SeedDataService {
         'transactionId': 'tx_seed_003',
         'userId': acctUid,
         'categoryId': 'cat_doanhthu',
-        'invoiceId': null,
+        'invoiceId': 'inv_seed_003',
         'scanId': null,
         'amount': 12500000,
         'type': 'income',
@@ -331,7 +430,7 @@ class SeedDataService {
         'transactionId': 'tx_seed_004',
         'userId': salesUid,
         'categoryId': 'cat_dautu',
-        'invoiceId': null,
+        'invoiceId': 'inv_seed_004',
         'scanId': null,
         'amount': 80000000,
         'type': 'income',
@@ -343,7 +442,7 @@ class SeedDataService {
       },
       {
         'transactionId': 'tx_seed_005',
-        'userId': acctUid,
+        'userId': chiefUid,
         'categoryId': 'cat_thuong',
         'invoiceId': null,
         'scanId': null,
@@ -355,12 +454,12 @@ class SeedDataService {
         'status': 'confirmed',
         'createdAt': now.subtract(const Duration(days: 20)).toIso8601String(),
       },
-      // Expense transactions
+      // Expense transactions (10 entries)
       {
         'transactionId': 'tx_seed_006',
         'userId': acctUid,
         'categoryId': 'cat_anuong',
-        'invoiceId': null,
+        'invoiceId': 'inv_seed_006',
         'scanId': null,
         'amount': 850000,
         'type': 'expense',
@@ -388,8 +487,8 @@ class SeedDataService {
         'transactionId': 'tx_seed_008',
         'userId': adminUid,
         'categoryId': 'cat_matbang',
-        'invoiceId': null,
-        'scanId': null,
+        'invoiceId': 'inv_seed_008',
+        'scanId': 'scan_seed_008',
         'amount': 15000000,
         'type': 'expense',
         'transactionDate': now.subtract(const Duration(days: 5)).toIso8601String(),
@@ -402,8 +501,8 @@ class SeedDataService {
         'transactionId': 'tx_seed_009',
         'userId': acctUid,
         'categoryId': 'cat_tiendien',
-        'invoiceId': null,
-        'scanId': null,
+        'invoiceId': 'inv_seed_009',
+        'scanId': 'scan_seed_009',
         'amount': 3200000,
         'type': 'expense',
         'transactionDate': now.subtract(const Duration(days: 8)).toIso8601String(),
@@ -416,8 +515,8 @@ class SeedDataService {
         'transactionId': 'tx_seed_010',
         'userId': salesUid,
         'categoryId': 'cat_dichuyen',
-        'invoiceId': null,
-        'scanId': null,
+        'invoiceId': 'inv_seed_010',
+        'scanId': 'scan_seed_010',
         'amount': 1200000,
         'type': 'expense',
         'transactionDate': now.subtract(const Duration(days: 10)).toIso8601String(),
@@ -428,10 +527,10 @@ class SeedDataService {
       },
       {
         'transactionId': 'tx_seed_011',
-        'userId': acctUid,
+        'userId': managerUid,
         'categoryId': 'cat_internet',
-        'invoiceId': null,
-        'scanId': null,
+        'invoiceId': 'inv_seed_011',
+        'scanId': 'scan_seed_011',
         'amount': 550000,
         'type': 'expense',
         'transactionDate': now.subtract(const Duration(days: 12)).toIso8601String(),
@@ -444,8 +543,8 @@ class SeedDataService {
         'transactionId': 'tx_seed_012',
         'userId': salesUid,
         'categoryId': 'cat_congtac',
-        'invoiceId': null,
-        'scanId': null,
+        'invoiceId': 'inv_seed_012',
+        'scanId': 'scan_seed_012',
         'amount': 8500000,
         'type': 'expense',
         'transactionDate': now.subtract(const Duration(days: 15)).toIso8601String(),
@@ -470,7 +569,7 @@ class SeedDataService {
       },
       {
         'transactionId': 'tx_seed_014',
-        'userId': salesUid,
+        'userId': managerUid,
         'categoryId': 'cat_muasam',
         'invoiceId': null,
         'scanId': null,
@@ -507,21 +606,24 @@ class SeedDataService {
   }
 
   // ─────────────────────────────────────────────────────────────
-  // OCR SCANS
+  // OCR SCANS (12 records)
   // ─────────────────────────────────────────────────────────────
   static Future<void> _seedOCRScans(Map<String, String> uidMap) async {
-    final acctUid = uidMap['accountant@viper.com'] ?? 'seed_accountant_uid';
+    final acctUid = uidMap['accountant@viper.com'] ?? 'uid_accountant';
+    final salesUid = uidMap['sales@viper.com'] ?? 'uid_salesperson';
+    final adminUid = uidMap['admin@viper.com'] ?? 'uid_admin';
+    final managerUid = uidMap['manager@viper.com'] ?? 'uid_manager';
     final now = DateTime.now();
 
     final scans = [
       {
         'scanId': 'scan_seed_001',
-        'userId': acctUid,
-        'imagePath': '',
+        'userId': salesUid,
+        'imagePath': 'mock://scan_seed_001',
         'extractedAmount': 45000000,
         'extractedTaxCode': '0102030405',
         'extractedDate': now.subtract(const Duration(days: 3)).toIso8601String(),
-        'rawJson': '{"vendor":"Smart Building Corp","tax_id":"0102030405","total":45000000,"items":[{"name":"Dịch vụ xây dựng hạ tầng","qty":1,"price":45000000}]}',
+        'rawJson': '{"vendor":"Smart Building Corp","tax_id":"0102030405","total":45000000}',
         'status': 'completed',
         'transactionId': 'tx_seed_002',
         'invoiceId': 'inv_seed_001',
@@ -530,15 +632,119 @@ class SeedDataService {
       {
         'scanId': 'scan_seed_002',
         'userId': acctUid,
-        'imagePath': '',
+        'imagePath': 'mock://scan_seed_002',
         'extractedAmount': 2350000,
         'extractedTaxCode': '0987654321',
         'extractedDate': now.subtract(const Duration(days: 2)).toIso8601String(),
-        'rawJson': '{"vendor":"Tech Solution VN","tax_id":"0987654321","total":2350000,"items":[{"name":"Máy in","qty":1,"price":1500000},{"name":"Bút bi hộp","qty":5,"price":170000}]}',
+        'rawJson': '{"vendor":"Tech Solution VN","tax_id":"0987654321","total":2350000}',
         'status': 'completed',
         'transactionId': 'tx_seed_007',
         'invoiceId': 'inv_seed_002',
         'createdAt': now.subtract(const Duration(days: 2)).toIso8601String(),
+      },
+      {
+        'scanId': 'scan_seed_003',
+        'userId': acctUid,
+        'imagePath': 'mock://scan_seed_003',
+        'extractedAmount': 12500000,
+        'extractedTaxCode': '0101010101',
+        'extractedDate': now.subtract(const Duration(days: 7)).toIso8601String(),
+        'rawJson': '{"vendor":"Công ty Dịch vụ Tư vấn Việt","tax_id":"0101010101","total":12500000}',
+        'status': 'completed',
+        'transactionId': 'tx_seed_003',
+        'invoiceId': 'inv_seed_003',
+        'createdAt': now.subtract(const Duration(days: 7)).toIso8601String(),
+      },
+      {
+        'scanId': 'scan_seed_004',
+        'userId': salesUid,
+        'imagePath': 'mock://scan_seed_004',
+        'extractedAmount': 80000000,
+        'extractedTaxCode': '0202020202',
+        'extractedDate': now.subtract(const Duration(days: 14)).toIso8601String(),
+        'rawJson': '{"vendor":"Tập đoàn Đầu tư Tây Nam","tax_id":"0202020202","total":80000000}',
+        'status': 'completed',
+        'transactionId': 'tx_seed_004',
+        'invoiceId': 'inv_seed_004',
+        'createdAt': now.subtract(const Duration(days: 14)).toIso8601String(),
+      },
+      {
+        'scanId': 'scan_seed_005',
+        'userId': acctUid,
+        'imagePath': 'mock://scan_seed_005',
+        'extractedAmount': 850000,
+        'extractedTaxCode': '0303030303',
+        'extractedDate': now.subtract(const Duration(hours: 5)).toIso8601String(),
+        'rawJson': '{"vendor":"Nhà hàng Sen Việt","tax_id":"0303030303","total":850000}',
+        'status': 'completed',
+        'transactionId': 'tx_seed_006',
+        'invoiceId': 'inv_seed_006',
+        'createdAt': now.subtract(const Duration(hours: 5)).toIso8601String(),
+      },
+      {
+        'scanId': 'scan_seed_008',
+        'userId': adminUid,
+        'imagePath': 'mock://scan_seed_008',
+        'extractedAmount': 15000000,
+        'extractedTaxCode': '0404040404',
+        'extractedDate': now.subtract(const Duration(days: 5)).toIso8601String(),
+        'rawJson': '{"vendor":"Công ty Bất động sản Saigon Center","tax_id":"0404040404","total":15000000}',
+        'status': 'completed',
+        'transactionId': 'tx_seed_008',
+        'invoiceId': 'inv_seed_008',
+        'createdAt': now.subtract(const Duration(days: 5)).toIso8601String(),
+      },
+      {
+        'scanId': 'scan_seed_009',
+        'userId': acctUid,
+        'imagePath': 'mock://scan_seed_009',
+        'extractedAmount': 3200000,
+        'extractedTaxCode': '0505050505',
+        'extractedDate': now.subtract(const Duration(days: 8)).toIso8601String(),
+        'rawJson': '{"vendor":"Tổng công ty Điện lực EVN","tax_id":"0505050505","total":3200000}',
+        'status': 'completed',
+        'transactionId': 'tx_seed_009',
+        'invoiceId': 'inv_seed_009',
+        'createdAt': now.subtract(const Duration(days: 8)).toIso8601String(),
+      },
+      {
+        'scanId': 'scan_seed_010',
+        'userId': salesUid,
+        'imagePath': 'mock://scan_seed_010',
+        'extractedAmount': 1200000,
+        'extractedTaxCode': '0606060606',
+        'extractedDate': now.subtract(const Duration(days: 10)).toIso8601String(),
+        'rawJson': '{"vendor":"Hãng Vận tải Taxi Mai Linh","tax_id":"0606060606","total":1200000}',
+        'status': 'completed',
+        'transactionId': 'tx_seed_010',
+        'invoiceId': 'inv_seed_010',
+        'createdAt': now.subtract(const Duration(days: 10)).toIso8601String(),
+      },
+      {
+        'scanId': 'scan_seed_011',
+        'userId': managerUid,
+        'imagePath': 'mock://scan_seed_011',
+        'extractedAmount': 550000,
+        'extractedTaxCode': '0707070707',
+        'extractedDate': now.subtract(const Duration(days: 12)).toIso8601String(),
+        'rawJson': '{"vendor":"Tập đoàn Viễn thông VNPT","tax_id":"0707070707","total":550000}',
+        'status': 'completed',
+        'transactionId': 'tx_seed_011',
+        'invoiceId': 'inv_seed_011',
+        'createdAt': now.subtract(const Duration(days: 12)).toIso8601String(),
+      },
+      {
+        'scanId': 'scan_seed_012',
+        'userId': salesUid,
+        'imagePath': 'mock://scan_seed_012',
+        'extractedAmount': 8500000,
+        'extractedTaxCode': '0808080808',
+        'extractedDate': now.subtract(const Duration(days: 15)).toIso8601String(),
+        'rawJson': '{"vendor":"Hãng hàng không Vietnam Airlines","tax_id":"0808080808","total":8500000}',
+        'status': 'completed',
+        'transactionId': 'tx_seed_012',
+        'invoiceId': 'inv_seed_012',
+        'createdAt': now.subtract(const Duration(days: 15)).toIso8601String(),
       },
     ];
 
@@ -551,11 +757,13 @@ class SeedDataService {
   }
 
   // ─────────────────────────────────────────────────────────────
-  // INVOICES
+  // INVOICES (12 records)
   // ─────────────────────────────────────────────────────────────
   static Future<void> _seedInvoices(Map<String, String> uidMap) async {
-    final acctUid = uidMap['accountant@viper.com'] ?? 'seed_accountant_uid';
-    final salesUid = uidMap['sales@viper.com'] ?? 'seed_sales_uid';
+    final acctUid = uidMap['accountant@viper.com'] ?? 'uid_accountant';
+    final salesUid = uidMap['sales@viper.com'] ?? 'uid_salesperson';
+    final adminUid = uidMap['admin@viper.com'] ?? 'uid_admin';
+    final managerUid = uidMap['manager@viper.com'] ?? 'uid_manager';
     final now = DateTime.now();
 
     final invoices = [
@@ -572,7 +780,7 @@ class SeedDataService {
         'vatAmount': 3333333,
         'totalAmount': 45000000,
         'status': 'confirmed',
-        'pdfPath': null,
+        'pdfPath': 'invoices/pdf/inv_seed_001.pdf',
         'createdBy': salesUid,
         'scanId': 'scan_seed_001',
       },
@@ -589,9 +797,145 @@ class SeedDataService {
         'vatAmount': 174074,
         'totalAmount': 2350000,
         'status': 'confirmed',
-        'pdfPath': null,
+        'pdfPath': 'invoices/pdf/inv_seed_002.pdf',
         'createdBy': acctUid,
         'scanId': 'scan_seed_002',
+      },
+      {
+        'invoiceId': 'inv_seed_003',
+        'transactionId': 'tx_seed_003',
+        'invoiceNumber': 'INV-2026-0003',
+        'partnerName': 'Công ty Dịch vụ Tư vấn Việt',
+        'partnerAddress': '45 Lê Duẩn, Quận 1, TP. Hồ Chí Minh',
+        'taxCode': '0101010101',
+        'invoiceDate': now.subtract(const Duration(days: 7)).toIso8601String(),
+        'subTotal': 11574074,
+        'vatRate': 8.0,
+        'vatAmount': 925926,
+        'totalAmount': 12500000,
+        'status': 'confirmed',
+        'pdfPath': 'invoices/pdf/inv_seed_003.pdf',
+        'createdBy': acctUid,
+        'scanId': 'scan_seed_003',
+      },
+      {
+        'invoiceId': 'inv_seed_004',
+        'transactionId': 'tx_seed_004',
+        'invoiceNumber': 'INV-2026-0004',
+        'partnerName': 'Tập đoàn Đầu tư Tây Nam',
+        'partnerAddress': '78 Nguyễn Thị Minh Khai, Quận 3, TP. Hồ Chí Minh',
+        'taxCode': '0202020202',
+        'invoiceDate': now.subtract(const Duration(days: 14)).toIso8601String(),
+        'subTotal': 74074074,
+        'vatRate': 8.0,
+        'vatAmount': 5925926,
+        'totalAmount': 80000000,
+        'status': 'confirmed',
+        'pdfPath': 'invoices/pdf/inv_seed_004.pdf',
+        'createdBy': salesUid,
+        'scanId': 'scan_seed_004',
+      },
+      {
+        'invoiceId': 'inv_seed_006',
+        'transactionId': 'tx_seed_006',
+        'invoiceNumber': 'INV-2026-0006',
+        'partnerName': 'Nhà hàng Sen Việt',
+        'partnerAddress': '12 Nguyễn Trãi, Quận 1, TP. Hồ Chí Minh',
+        'taxCode': '0303030303',
+        'invoiceDate': now.subtract(const Duration(hours: 5)).toIso8601String(),
+        'subTotal': 787037,
+        'vatRate': 8.0,
+        'vatAmount': 62963,
+        'totalAmount': 850000,
+        'status': 'confirmed',
+        'pdfPath': 'invoices/pdf/inv_seed_006.pdf',
+        'createdBy': acctUid,
+        'scanId': 'scan_seed_005',
+      },
+      {
+        'invoiceId': 'inv_seed_008',
+        'transactionId': 'tx_seed_008',
+        'invoiceNumber': 'INV-2026-0008',
+        'partnerName': 'Công ty Bất động sản Saigon Center',
+        'partnerAddress': '65 Tôn Đức Thắng, Quận 1, TP. Hồ Chí Minh',
+        'taxCode': '0404040404',
+        'invoiceDate': now.subtract(const Duration(days: 5)).toIso8601String(),
+        'subTotal': 13888889,
+        'vatRate': 8.0,
+        'vatAmount': 1111111,
+        'totalAmount': 15000000,
+        'status': 'confirmed',
+        'pdfPath': 'invoices/pdf/inv_seed_008.pdf',
+        'createdBy': adminUid,
+        'scanId': 'scan_seed_008',
+      },
+      {
+        'invoiceId': 'inv_seed_009',
+        'transactionId': 'tx_seed_009',
+        'invoiceNumber': 'INV-2026-0009',
+        'partnerName': 'Tổng công ty Điện lực EVN',
+        'partnerAddress': '10 Trần Phú, Ba Đình, Hà Nội',
+        'taxCode': '0505050505',
+        'invoiceDate': now.subtract(const Duration(days: 8)).toIso8601String(),
+        'subTotal': 2962963,
+        'vatRate': 8.0,
+        'vatAmount': 237037,
+        'totalAmount': 3200000,
+        'status': 'confirmed',
+        'pdfPath': 'invoices/pdf/inv_seed_009.pdf',
+        'createdBy': acctUid,
+        'scanId': 'scan_seed_009',
+      },
+      {
+        'invoiceId': 'inv_seed_010',
+        'transactionId': 'tx_seed_010',
+        'invoiceNumber': 'INV-2026-0010',
+        'partnerName': 'Hãng Vận tải Taxi Mai Linh',
+        'partnerAddress': '64 Hai Bà Trưng, Quận 1, TP. Hồ Chí Minh',
+        'taxCode': '0606060606',
+        'invoiceDate': now.subtract(const Duration(days: 10)).toIso8601String(),
+        'subTotal': 1111111,
+        'vatRate': 8.0,
+        'vatAmount': 88889,
+        'totalAmount': 1200000,
+        'status': 'confirmed',
+        'pdfPath': 'invoices/pdf/inv_seed_010.pdf',
+        'createdBy': salesUid,
+        'scanId': 'scan_seed_010',
+      },
+      {
+        'invoiceId': 'inv_seed_011',
+        'transactionId': 'tx_seed_011',
+        'invoiceNumber': 'INV-2026-0011',
+        'partnerName': 'Tập đoàn Viễn thông VNPT',
+        'partnerAddress': '57 Huỳnh Thúc Kháng, Đống Đa, Hà Nội',
+        'taxCode': '0707070707',
+        'invoiceDate': now.subtract(const Duration(days: 12)).toIso8601String(),
+        'subTotal': 509259,
+        'vatRate': 8.0,
+        'vatAmount': 40741,
+        'totalAmount': 550000,
+        'status': 'confirmed',
+        'pdfPath': 'invoices/pdf/inv_seed_011.pdf',
+        'createdBy': managerUid,
+        'scanId': 'scan_seed_011',
+      },
+      {
+        'invoiceId': 'inv_seed_012',
+        'transactionId': 'tx_seed_012',
+        'invoiceNumber': 'INV-2026-0012',
+        'partnerName': 'Hãng hàng không Vietnam Airlines',
+        'partnerAddress': '200 Nguyễn Sơn, Long Biên, Hà Nội',
+        'taxCode': '0808080808',
+        'invoiceDate': now.subtract(const Duration(days: 15)).toIso8601String(),
+        'subTotal': 7870370,
+        'vatRate': 8.0,
+        'vatAmount': 629630,
+        'totalAmount': 8500000,
+        'status': 'confirmed',
+        'pdfPath': 'invoices/pdf/inv_seed_012.pdf',
+        'createdBy': salesUid,
+        'scanId': 'scan_seed_012',
       },
     ];
 
@@ -600,13 +944,17 @@ class SeedDataService {
       final txId = inv['transactionId'] as String;
       final invId = inv['invoiceId'] as String;
 
-      // Lưu chuẩn vào Sub-collection /transactions/{txId}/invoices/{invId}
+      // 1. Save to sub-collection /transactions/{txId}/invoices/{invId}
       final subRef = _firestore
           .collection('transactions')
           .doc(txId)
           .collection('invoices')
           .doc(invId);
       batch.set(subRef, inv, SetOptions(merge: true));
+
+      // 2. Save to top-level collection /invoices/{invId}
+      final topRef = _firestore.collection('invoices').doc(invId);
+      batch.set(topRef, inv, SetOptions(merge: true));
     }
     await batch.commit();
   }

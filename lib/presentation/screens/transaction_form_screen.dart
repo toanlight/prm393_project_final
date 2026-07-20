@@ -802,7 +802,6 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                     ],
                   ),
                 ],
-
                 const SizedBox(height: 32),
 
                 // 8. Thanh điều hướng dưới cùng (2 Button nằm ngang: Hủy 45%, Lưu 55%)

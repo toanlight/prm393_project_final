@@ -25,12 +25,16 @@ class SyncService {
     return '${ts.toRadixString(16)}-$rand';
   }
 
+  final StreamController<bool> _onlineStatusController = StreamController<bool>.broadcast();
+  Stream<bool> get onOnlineStatusChanged => _onlineStatusController.stream;
+
   Future<void> initialize() async {
     _syncBox = await Hive.openBox(_syncBoxName);
     
     // Listen to network connectivity changes
     _connectivitySubscription = Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) async {
       final isOnline = !results.contains(ConnectivityResult.none);
+      _onlineStatusController.add(isOnline);
       debugPrint('📶 Connectivity changed. Online: $isOnline');
       if (isOnline) {
         // Delay slightly to ensure connection is fully established
@@ -41,6 +45,7 @@ class SyncService {
 
     // Run initial sync check in case we start online
     final isOnline = await isDeviceOnline();
+    _onlineStatusController.add(isOnline);
     if (isOnline) {
       syncPendingOperations();
     }
