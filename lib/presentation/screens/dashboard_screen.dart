@@ -30,7 +30,6 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   String selectedFilter = 'Tháng này';
-  bool _isLoading = true;
   String? _errorMessage;
 
   List<CategoryModel> _categories = [];
@@ -49,11 +48,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _initDashboard() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
     try {
       if (!mounted) return;
 
@@ -66,20 +60,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       // 2. Fetch Transactions for the current authenticated user
       final auth = context.read<AuthProvider>();
       final userId = auth.user?.uid ?? '';
-      final txProvider = context.read<TransactionProvider>();
-      await txProvider.fetchTransactions(userId);
-
-      if (!mounted) return;
-      _allTransactions = txProvider.transactions;
-      _processDataSync();
-
-      setState(() {
-        _isLoading = false;
-      });
+      await context.read<TransactionProvider>().fetchTransactions(userId);
     } catch (e) {
       if (mounted) {
         setState(() {
-          _isLoading = false;
           _errorMessage = "Không thể tải dữ liệu từ Firebase: $e";
         });
       }
@@ -343,13 +327,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _allTransactions = txProvider.transactions;
     _processDataSync();
 
+    final isDataLoading = txProvider.isLoading && _allTransactions.isEmpty;
+
     return Scaffold(
       backgroundColor: isDark ? AppDesignTokens.darkBackground : AppColors.background,
       body: Column(
         children: [
           const ConnectionStatusBanner(),
           Expanded(
-            child: _isLoading
+            child: isDataLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _errorMessage != null
                     ? Center(
