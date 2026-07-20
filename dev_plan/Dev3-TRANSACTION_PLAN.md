@@ -41,5 +41,42 @@
 ---
 
 ## 4. Kế hoạch Kiểm thử (QA)
-- [cite_start]**Widget Test:** Viết tối thiểu các widget test để tự động hóa việc kiểm tra tính đúng đắn của bộ Validator trên Form (ví dụ: test trường hợp nhập chữ vào ô số tiền, để trống ô danh mục)[cite: 110, 200].
-- [cite_start]**Test thủ công:** Kiểm tra trực quan trải nghiệm vuốt xóa trên thiết bị di động giả lập và test co giãn kích thước cửa sổ trình duyệt (Web) để xác nhận breakpoint không làm vỡ bố cục giao diện[cite: 110, 132].
+- **Widget Test:** Viết tối thiểu các widget test để tự động hóa việc kiểm tra tính đúng đắn của bộ Validator trên Form (ví dụ: test trường hợp nhập chữ vào ô số tiền, để trống ô danh mục).
+- **Test thủ công:** Kiểm tra trực quan trải nghiệm vuốt xóa trên thiết bị di động giả lập và test co giãn kích thước cửa sổ trình duyệt (Web) để xác nhận breakpoint không làm vỡ bố cục giao diện.
+
+---
+
+## 5. Các Thay Đổi & Nâng Cấp Sau Khi Merge Code (Phân quyền, Hóa đơn Thủ công & Responsive Filters)
+
+Sau khi tiến hành merge code từ nhánh `main` và tích hợp với công việc của Dev-4 (Hóa đơn) và Dev-2 (Phân quyền), phân hệ Giao dịch đã được nâng cấp đáng kể như sau:
+
+### A. Tích hợp Hóa đơn thủ công (Manual Invoice Integration)
+- Khi thêm mới giao dịch loại **Thu** (Income), Form hiển thị thêm các trường nhập liệu Hóa đơn (Số HĐ, Đối tác, MST, Tiền hàng, VAT %) và ô tải ảnh chứng từ (chọn từ thư viện).
+- Hệ thống tự động tính toán `Tổng tiền = Tiền hàng + VAT` và khóa trường số tiền chính (chuyển sang read-only) để tránh sai lệch số liệu.
+- Lưu trữ liên kết chéo: Khi Submit, hệ thống tự động tạo bản ghi `InvoiceModel` tương thích với PDF Viewer của Dev-4, lưu trữ bytes ảnh hóa đơn vào RAM (Mock Storage) và liên kết chéo qua `invoiceId` và `scanId`.
+- **Xem hóa đơn không kèm ảnh:** Nếu giao dịch Thu được tạo thủ công không kèm ảnh, nút xem hóa đơn vẫn xuất hiện trên cả Mobile/Desktop và mở được PDF preview bình thường (chỉ hiện thông báo không có ảnh chứng từ thân thiện thay vì crash).
+
+### B. Cơ chế Phân quyền Phê duyệt (Chief Accountant Role)
+- **Loại bỏ tính năng Sửa/Xóa:** Xóa bỏ hoàn toàn cột hành động và nút Sửa/Xóa trên Desktop; gỡ bỏ widget vuốt để xóa (`Dismissible`) và tắt điều hướng chỉnh sửa khi chạm trên Mobile đối với mọi người dùng (theo yêu cầu loại bỏ chức năng sửa/xóa cũ).
+- **Cập nhật Trạng thái Phê duyệt trực tiếp:**
+  - **Desktop:** Kế toán trưởng (`chiefAccountant`) được cấp quyền thay đổi trạng thái trực tiếp thông qua một `DropdownButton` (Pending | Confirmed | Rejected) ở cột Trạng thái. Các tài khoản khác chỉ xem dưới dạng Chip tĩnh.
+  - **Mobile:** Khi Kế toán trưởng chạm vào dòng giao dịch, hệ thống mở một `ModalBottomSheet` hiện 3 tùy chọn phê duyệt. Các tài khoản khác không có phản hồi khi chạm.
+
+### C. Khắc phục lỗi co dãn tỷ lệ màn hình (Responsive Design Fix)
+- Bọc bảng DataTable trên Desktop/Tablet bằng `LayoutBuilder` và `ConstrainedBox` (`minWidth: constraints.maxWidth - 32`), kết hợp với cuộn ngang `SingleChildScrollView`.
+- Bảng tự động kéo dãn rộng ra ôm trọn màn hình lớn của Desktop mà không bị lỗi cố định kích thước, đồng thời cho phép cuộn ngang an toàn nếu màn hình quá hẹp.
+- Chiều rộng cột **Nội dung / Ghi chú** co dãn động theo tỉ lệ màn hình: `width: constraints.maxWidth * 0.25`.
+
+### D. Bộ lọc Giao dịch tối ưu đa nền tảng (Responsive Filters)
+- Thiết lập bộ lọc Search bar (tìm theo ghi chú, danh mục), Loại giao dịch, và Trạng thái phê duyệt ngay phía trên danh sách.
+- Layout bộ lọc tự động sắp xếp tối ưu cho từng nền tảng:
+  - **Mobile:** Search Bar nằm riêng, 2 dropdown nằm song song bên dưới để tiết kiệm không gian đứng.
+  - **Tablet:** Dàn đều trên 1 hàng ngang với ô Tìm kiếm (Flex 2) và dropdowns (Flex 1 mỗi ô).
+  - **Desktop:** Dàn đều trên 1 hàng ngang với ô Tìm kiếm (Flex 3) và dropdowns có độ rộng cố định (160px & 180px).
+- Hỗ trợ dropdowns tự co dãn (`isExpanded: true`) tránh lỗi tràn RenderFlex.
+- Bổ sung màn hình báo trống khi lọc không trùng khớp (Filtered Empty State).
+
+### E. Trường nhập liệu Ghi chú (Note field)
+- Thêm ô nhập liệu Ghi chú vào biểu mẫu giao dịch mới.
+- Lưu trữ trực tiếp dữ liệu ghi chú của người dùng nhập vào thuộc tính `note` của `TransactionModel` thay vì tự động sinh chuỗi mã hóa đơn cứng như trước.
+- Hiển thị trực tiếp nội dung Ghi chú làm tiêu đề (Mobile) hoặc cột thứ 2 (Desktop). Nếu trống, hệ thống tự động fallback hiển thị tên Danh mục để đảm bảo tính mỹ quan.

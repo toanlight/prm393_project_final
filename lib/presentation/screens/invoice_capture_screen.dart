@@ -74,10 +74,13 @@ class _InvoiceCaptureScreenState extends State<InvoiceCaptureScreen> {
 
       if (!mounted) return;
 
-      context.pushReplacement(
-        '/transactions/create',
+      final created = await context.push<bool>(
+        '/invoices/create',
         extra: ocrData,
       );
+
+      if (!mounted || created != true) return;
+      context.pop(true);
     } catch (error) {
       if (!mounted) return;
       _showMessage('Không thể xử lý ảnh: $error');

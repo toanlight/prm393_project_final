@@ -82,6 +82,11 @@ class AppNavigationShell extends StatelessWidget {
                     label: Text('Giao dịch'),
                   ),
                   NavigationRailDestination(
+                    icon: Icon(Icons.receipt_long_outlined),
+                    selectedIcon: Icon(Icons.receipt_long),
+                    label: Text('Hóa đơn'),
+                  ),
+                  NavigationRailDestination(
                     icon: Icon(Icons.person_outline),
                     selectedIcon: Icon(Icons.person),
                     label: Text('Cá nhân'),
@@ -105,48 +110,53 @@ class AppNavigationShell extends StatelessWidget {
       bottomNavigationBar: context.isDesktop
           ? null
           : Container(
-              decoration: BoxDecoration(
-                border: Border(
-                  top: BorderSide(
-                    color: isDark ? AppDesignTokens.darkBorder : AppDesignTokens.lightBorder,
-                    width: 0.5,
-                  ),
-                ),
-              ),
-              child: BottomNavigationBar(
-                currentIndex: navigationShell.currentIndex,
-                onTap: (index) => _onTap(context, index),
-                backgroundColor: isDark ? AppDesignTokens.darkSurface : Colors.white,
-                selectedItemColor: AppDesignTokens.primary,
-                unselectedItemColor: isDark ? AppDesignTokens.darkTextSecondary : AppDesignTokens.lightTextSecondary,
-                showUnselectedLabels: true,
-                elevation: 0,
-                type: BottomNavigationBarType.fixed,
-                items: const [
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.dashboard_outlined),
-                    activeIcon: Icon(Icons.dashboard),
-                    label: 'Bảng điều khiển',
-                  ),
-                  // DEV-3: Thêm tab Giao dịch trong BottomNavigationBar
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.account_balance_wallet_outlined),
-                    activeIcon: Icon(Icons.account_balance_wallet),
-                    label: 'Giao dịch',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.person_outline),
-                    activeIcon: Icon(Icons.person),
-                    label: 'Cá nhân',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.settings_outlined),
-                    activeIcon: Icon(Icons.settings),
-                    label: 'Cài đặt',
-                  ),
-                ],
-              ),
+        decoration: BoxDecoration(
+          border: Border(
+            top: BorderSide(
+              color: isDark ? AppDesignTokens.darkBorder : AppDesignTokens.lightBorder,
+              width: 0.5,
             ),
+          ),
+        ),
+        child: BottomNavigationBar(
+          currentIndex: navigationShell.currentIndex,
+          onTap: (index) => _onTap(context, index),
+          backgroundColor: isDark ? AppDesignTokens.darkSurface : Colors.white,
+          selectedItemColor: AppDesignTokens.primary,
+          unselectedItemColor: isDark ? AppDesignTokens.darkTextSecondary : AppDesignTokens.lightTextSecondary,
+          showUnselectedLabels: true,
+          elevation: 0,
+          type: BottomNavigationBarType.fixed,
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.dashboard_outlined),
+              activeIcon: Icon(Icons.dashboard),
+              label: 'Bảng điều khiển',
+            ),
+            // DEV-3: Thêm tab Giao dịch trong BottomNavigationBar
+            BottomNavigationBarItem(
+              icon: Icon(Icons.account_balance_wallet_outlined),
+              activeIcon: Icon(Icons.account_balance_wallet),
+              label: 'Giao dịch',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.receipt_long_outlined),
+              activeIcon: Icon(Icons.receipt_long),
+              label: 'Hóa đơn',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline),
+              activeIcon: Icon(Icons.person),
+              label: 'Cá nhân',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.settings_outlined),
+              activeIcon: Icon(Icons.settings),
+              label: 'Cài đặt',
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
