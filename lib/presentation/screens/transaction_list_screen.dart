@@ -30,6 +30,12 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
     });
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _loadData();
+  }
+
   void _loadData() {
     final authProvider = context.read<AuthProvider>();
     final userId = authProvider.user?.uid ?? 'mock-user-123';
@@ -265,19 +271,16 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                 ],
               ),
               const SizedBox(height: 10),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    buildFilterChip('Tất cả', 'all'),
-                    const SizedBox(width: 6),
-                    buildFilterChip('Thu', 'income'),
-                    const SizedBox(width: 6),
-                    buildFilterChip('Chi', 'expense'),
-                    const SizedBox(width: 12),
-                    filterStatusButton,
-                  ],
-                ),
+              Row(
+                children: [
+                  buildFilterChip('Tất cả', 'all'),
+                  const SizedBox(width: 6),
+                  buildFilterChip('Thu', 'income'),
+                  const SizedBox(width: 6),
+                  buildFilterChip('Chi', 'expense'),
+                  const Spacer(),
+                  filterStatusButton,
+                ],
               ),
             ],
           );

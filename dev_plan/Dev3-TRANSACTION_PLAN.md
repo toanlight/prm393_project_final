@@ -84,9 +84,6 @@ Sau khi tiến hành merge code từ nhánh `main` và khắc phục các confli
 - **Giải pháp:** Sử dụng `LayoutBuilder` kiểm tra `constraints.maxWidth`:
   - **Kích thước `< 900px` (bao gồm khoảng 649px - 899px):** Tự động chuyển sang danh sách dạng Thẻ Card (`TransactionListMobile`) dãn **100% bề ngang**, hiển thị đầy đủ thông tin mà không bao giờ bị che khuất.
   - **Kích thước `>= 900px`:** Hiển thị Bảng dữ liệu `DataTable` 7 cột rộng rãi (`TransactionListDesktop`).
-- **Tối ưu UI trên Điện thoại Màn hình Hẹp (Google Pixel 7 Fix):**
-  - Bọc dải nút chip bộ lọc trong `SingleChildScrollView(scrollDirection: Axis.horizontal)` để tránh tràn lề phải khi có accessibility font zoom.
-  - Sử dụng `Flexible` và `TextOverflow.ellipsis` cho nhãn Category, kết hợp `FittedBox(fit: BoxFit.scaleDown)` cho số tiền trong thẻ `TransactionListMobile` giúp chống tràn hiển thị với số tiền lớn.
 - **Tối ưu Navigation Shell:** Thanh `NavigationRail` chuyển sang xuất hiện từ `600px` trở lên, ẩn `BottomNavigationBar` ở đáy để giải phóng chiều cao khả dụng.
 
 ### E. Cơ chế Phân quyền Phê duyệt (Chief Accountant Role)

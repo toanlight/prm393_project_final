@@ -43,12 +43,12 @@ class AppRouter {
         final isLoggingIn = state.matchedLocation == '/login';
         final isSplash = state.matchedLocation == '/splash';
 
-        // 1. Wait until AuthProvider finishes its initial load
-        if (auth.isLoading) {
+        // 1. Wait until AuthProvider finishes its initial app launch initialization
+        if (auth.isInitializing) {
           return isSplash ? null : '/splash';
         }
 
-        // 2. User is not authenticated: stay on /login if already there, otherwise redirect to /login
+        // 2. User is not authenticated: stay on /login if already there, otherwise redirect directly to /login
         if (!auth.isAuthenticated) {
           return isLoggingIn ? null : '/login';
         }

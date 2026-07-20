@@ -11,11 +11,42 @@ class FirebaseTransactionRepository implements TransactionRepository {
   static const String _cacheBoxName = 'firebase_transactions_cache';
 
   static const _allAccessRoles = {'admin', 'chiefAccountant', 'accountant', 'manager'};
+  static final Map<String, String> _roleCache = {};
+
+  Future<bool> _isAllAccessUser(String userId, String? roleId) async {
+    if (userId.isEmpty) return true;
+
+    // 1. Kiểm tra roleId truyền từ AuthProvider nếu có
+    if (roleId != null && roleId.isNotEmpty) {
+      return _allAccessRoles.contains(roleId);
+    }
+
+    // 2. Tra cứu từ bộ nhớ đệm cache nếu đã fetch trước đó
+    if (_roleCache.containsKey(userId)) {
+      return _allAccessRoles.contains(_roleCache[userId]);
+    }
+
+    // 3. Tra cứu trực tiếp Firestore collection 'users' document của user đó
+    try {
+      final doc = await _firestore.collection('users').doc(userId).get();
+      if (doc.exists && doc.data() != null) {
+        final fetchedRole = doc.data()!['roleId'] as String?;
+        if (fetchedRole != null && fetchedRole.isNotEmpty) {
+          _roleCache[userId] = fetchedRole;
+          return _allAccessRoles.contains(fetchedRole);
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Lỗi tra cứu roleId từ Firestore: $e');
+    }
+
+    return false;
+  }
 
   @override
   Future<List<TransactionModel>> getTransactions(String userId, {String? roleId}) async {
     try {
-      final isAllAccess = (roleId != null && _allAccessRoles.contains(roleId)) || userId.isEmpty;
+      final isAllAccess = await _isAllAccessUser(userId, roleId);
       QuerySnapshot querySnapshot;
 
       if (isAllAccess) {
@@ -64,7 +95,7 @@ class FirebaseTransactionRepository implements TransactionRepository {
 
   @override
   Stream<List<TransactionModel>> streamTransactions(String userId, {String? roleId}) async* {
-    final isAllAccess = (roleId != null && _allAccessRoles.contains(roleId)) || userId.isEmpty;
+    final isAllAccess = await _isAllAccessUser(userId, roleId);
 
     // Yield cached data first for instant UI loading
     final box = await Hive.openBox(_cacheBoxName);

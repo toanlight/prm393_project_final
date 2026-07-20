@@ -39,9 +39,14 @@ class TransactionListDesktop extends StatelessWidget {
 
   Widget _buildStatusCell(BuildContext context, TransactionModel tx, bool isDark) {
     final user = context.watch<AuthProvider>().user;
-    final isChief = user?.roleId == 'chiefAccountant';
+    final roleId = user?.roleId ?? '';
+    final email = user?.email.toLowerCase() ?? '';
+    final canApprove = roleId == 'admin' ||
+        roleId == 'chiefAccountant' ||
+        email.contains('admin') ||
+        email.contains('chief');
 
-    if (isChief) {
+    if (canApprove) {
       return DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: tx.status,
