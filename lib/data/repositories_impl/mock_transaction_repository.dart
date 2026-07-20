@@ -7,7 +7,7 @@ import '../../../domain/repositories/transaction_repository.dart';
 class MockTransactionRepository implements TransactionRepository {
   static const String _boxName = 'mock_transactions_box';
   
-  final StreamController<List<TransactionModel>> _streamController = 
+  StreamController<List<TransactionModel>> _streamController = 
       StreamController<List<TransactionModel>>.broadcast();
 
   Box? _box;
@@ -50,6 +50,8 @@ class MockTransactionRepository implements TransactionRepository {
             type: TransactionType.expense,
             categoryId: 'Mua sắm',
             transactionDate: now.subtract(const Duration(days: 2)),
+            invoiceId: 'mock_inv_1',
+            scanId: 'mock_scan_1',
             receiptImage: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&q=80&w=400',
             userId: 'mock-user-123',
             status: 'confirmed',
@@ -99,8 +101,17 @@ class MockTransactionRepository implements TransactionRepository {
 
   @override
   Stream<List<TransactionModel>> streamTransactions(String userId) {
+    if (_streamController.isClosed) {
+      _streamController = StreamController<List<TransactionModel>>.broadcast();
+    }
     _emitTransactions(userId);
     return _streamController.stream;
+  }
+
+  void dispose() {
+    if (!_streamController.isClosed) {
+      _streamController.close();
+    }
   }
 
   Future<void> _emitTransactions(String userId) async {

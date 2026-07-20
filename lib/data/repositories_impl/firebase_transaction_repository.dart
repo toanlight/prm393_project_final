@@ -15,6 +15,7 @@ class FirebaseTransactionRepository implements TransactionRepository {
       final querySnapshot = await _firestore
           .collection('transactions')
           .where('userId', isEqualTo: userId)
+          .orderBy('transactionDate', descending: true)
           .get();
 
       final list = querySnapshot.docs
@@ -34,7 +35,6 @@ class FirebaseTransactionRepository implements TransactionRepository {
         await box.put(tx.transactionId, tx.toMap());
       }
 
-      list.sort((a, b) => b.transactionDate.compareTo(a.transactionDate));
       return list;
     } catch (e) {
       // Fallback to Hive Offline Cache
@@ -59,11 +59,12 @@ class FirebaseTransactionRepository implements TransactionRepository {
     cached.sort((a, b) => b.transactionDate.compareTo(a.transactionDate));
     yield cached;
 
-    // Listen to real-time updates from Firestore
+    // Listen to real-time updates from Firestore with server-side ordering
     try {
       await for (final querySnapshot in _firestore
           .collection('transactions')
           .where('userId', isEqualTo: userId)
+          .orderBy('transactionDate', descending: true)
           .snapshots()) {
         
         final list = querySnapshot.docs
@@ -83,11 +84,11 @@ class FirebaseTransactionRepository implements TransactionRepository {
           await cacheBox.put(tx.transactionId, tx.toMap());
         }
 
-        list.sort((a, b) => b.transactionDate.compareTo(a.transactionDate));
         yield list;
       }
     } catch (e) {
-      // Keep emitting from cache in case of stream errors (e.g. offline)
+      // Stream error handling: Emit error event for UI/Provider notification
+      yield* Stream.error(e);
     }
   }
 
