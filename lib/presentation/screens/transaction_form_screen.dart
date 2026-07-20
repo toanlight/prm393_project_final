@@ -227,7 +227,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
           : (scanId != null
               ? 'mock://$scanId'
               : (_type == 'thu' && _isEditing ? widget.transactionToEdit!.receiptImage : null)),
-      status: _isEditing ? widget.transactionToEdit!.status : 'confirmed',
+      status: _isEditing ? widget.transactionToEdit!.status : 'pending',
       createdAt: _isEditing ? widget.transactionToEdit!.createdAt : now,
     );
 
