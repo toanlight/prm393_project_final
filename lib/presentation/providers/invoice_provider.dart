@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../domain/models/invoice_model.dart';
 import '../../domain/models/transaction_model.dart';
+import '../../domain/models/transaction_type.dart';
 import '../../domain/repositories/invoice_repository.dart';
 import '../../domain/repositories/transaction_repository.dart';
 
@@ -167,17 +168,22 @@ class InvoiceProvider extends ChangeNotifier {
       final loaded = <InvoiceListEntry>[];
 
       for (final invoice in invoices) {
-        final transaction =
-        transactionMap[invoice.transactionId];
-
-        if (transaction == null) {
-          debugPrint(
-            '[InvoiceProvider] Bỏ qua invoice='
-                '${invoice.invoiceId} vì không tìm thấy '
-                'transactionId=${invoice.transactionId}',
-          );
-          continue;
-        }
+        final transaction = transactionMap[invoice.transactionId] ??
+            TransactionModel(
+              transactionId: invoice.transactionId.isNotEmpty
+                  ? invoice.transactionId
+                  : 'tx_${invoice.invoiceId}',
+              userId: invoice.createdBy ?? '',
+              categoryId: 'cat_hoadon',
+              invoiceId: invoice.invoiceId,
+              scanId: invoice.scanId,
+              amount: invoice.totalAmount,
+              type: TransactionType.expense,
+              transactionDate: invoice.invoiceDate ?? DateTime.now(),
+              note: 'Hóa đơn ${invoice.invoiceNumber}',
+              status: invoice.status,
+              createdAt: invoice.invoiceDate ?? DateTime.now(),
+            );
 
         loaded.add(
           InvoiceListEntry(

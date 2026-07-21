@@ -97,9 +97,14 @@ class _InvoiceListScreenState
             'tự tải invoice cho uid=$currentUserId',
       );
 
+      final currentUser = context.read<AuthProvider>().user;
       context
           .read<InvoiceProvider>()
-          .loadInvoices(currentUserId);
+          .loadInvoices(
+            currentUserId,
+            roleId: currentUser?.roleId,
+            taxCode: currentUser?.taxCode,
+          );
     });
   }
 

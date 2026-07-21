@@ -512,11 +512,14 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
       }
 
       // 18. Đồng bộ lại danh sách hóa đơn.
-      if (invoiceChanged && mounted) {
+        final currentUser = authProvider.user;
         await context
             .read<InvoiceProvider>()
-            .loadInvoices(userId);
-      }
+            .loadInvoices(
+              userId,
+              roleId: currentUser?.roleId,
+              taxCode: currentUser?.taxCode,
+            );
 
       if (!mounted) return;
 

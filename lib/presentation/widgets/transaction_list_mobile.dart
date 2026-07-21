@@ -376,7 +376,12 @@ class TransactionListMobile extends StatelessWidget {
             invoiceRepository: context.read<InvoiceRepository>(),
           );
       if (context.mounted) {
-        await context.read<InvoiceProvider>().loadInvoices(userId);
+        final currentUser = context.read<AuthProvider>().user;
+        await context.read<InvoiceProvider>().loadInvoices(
+          userId,
+          roleId: currentUser?.roleId,
+          taxCode: currentUser?.taxCode,
+        );
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Đã cập nhật trạng thái thành: $status'),
