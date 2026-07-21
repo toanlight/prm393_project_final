@@ -43,8 +43,13 @@ class AuthProvider extends ChangeNotifier {
             if (dbUser == null) {
               await _userRepository.createUser(user);
             } else {
-              _user = dbUser;
-              await _userRepository.updateUser(user);
+              // Preserve roleId, fullName, taxCode, and other fields stored in Firestore database
+              final updatedUser = dbUser.copyWith(
+                displayName: user.displayName.isNotEmpty ? user.displayName : dbUser.displayName,
+                photoUrl: user.photoUrl.isNotEmpty ? user.photoUrl : dbUser.photoUrl,
+              );
+              _user = updatedUser;
+              await _userRepository.updateUser(updatedUser);
             }
           } catch (e) {
             debugPrint("Failed to sync user to database: $e");
