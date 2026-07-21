@@ -11,6 +11,7 @@ import '../../domain/models/transaction_model.dart';
 import '../../domain/models/transaction_type.dart';
 import '../../domain/repositories/invoice_repository.dart';
 import '../../domain/repositories/ocr_scan_repository.dart';
+import '../../domain/services/finance_calculation_service.dart';
 import '../../domain/services/mock_ocr_service.dart';
 import '../../domain/services/mock_receipt_image_store.dart';
 import '../../data/services/firebase_receipt_storage_service.dart';
@@ -108,8 +109,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
   void _updateTotalAmount() {
     if (_type != 'thu') return;
     final subTotal = int.tryParse(_subTotalController.text) ?? 0;
-    final vatAmount = (subTotal * _vatRate / 100).round();
-    final total = subTotal + vatAmount;
+    final total = FinanceCalculationService.calculateTotalInvoiceAmount(subTotal, _vatRate.round());
     if (total > 0) {
       _amountController.text = total.toString();
     } else {
