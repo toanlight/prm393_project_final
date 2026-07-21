@@ -7,6 +7,7 @@ import '../../domain/models/transaction_type.dart';
 import '../../domain/models/user_model.dart';
 import '../../domain/repositories/invoice_repository.dart';
 import '../../domain/repositories/user_repository.dart';
+import '../../domain/services/rbac_permission_service.dart';
 import '../providers/auth_provider.dart';
 import '../providers/invoice_provider.dart';
 import '../providers/transaction_provider.dart';
@@ -463,11 +464,8 @@ class TransactionListMobile extends StatelessWidget {
     final roleId = user?.roleId ?? '';
     final email = user?.email.toLowerCase() ?? '';
 
-    // Nhận diện quyền phê duyệt linh hoạt qua roleId hoặc email tài khoản mẫu
-    final canApprove = roleId == 'admin' ||
-        roleId == 'chiefAccountant' ||
-        email == 'chief@viper.com' ||
-        email == 'admin@viper.com';
+    // Nhận diện quyền phê duyệt qua RbacPermissionService
+    final canApprove = RbacPermissionService.canConfirmTransaction(user);
 
     return ListView.separated(
       padding: const EdgeInsets.symmetric(

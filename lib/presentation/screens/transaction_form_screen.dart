@@ -14,6 +14,7 @@ import '../../domain/repositories/ocr_scan_repository.dart';
 import '../../domain/services/finance_calculation_service.dart';
 import '../../domain/services/mock_ocr_service.dart';
 import '../../domain/services/mock_receipt_image_store.dart';
+import '../../domain/services/rbac_permission_service.dart';
 import '../../data/services/firebase_receipt_storage_service.dart';
 import '../providers/auth_provider.dart';
 import '../providers/category_provider.dart';
@@ -575,6 +576,60 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final user = context.watch<AuthProvider>().user;
+
+    final canAccess = _isEditing
+        ? RbacPermissionService.canEditTransaction(user)
+        : RbacPermissionService.canCreateTransaction(user);
+
+    if (!canAccess) {
+      return Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            onPressed: () => context.pop(),
+            icon: const Icon(Icons.arrow_back),
+          ),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(AppDesignTokens.spaceLg),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.block_rounded,
+                  color: AppDesignTokens.error,
+                  size: 64,
+                ),
+                const SizedBox(height: AppDesignTokens.spaceMd),
+                Text(
+                  'Quyền truy cập bị từ chối',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                const SizedBox(height: AppDesignTokens.spaceSm),
+                Text(
+                  'Tài khoản của bạn không có quyền ${_isEditing ? "chỉnh sửa" : "tạo mới"} giao dịch.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: isDark
+                        ? AppDesignTokens.darkTextSecondary
+                        : AppDesignTokens.lightTextSecondary,
+                  ),
+                ),
+                const SizedBox(height: AppDesignTokens.spaceLg),
+                ElevatedButton.icon(
+                  onPressed: () => context.pop(),
+                  icon: const Icon(Icons.arrow_back),
+                  label: const Text('Quay lại'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(

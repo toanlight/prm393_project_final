@@ -11,7 +11,9 @@ import '../../domain/models/transaction_model.dart';
 import '../../domain/repositories/invoice_repository.dart';
 import '../../domain/services/invoice_pdf_service.dart';
 import '../../domain/services/mock_receipt_image_store.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import '../../domain/services/rbac_permission_service.dart';
+import '../providers/auth_provider.dart';
+import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 
 
 class ReceiptImagePreviewScreen extends StatefulWidget {
@@ -350,6 +352,10 @@ class _ReceiptImagePreviewScreenState
                   _ActionToolbar(
                     compact: isCompact,
                     exporting: _exporting,
+                    canExport: RbacPermissionService.canExportPdf(
+                      context.watch<AuthProvider>().user,
+                      invoice,
+                    ),
                     hasReceiptImage: _imageBytes != null ||
                         (_imageUrl != null && _imageUrl!.isNotEmpty),
                     onBack: () => Navigator.of(context).pop(),
@@ -411,6 +417,7 @@ class _PageHeader extends StatelessWidget {
 class _ActionToolbar extends StatelessWidget {
   final bool compact;
   final bool exporting;
+  final bool canExport;
   final bool hasReceiptImage;
   final VoidCallback onBack;
   final VoidCallback onExport;
@@ -420,6 +427,7 @@ class _ActionToolbar extends StatelessWidget {
   const _ActionToolbar({
     required this.compact,
     required this.exporting,
+    this.canExport = true,
     required this.hasReceiptImage,
     required this.onBack,
     required this.onExport,
@@ -450,56 +458,58 @@ class _ActionToolbar extends StatelessWidget {
             label: const Text('Ảnh gốc'),
             style: _outlinedStyle(),
           ),
-        FilledButton.icon(
-          onPressed: exporting ? null : onExport,
-          icon: exporting
-              ? const SizedBox(
-            width: 18,
-            height: 18,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: Colors.white,
-            ),
-          )
-              : const Icon(Icons.download_outlined, size: 20),
-          label: const Text('Xuất PDF'),
-          style: FilledButton.styleFrom(
-            backgroundColor: _ReceiptImagePreviewScreenState._primary,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-          ),
-        ),
-        PopupMenuButton<String>(
-          tooltip: 'Thao tác khác',
-          onSelected: (value) {
-            if (value == 'print') onPrint();
-          },
-          itemBuilder: (context) => const [
-            PopupMenuItem(
-              value: 'print',
-              child: ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.print_outlined),
-                title: Text('In hóa đơn'),
+        if (canExport) ...[
+          FilledButton.icon(
+            onPressed: exporting ? null : onExport,
+            icon: exporting
+                ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            )
+                : const Icon(Icons.download_outlined, size: 20),
+            label: const Text('Xuất PDF'),
+            style: FilledButton.styleFrom(
+              backgroundColor: _ReceiptImagePreviewScreenState._primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
               ),
             ),
-          ],
-          child: Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(
-                color: _ReceiptImagePreviewScreenState._border,
-              ),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Icon(Icons.more_horiz),
           ),
-        ),
+          PopupMenuButton<String>(
+            tooltip: 'Thao tác khác',
+            onSelected: (value) {
+              if (value == 'print') onPrint();
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'print',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.print_outlined),
+                  title: Text('In hóa đơn'),
+                ),
+              ),
+            ],
+            child: Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(
+                  color: _ReceiptImagePreviewScreenState._border,
+                ),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(Icons.more_horiz),
+            ),
+          ),
+        ],
       ],
     );
 

@@ -1,7 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/utils/responsive_helper.dart';
+import '../../domain/services/rbac_permission_service.dart';
+import '../providers/auth_provider.dart';
+
+class _NavItem {
+  final int branchIndex;
+  final IconData icon;
+  final IconData activeIcon;
+  final String label;
+
+  const _NavItem({
+    required this.branchIndex,
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+  });
+}
 
 class AppNavigationShell extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
@@ -11,16 +28,84 @@ class AppNavigationShell extends StatelessWidget {
     required this.navigationShell,
   });
 
-  void _onTap(BuildContext context, int index) {
+  List<_NavItem> _getVisibleItems(BuildContext context) {
+    final user = context.read<AuthProvider>().user;
+
+    final allItems = [
+      const _NavItem(
+        branchIndex: 0,
+        icon: Icons.dashboard_outlined,
+        activeIcon: Icons.dashboard,
+        label: 'Tổng quan',
+      ),
+      if (RbacPermissionService.canViewTransactions(user))
+        const _NavItem(
+          branchIndex: 1,
+          icon: Icons.account_balance_wallet_outlined,
+          activeIcon: Icons.account_balance_wallet,
+          label: 'Giao dịch',
+        ),
+      if (RbacPermissionService.canViewInvoices(user))
+        const _NavItem(
+          branchIndex: 2,
+          icon: Icons.receipt_long_outlined,
+          activeIcon: Icons.receipt_long,
+          label: 'Hóa đơn',
+        ),
+      const _NavItem(
+        branchIndex: 3,
+        icon: Icons.person_outline,
+        activeIcon: Icons.person,
+        label: 'Cá nhân',
+      ),
+      const _NavItem(
+        branchIndex: 4,
+        icon: Icons.settings_outlined,
+        activeIcon: Icons.settings,
+        label: 'Cài đặt',
+      ),
+    ];
+
+    return allItems;
+  }
+
+  void _onTap(BuildContext context, List<_NavItem> visibleItems, int visibleIndex) {
+    if (visibleIndex < 0 || visibleIndex >= visibleItems.length) return;
+    final targetBranch = visibleItems[visibleIndex].branchIndex;
     navigationShell.goBranch(
-      index,
-      initialLocation: index == navigationShell.currentIndex,
+      targetBranch,
+      initialLocation: targetBranch == navigationShell.currentIndex,
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final visibleItems = _getVisibleItems(context);
+
+    // Find the matching index in visibleItems array for the active branch
+    int currentVisibleIndex = visibleItems.indexWhere(
+      (item) => item.branchIndex == navigationShell.currentIndex,
+    );
+    if (currentVisibleIndex < 0) {
+      currentVisibleIndex = 0;
+    }
+
+    final railDestinations = visibleItems.map((item) {
+      return NavigationRailDestination(
+        icon: Icon(item.icon),
+        selectedIcon: Icon(item.activeIcon),
+        label: Text(item.label),
+      );
+    }).toList();
+
+    final navBarItems = visibleItems.map((item) {
+      return BottomNavigationBarItem(
+        icon: Icon(item.icon),
+        activeIcon: Icon(item.activeIcon),
+        label: item.label,
+      );
+    }).toList();
 
     final desktopLayout = Row(
       children: [
@@ -33,8 +118,8 @@ class AppNavigationShell extends StatelessWidget {
               ),
               child: IntrinsicHeight(
                 child: NavigationRail(
-                  selectedIndex: navigationShell.currentIndex,
-                  onDestinationSelected: (index) => _onTap(context, index),
+                  selectedIndex: currentVisibleIndex,
+                  onDestinationSelected: (index) => _onTap(context, visibleItems, index),
                   labelType: NavigationRailLabelType.all,
                   backgroundColor: isDark ? AppDesignTokens.darkSurface : Colors.white,
                   elevation: 1,
@@ -74,33 +159,7 @@ class AppNavigationShell extends StatelessWidget {
                     color: isDark ? AppDesignTokens.darkTextSecondary : AppDesignTokens.lightTextSecondary,
                     fontSize: 10,
                   ),
-                  destinations: const [
-                    NavigationRailDestination(
-                      icon: Icon(Icons.dashboard_outlined),
-                      selectedIcon: Icon(Icons.dashboard),
-                      label: Text('Tổng quan'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.account_balance_wallet_outlined),
-                      selectedIcon: Icon(Icons.account_balance_wallet),
-                      label: Text('Giao dịch'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.receipt_long_outlined),
-                      selectedIcon: Icon(Icons.receipt_long),
-                      label: Text('Hóa đơn'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.person_outline),
-                      selectedIcon: Icon(Icons.person),
-                      label: Text('Cá nhân'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.settings_outlined),
-                      selectedIcon: Icon(Icons.settings),
-                      label: Text('Cài đặt'),
-                    ),
-                  ],
+                  destinations: railDestinations,
                 ),
               ),
             ),
@@ -122,56 +181,31 @@ class AppNavigationShell extends StatelessWidget {
       ),
       bottomNavigationBar: context.isMobile
           ? Container(
-        decoration: BoxDecoration(
-          border: Border(
-            top: BorderSide(
-              color: isDark ? AppDesignTokens.darkBorder : AppDesignTokens.lightBorder,
-              width: 0.5,
-            ),
-          ),
-        ),
-        child: BottomNavigationBar(
-          currentIndex: navigationShell.currentIndex,
-          onTap: (index) => _onTap(context, index),
-          backgroundColor: isDark ? AppDesignTokens.darkSurface : Colors.white,
-          selectedItemColor: AppDesignTokens.primary,
-          unselectedItemColor: isDark ? AppDesignTokens.darkTextSecondary : AppDesignTokens.lightTextSecondary,
-          showUnselectedLabels: true,
-          selectedFontSize: 11,
-          unselectedFontSize: 10,
-          iconSize: 22,
-          elevation: 0,
-          type: BottomNavigationBarType.fixed,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.dashboard_outlined),
-              activeIcon: Icon(Icons.dashboard),
-              label: 'Tổng quan',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.account_balance_wallet_outlined),
-              activeIcon: Icon(Icons.account_balance_wallet),
-              label: 'Giao dịch',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.receipt_long_outlined),
-              activeIcon: Icon(Icons.receipt_long),
-              label: 'Hóa đơn',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
-              label: 'Cá nhân',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.settings_outlined),
-              activeIcon: Icon(Icons.settings),
-              label: 'Cài đặt',
-            ),
-          ],
-        ),
-      )
-    : null,
-  );
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(
+                    color: isDark ? AppDesignTokens.darkBorder : AppDesignTokens.lightBorder,
+                    width: 0.5,
+                  ),
+                ),
+              ),
+              child: BottomNavigationBar(
+                currentIndex: currentVisibleIndex,
+                onTap: (index) => _onTap(context, visibleItems, index),
+                backgroundColor: isDark ? AppDesignTokens.darkSurface : Colors.white,
+                selectedItemColor: AppDesignTokens.primary,
+                unselectedItemColor: isDark ? AppDesignTokens.darkTextSecondary : AppDesignTokens.lightTextSecondary,
+                showUnselectedLabels: true,
+                selectedFontSize: 11,
+                unselectedFontSize: 10,
+                iconSize: 22,
+                elevation: 0,
+                type: BottomNavigationBarType.fixed,
+                items: navBarItems,
+              ),
+            )
+          : null,
+    );
   }
 }
+

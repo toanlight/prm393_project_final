@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/theme/design_tokens.dart';
 import '../../core/utils/responsive_helper.dart';
+import '../../domain/services/rbac_permission_service.dart';
 import '../providers/auth_provider.dart';
 import '../providers/invoice_provider.dart';
 
@@ -21,12 +22,6 @@ class _InvoiceListScreenState
   final TextEditingController _searchController =
   TextEditingController();
 
-  /// Ghi nhận UID đã được dùng để tải hóa đơn.
-  ///
-  /// Mục đích:
-  /// - Không tải bằng mock-user-123.
-  /// - Chờ Firebase Auth trả về user thật.
-  /// - Không gọi loadInvoices lặp lại ở mỗi lần build.
   String? _loadedUserId;
 
   @override
@@ -35,7 +30,6 @@ class _InvoiceListScreenState
     super.dispose();
   }
 
-  /// Tải lại danh sách hóa đơn theo user Firebase hiện tại.
   Future<void> _loadData() async {
     final authProvider = context.read<AuthProvider>();
     final user = authProvider.user;
@@ -57,10 +51,18 @@ class _InvoiceListScreenState
         .loadInvoices(user.uid);
   }
 
-  /// Mở màn hình scan hóa đơn.
-  ///
-  /// Nếu tạo hóa đơn thành công thì tải lại danh sách.
   Future<void> _openScanner() async {
+    final user = context.read<AuthProvider>().user;
+    if (!RbacPermissionService.canCreateInvoice(user)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tài khoản của bạn không có quyền quét/tạo hóa đơn.'),
+          backgroundColor: AppDesignTokens.error,
+        ),
+      );
+      return;
+    }
+
     final created = await context.push<bool>(
       '/invoices/scan',
     );
@@ -72,10 +74,6 @@ class _InvoiceListScreenState
     await _loadData();
   }
 
-  /// Theo dõi AuthProvider.
-  ///
-  /// Khi Firebase trả về user thật lần đầu hoặc UID thay đổi,
-  /// hệ thống tự tải danh sách hóa đơn tương ứng.
   void _scheduleInvoiceLoadForUser(
       String? currentUserId,
       ) {
@@ -104,7 +102,9 @@ class _InvoiceListScreenState
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
-    final currentUserId = authProvider.user?.uid;
+    final user = authProvider.user;
+    final currentUserId = user?.uid;
+    final canCreate = RbacPermissionService.canCreateInvoice(user);
 
     _scheduleInvoiceLoadForUser(currentUserId);
 
@@ -112,7 +112,7 @@ class _InvoiceListScreenState
         Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      floatingActionButton: context.isDesktop
+      floatingActionButton: (context.isDesktop || !canCreate)
           ? null
           : FloatingActionButton.extended(
         heroTag: 'invoice_smart_scan',
@@ -149,6 +149,16 @@ class _InvoiceListScreenState
             );
           }
 
+          // Lọc danh sách hóa đơn hiển thị theo vai trò người dùng (Partner chỉ thấy hóa đơn trùng MST)
+          final visibleInvoices = RbacPermissionService.filterVisibleInvoices(
+            user,
+            provider.filteredItems.map((e) => e.invoice).toList(),
+          );
+          final visibleSet = visibleInvoices.map((i) => i.invoiceId).toSet();
+          final visibleItems = provider.filteredItems
+              .where((entry) => visibleSet.contains(entry.invoice.invoiceId))
+              .toList();
+
           return RefreshIndicator(
             onRefresh: _loadData,
             child: ListView(
@@ -171,7 +181,7 @@ class _InvoiceListScreenState
                     : 96,
               ),
               children: [
-                _buildHeader(context),
+                _buildHeader(context, canCreate),
                 const SizedBox(
                   height: AppDesignTokens.spaceSm,
                 ),
@@ -185,11 +195,12 @@ class _InvoiceListScreenState
                   context,
                   provider,
                   isDark,
+                  visibleItems.length,
                 ),
                 const SizedBox(
                   height: AppDesignTokens.spaceSm,
                 ),
-                if (provider.filteredItems.isEmpty)
+                if (visibleItems.isEmpty)
                   _InvoiceEmptyState(
                     hasFilters:
                     provider.searchQuery.isNotEmpty ||
@@ -198,18 +209,18 @@ class _InvoiceListScreenState
                       _searchController.clear();
                       provider.clearFilters();
                     },
-                    onScan: _openScanner,
+                    onScan: canCreate ? () => _openScanner() : null,
                   )
                 else
                   AppResponsiveLayout(
                     mobile: _InvoiceMobileList(
-                      items: provider.filteredItems,
+                      items: visibleItems,
                     ),
                     tablet: _InvoiceDesktopTable(
-                      items: provider.filteredItems,
+                      items: visibleItems,
                     ),
                     desktop: _InvoiceDesktopTable(
-                      items: provider.filteredItems,
+                      items: visibleItems,
                     ),
                   ),
               ],
@@ -221,7 +232,7 @@ class _InvoiceListScreenState
   );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader(BuildContext context, bool canCreate) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -250,7 +261,7 @@ class _InvoiceListScreenState
             ],
           ),
         ),
-        if (context.isDesktop)
+        if (context.isDesktop && canCreate)
           FilledButton.icon(
             onPressed: _openScanner,
             icon: const Icon(
@@ -266,6 +277,7 @@ class _InvoiceListScreenState
       BuildContext context,
       InvoiceProvider provider,
       bool isDark,
+      int itemCount,
       ) {
     return Container(
       padding: const EdgeInsets.all(
@@ -353,7 +365,7 @@ class _InvoiceListScreenState
             ),
           ),
           Text(
-            '${provider.filteredItems.length} hóa đơn',
+            '$itemCount hóa đơn',
           ),
         ],
       ),
@@ -860,16 +872,18 @@ class _InvoiceEmptyState
     extends StatelessWidget {
   final bool hasFilters;
   final VoidCallback onClearFilters;
-  final VoidCallback onScan;
+  final VoidCallback? onScan;
 
   const _InvoiceEmptyState({
     required this.hasFilters,
     required this.onClearFilters,
-    required this.onScan,
+    this.onScan,
   });
 
   @override
   Widget build(BuildContext context) {
+    final showAction = hasFilters || onScan != null;
+
     return Padding(
       padding: const EdgeInsets.symmetric(
         vertical: 64,
@@ -896,28 +910,29 @@ class _InvoiceEmptyState
           Text(
             hasFilters
                 ? 'Thử thay đổi từ khóa hoặc bộ lọc trạng thái.'
-                : 'Quét hóa đơn đầu tiên để hệ thống '
-                'tự tạo hóa đơn và giao dịch.',
+                : 'Các hóa đơn được tạo sẽ hiển thị tại đây.',
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 20),
-          FilledButton.icon(
-            onPressed: hasFilters
-                ? onClearFilters
-                : onScan,
-            icon: Icon(
-              hasFilters
-                  ? Icons
-                  .filter_alt_off_outlined
-                  : Icons
-                  .document_scanner_outlined,
+          if (showAction) ...[
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: hasFilters
+                  ? onClearFilters
+                  : onScan,
+              icon: Icon(
+                hasFilters
+                    ? Icons
+                    .filter_alt_off_outlined
+                    : Icons
+                    .document_scanner_outlined,
+              ),
+              label: Text(
+                hasFilters
+                    ? 'Xóa bộ lọc'
+                    : 'Smart Scan',
+              ),
             ),
-            label: Text(
-              hasFilters
-                  ? 'Xóa bộ lọc'
-                  : 'Smart Scan',
-            ),
-          ),
+          ],
         ],
       ),
     );

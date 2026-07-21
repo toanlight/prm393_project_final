@@ -9,7 +9,6 @@ import '../../core/theme/design_tokens.dart';
 import '../../core/utils/responsive_helper.dart';
 import '../../domain/models/category_model.dart';
 import '../../domain/models/mock_chart_data.dart' hide kpiCards, monthlyData, spendingData, trendData;
-import '../../domain/models/mock_chart_data.dart' as mock;
 import '../../domain/models/transaction_model.dart';
 import '../../domain/models/transaction_type.dart';
 import '../../domain/repositories/category_repository.dart';
@@ -386,17 +385,71 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildHeader(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final user = context.watch<AuthProvider>().user;
     final textColor = isDark ? AppDesignTokens.darkTextPrimary : AppColors.foreground;
     final mutedTextColor = isDark ? AppDesignTokens.darkTextSecondary : AppColors.mutedFg;
+
+    String getRoleName(String? roleId) {
+      switch (roleId) {
+        case 'admin':
+          return 'Admin Hệ thống';
+        case 'chiefAccountant':
+          return 'Kế toán trưởng';
+        case 'accountant':
+          return 'Kế toán viên';
+        case 'salesperson':
+          return 'Nhân viên Bán hàng';
+        case 'manager':
+          return 'Quản lý';
+        case 'partner':
+          return 'Đối tác';
+        default:
+          return roleId ?? 'Người dùng';
+      }
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Tổng quan', style: AppTextStyles.h1.copyWith(color: textColor)),
-        const SizedBox(height: AppTheme.sp4),
-        Text(
-          '${_getCurrentDateRangeString()} - cập nhật lúc ${_getLastUpdatedTimeString()}',
-          style: AppTextStyles.caption.copyWith(color: mutedTextColor),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Tổng quan', style: AppTextStyles.h1.copyWith(color: textColor)),
+                const SizedBox(height: AppTheme.sp4),
+                Text(
+                  '${_getCurrentDateRangeString()} - cập nhật lúc ${_getLastUpdatedTimeString()}',
+                  style: AppTextStyles.caption.copyWith(color: mutedTextColor),
+                ),
+              ],
+            ),
+            if (user != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppDesignTokens.primary.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
+                  border: Border.all(color: AppDesignTokens.primary.withOpacity(0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.shield_outlined, size: 16, color: AppDesignTokens.primary),
+                    const SizedBox(width: 6),
+                    Text(
+                      getRoleName(user.roleId),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: AppDesignTokens.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
         ),
         const SizedBox(height: AppTheme.sp24),
         _buildFilterChips(context),

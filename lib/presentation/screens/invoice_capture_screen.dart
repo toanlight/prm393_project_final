@@ -5,10 +5,13 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 
 import '../../domain/services/mock_image_validation_service.dart';
 import '../../domain/services/mock_ocr_service.dart';
 import '../../domain/services/mock_receipt_image_store.dart';
+import '../../domain/services/rbac_permission_service.dart';
+import '../providers/auth_provider.dart';
 import '../widgets/scan_effect_overlay.dart';
 
 class InvoiceCaptureScreen extends StatefulWidget {
@@ -33,6 +36,11 @@ class _InvoiceCaptureScreenState extends State<InvoiceCaptureScreen> {
 
   Future<void> _pickAndScan(ImageSource source) async {
     if (_isProcessing) return;
+    final user = context.read<AuthProvider>().user;
+    if (!RbacPermissionService.canCreateInvoice(user)) {
+      _showMessage('Tài khoản của bạn không có quyền quét hóa đơn.');
+      return;
+    }
 
     final picked = await _picker.pickImage(
       source: source,

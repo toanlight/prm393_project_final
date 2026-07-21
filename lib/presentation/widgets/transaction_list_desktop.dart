@@ -5,6 +5,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../domain/models/transaction_model.dart';
 import '../../domain/models/transaction_type.dart';
 import '../../domain/repositories/invoice_repository.dart';
+import '../../domain/services/rbac_permission_service.dart';
 import '../providers/auth_provider.dart';
 import '../providers/invoice_provider.dart';
 import '../providers/transaction_provider.dart';
@@ -39,12 +40,7 @@ class TransactionListDesktop extends StatelessWidget {
 
   Widget _buildStatusCell(BuildContext context, TransactionModel tx, bool isDark) {
     final user = context.watch<AuthProvider>().user;
-    final roleId = user?.roleId ?? '';
-    final email = user?.email.toLowerCase() ?? '';
-    final canApprove = roleId == 'admin' ||
-        roleId == 'chiefAccountant' ||
-        email.contains('admin') ||
-        email.contains('chief');
+    final canApprove = RbacPermissionService.canConfirmTransaction(user);
 
     if (canApprove) {
       return DropdownButtonHideUnderline(

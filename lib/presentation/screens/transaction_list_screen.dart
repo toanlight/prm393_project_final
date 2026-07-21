@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../domain/models/transaction_model.dart';
 import '../../domain/models/transaction_type.dart';
+import '../../domain/services/rbac_permission_service.dart';
 import '../providers/auth_provider.dart';
 import '../providers/transaction_provider.dart';
 import '../widgets/transaction_empty_state.dart';
@@ -228,18 +229,23 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
       ],
     );
 
-    final addButton = ElevatedButton.icon(
-      onPressed: () => context.push('/transactions/create'),
-      icon: const Icon(Icons.add, size: 18, color: Colors.white),
-      label: const Text('Thêm mới', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: AppDesignTokens.primary,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
-        ),
-      ),
-    );
+    final user = context.watch<AuthProvider>().user;
+    final canCreate = RbacPermissionService.canCreateTransaction(user);
+
+    final addButton = canCreate
+        ? ElevatedButton.icon(
+            onPressed: () => context.push('/transactions/create'),
+            icon: const Icon(Icons.add, size: 18, color: Colors.white),
+            label: const Text('Thêm mới', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppDesignTokens.primary,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
+              ),
+            ),
+          )
+        : const SizedBox.shrink();
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -255,8 +261,10 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
               buildFilterChip('Chi', 'expense'),
               const SizedBox(width: 8),
               filterStatusButton,
-              const SizedBox(width: 12),
-              addButton,
+              if (canCreate) ...[
+                const SizedBox(width: 12),
+                addButton,
+              ],
             ],
           );
         } else {
@@ -266,8 +274,10 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
               Row(
                 children: [
                   Expanded(child: searchField),
-                  const SizedBox(width: 8),
-                  addButton,
+                  if (canCreate) ...[
+                    const SizedBox(width: 8),
+                    addButton,
+                  ],
                 ],
               ),
               const SizedBox(height: 10),
