@@ -45,13 +45,38 @@ class MockInvoiceRepository implements InvoiceRepository {
     await _box!.put(initialInvoice.invoiceId, initialInvoice.toMap());
   }
   @override
-  Future<InvoiceModel?> getInvoiceForTransaction(String transactionId) async {
-    await Future.delayed(const Duration(milliseconds: 150));
+  Future<InvoiceModel?> getInvoiceForTransaction(
+      String transactionId, {
+        String? invoiceId,
+      }) async {
+    await Future.delayed(
+      const Duration(milliseconds: 150),
+    );
+
     final box = await _getBox();
+
+    if (invoiceId != null && invoiceId.isNotEmpty) {
+      final raw = box.get(invoiceId);
+
+      if (raw != null) {
+        return InvoiceModel.fromMap(
+          Map<String, dynamic>.from(raw),
+        );
+      }
+    }
+
     final match = box.values
-        .map((e) => InvoiceModel.fromMap(Map<String, dynamic>.from(e)))
-        .where((inv) => inv.transactionId == transactionId)
+        .map(
+          (e) => InvoiceModel.fromMap(
+        Map<String, dynamic>.from(e),
+      ),
+    )
+        .where(
+          (invoice) =>
+      invoice.transactionId == transactionId,
+    )
         .toList();
+
     return match.isNotEmpty ? match.first : null;
   }
 
@@ -68,4 +93,45 @@ class MockInvoiceRepository implements InvoiceRepository {
     final box = await _getBox();
     await box.delete(invoiceId);
   }
+
+  @override
+  Future<List<InvoiceModel>> getInvoicesByUser(
+      String userId,
+      ) async {
+    final box = await _getBox();
+
+    final invoices = <InvoiceModel>[];
+
+    for (final raw in box.values) {
+      try {
+        final invoice = InvoiceModel.fromMap(
+          Map<String, dynamic>.from(raw),
+        );
+
+        if (invoice.createdBy == userId ||
+            userId == 'mock-user-123') {
+          invoices.add(invoice);
+        }
+      } catch (_) {
+        // Bỏ qua dữ liệu cache không hợp lệ.
+      }
+    }
+
+    invoices.sort((a, b) {
+      final aDate =
+          a.invoiceDate ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+
+      final bDate =
+          b.invoiceDate ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+
+      return bDate.compareTo(aDate);
+    });
+
+    return invoices;
+  }
+
+
+
 }

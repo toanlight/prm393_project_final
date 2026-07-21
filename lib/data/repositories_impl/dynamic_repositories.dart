@@ -95,14 +95,25 @@ class DynamicTransactionRepository implements TransactionRepository {
   TransactionRepository get _active => FirebaseService().isMockMode ? _mock : _real;
 
   @override
-  Future<List<TransactionModel>> getTransactions(String userId, {String? roleId}) =>
-      _active.getTransactions(userId, roleId: roleId);
+  Future<List<TransactionModel>> getTransactions(
+      String userId, {
+        String? roleId,
+      }) {
+    return _active.getTransactions(
+      userId,
+      roleId: roleId,
+    );
+  }
 
   @override
-  Stream<List<TransactionModel>> streamTransactions(String userId, {String? roleId}) {
-    return FirebaseService().isMockMode 
-        ? _mock.streamTransactions(userId, roleId: roleId) 
-        : _real.streamTransactions(userId, roleId: roleId);
+  Stream<List<TransactionModel>> streamTransactions(
+      String userId, {
+        String? roleId,
+      }) {
+    return _active.streamTransactions(
+      userId,
+      roleId: roleId,
+    );
   }
 
   @override
@@ -165,8 +176,15 @@ class DynamicInvoiceRepository implements InvoiceRepository {
   InvoiceRepository get _active => FirebaseService().isMockMode ? _mock : _real;
 
   @override
-  Future<InvoiceModel?> getInvoiceForTransaction(String transactionId) =>
-      _active.getInvoiceForTransaction(transactionId);
+  Future<InvoiceModel?> getInvoiceForTransaction(
+      String transactionId, {
+        String? invoiceId,
+      }) {
+    return _active.getInvoiceForTransaction(
+      transactionId,
+      invoiceId: invoiceId,
+    );
+  }
 
   @override
   Future<void> createInvoice(InvoiceModel invoice) =>
@@ -175,4 +193,11 @@ class DynamicInvoiceRepository implements InvoiceRepository {
   @override
   Future<void> deleteInvoice(String transactionId, String invoiceId) =>
       _active.deleteInvoice(transactionId, invoiceId);
+
+  @override
+  Future<List<InvoiceModel>> getInvoicesByUser(
+      String userId,
+      ) {
+    return _active.getInvoicesByUser(userId);
+  }
 }

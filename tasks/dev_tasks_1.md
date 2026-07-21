@@ -1,4 +1,4 @@
-# 📋 Viper Platform — Danh sách Bug & Task cho Dev
+# 📋 Smart Finance Platform — Danh sách Bug & Task cho Dev
 
 > **Ngày tạo:** 2026-07-15  
 > **Dự án:** `project_final` (Flutter + Firebase)  
@@ -27,7 +27,7 @@ Tìm đoạn sau ở khoảng **dòng 32–34**:
 ```dart
 // Trước (SAI):
 // await firebaseService.initialize();
-firebaseService.forceMockMode(true);
+firebaseService.forceMockMode(false);
 ```
 
 Sửa thành:
@@ -658,16 +658,16 @@ lib/
 
 | Email | Password | Role |
 |---|---|---|
-| `admin@viper.com` | `Admin@123` | admin |
-| `chief@viper.com` | `Chief@123` | chiefAccountant |
-| `accountant@viper.com` | `Accountant@123` | accountant |
-| `sales@viper.com` | `Sales@123` | salesperson |
+| `admin@smartfinance.com` | `Admin@123` | admin |
+| `chief@smartfinance.com` | `Chief@123` | chiefAccountant |
+| `accountant@smartfinance.com` | `Accountant@123` | accountant |
+| `sales@smartfinance.com` | `Sales@123` | salesperson |
 | `partner@smartbuilding.com` | `Partner@123` | partner |
 
 ### Luồng Seed Data (cần chạy 1 lần đầu)
 
 1. Vào **Settings** → Tắt Mock Mode → Đăng xuất & Đăng nhập lại
-2. Đăng nhập với `admin@viper.com` / `Admin@123`
+2. Đăng nhập với `admin@smartfinance.com` / `Admin@123`
 3. Vào **Settings** → **"🚀 Seed dữ liệu lên Firebase"**
 4. Đợi log xanh ✅ hoàn tất
 

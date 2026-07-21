@@ -15,13 +15,25 @@ class DynamicTransactionRepository implements TransactionRepository {
   TransactionRepository get _active => _mock;
 
   @override
-  Stream<List<TransactionModel>> streamTransactions(String userId, {String? roleId}) {
-    return _active.streamTransactions(userId, roleId: roleId);
+  Future<List<TransactionModel>> getTransactions(
+      String userId, {
+        String? roleId,
+      }) {
+    return _active.getTransactions(
+      userId,
+      roleId: roleId,
+    );
   }
 
   @override
-  Future<List<TransactionModel>> getTransactions(String userId, {String? roleId}) {
-    return _active.getTransactions(userId, roleId: roleId);
+  Stream<List<TransactionModel>> streamTransactions(
+      String userId, {
+        String? roleId,
+      }) {
+    return _active.streamTransactions(
+      userId,
+      roleId: roleId,
+    );
   }
 
   @override

@@ -48,17 +48,21 @@ class ProfileScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Hồ sơ Cá nhân'),
+        toolbarHeight: 48,
       ),
       body: Center(
         child: SingleChildScrollView(
-          padding: EdgeInsets.all(context.responsiveValue(
-            mobile: AppDesignTokens.spaceMd,
-            tablet: AppDesignTokens.spaceLg,
-            desktop: AppDesignTokens.spaceXl,
-          )),
+          padding: EdgeInsets.symmetric(
+            horizontal: context.responsiveValue(
+              mobile: AppDesignTokens.spaceMd,
+              tablet: AppDesignTokens.spaceLg,
+              desktop: AppDesignTokens.spaceXl,
+            ),
+            vertical: AppDesignTokens.spaceSm,
+          ),
           child: Container(
             constraints: const BoxConstraints(maxWidth: 600),
-            padding: const EdgeInsets.all(AppDesignTokens.spaceLg),
+            padding: const EdgeInsets.all(AppDesignTokens.spaceMd),
             decoration: BoxDecoration(
               color: isDark ? AppDesignTokens.darkSurface : Colors.white,
               borderRadius: BorderRadius.circular(AppDesignTokens.radiusLg),
@@ -71,50 +75,55 @@ class ProfileScreen extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Avatar Frame with Gradient border
+                // Avatar Frame gọn gàng
                 Container(
-                  padding: const EdgeInsets.all(4),
+                  padding: const EdgeInsets.all(3),
                   decoration: const BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: AppDesignTokens.primaryGradient,
                   ),
                   child: CircleAvatar(
-                    radius: 60,
+                    radius: 38,
                     backgroundColor: Colors.white,
                     backgroundImage: NetworkImage(user?.photoUrl ?? ''),
                   ),
                 ),
-                const SizedBox(height: AppDesignTokens.spaceLg),
+                const SizedBox(height: 8),
 
                 // Display Name
                 Text(
                   user?.displayName ?? 'Khách Demo',
-                  style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
+                    fontSize: 18,
                   ),
                 ),
                 if (user?.fullName != null && user!.fullName.isNotEmpty && user.fullName != user.displayName) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
                     user.fullName,
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 13,
                       color: isDark
                           ? AppDesignTokens.darkTextSecondary
                           : AppDesignTokens.lightTextSecondary,
                     ),
                   ),
                 ],
-                const SizedBox(height: AppDesignTokens.spaceXs),
+                const SizedBox(height: 6),
                 
                 // Account Type & Role Badges
                 Wrap(
-                  spacing: 8,
+                  spacing: 6,
+                  runSpacing: 4,
                   alignment: WrapAlignment.center,
                   children: [
                     Chip(
+                      visualDensity: VisualDensity.compact,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       label: Text(
                         user?.isAnonymous == true ? 'Tài khoản khách (Demo)' : 'Tài khoản chính thức',
+                        style: const TextStyle(fontSize: 11),
                       ),
                       backgroundColor: user?.isAnonymous == true
                           ? AppDesignTokens.warning.withOpacity(0.1)
@@ -127,8 +136,13 @@ class ProfileScreen extends StatelessWidget {
                     ),
                     if (user?.roleId != null)
                       Chip(
-                        avatar: const Icon(Icons.shield_outlined, size: 16),
-                        label: Text(_roleLabels[user!.roleId] ?? user.roleId),
+                        visualDensity: VisualDensity.compact,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        avatar: const Icon(Icons.shield_outlined, size: 14),
+                        label: Text(
+                          _roleLabels[user!.roleId] ?? user.roleId,
+                          style: const TextStyle(fontSize: 11),
+                        ),
                         backgroundColor:
                             (_roleColors[user.roleId] ?? Colors.grey).withOpacity(0.1),
                         labelStyle: TextStyle(
@@ -139,48 +153,62 @@ class ProfileScreen extends StatelessWidget {
                       ),
                   ],
                 ),
-                const SizedBox(height: AppDesignTokens.spaceLg),
+                const SizedBox(height: 8),
 
-                const Divider(),
-                const SizedBox(height: AppDesignTokens.spaceMd),
+                const Divider(height: 12),
 
                 // Info Section
                 ListTile(
-                  leading: const Icon(Icons.email_outlined, color: AppDesignTokens.primary),
-                  title: const Text('Email'),
-                  subtitle: Text(user?.email ?? 'N/A'),
+                  dense: true,
+                  visualDensity: VisualDensity.compact,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                  leading: const Icon(Icons.email_outlined, color: AppDesignTokens.primary, size: 20),
+                  title: const Text('Email', style: TextStyle(fontSize: 12)),
+                  subtitle: Text(user?.email ?? 'N/A', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
                 ),
                 ListTile(
-                  leading: const Icon(Icons.fingerprint_rounded, color: AppDesignTokens.primary),
-                  title: const Text('User ID'),
+                  dense: true,
+                  visualDensity: VisualDensity.compact,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                  leading: const Icon(Icons.fingerprint_rounded, color: AppDesignTokens.primary, size: 20),
+                  title: const Text('User ID', style: TextStyle(fontSize: 12)),
                   subtitle: Text(
                     user?.uid ?? 'N/A',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
                     overflow: TextOverflow.ellipsis,
                   ),
                   trailing: IconButton(
-                    icon: const Icon(Icons.copy_rounded, size: 20),
+                    icon: const Icon(Icons.copy_rounded, size: 18),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                     onPressed: () => copyToClipboard(user?.uid ?? ''),
                   ),
                 ),
                 ListTile(
-                  leading: const Icon(Icons.calendar_month_outlined, color: AppDesignTokens.primary),
-                  title: const Text('Ngày tham gia'),
+                  dense: true,
+                  visualDensity: VisualDensity.compact,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                  leading: const Icon(Icons.calendar_month_outlined, color: AppDesignTokens.primary, size: 20),
+                  title: const Text('Ngày tham gia', style: TextStyle(fontSize: 12)),
                   subtitle: Text(
                     user?.createdAt != null
                         ? DateFormat('dd/MM/yyyy').format(user!.createdAt)
                         : 'N/A',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
                   ),
                 ),
                 if (user?.roleId == 'partner' && user?.taxCode != null)
                   ListTile(
-                    leading: const Icon(Icons.receipt_long_outlined, color: AppDesignTokens.primary),
-                    title: const Text('Mã số thuế'),
-                    subtitle: Text(user!.taxCode!),
+                    dense: true,
+                    visualDensity: VisualDensity.compact,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                    leading: const Icon(Icons.receipt_long_outlined, color: AppDesignTokens.primary, size: 20),
+                    title: const Text('Mã số thuế', style: TextStyle(fontSize: 12)),
+                    subtitle: Text(user!.taxCode!, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
                   ),
                 
-                const SizedBox(height: AppDesignTokens.spaceLg),
-                const Divider(),
-                const SizedBox(height: AppDesignTokens.spaceLg),
+                const Divider(height: 16),
+                const SizedBox(height: 4),
 
                 // Sign Out Button
                 SizedBox(
@@ -190,10 +218,11 @@ class ProfileScreen extends StatelessWidget {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppDesignTokens.error,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      visualDensity: VisualDensity.compact,
                     ),
-                    icon: const Icon(Icons.logout_rounded),
-                    label: const Text('Đăng xuất'),
+                    icon: const Icon(Icons.logout_rounded, size: 18),
+                    label: const Text('Đăng xuất', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                   ),
                 ),
               ],

@@ -172,7 +172,7 @@ class SettingsScreen extends StatelessWidget {
                   child: Column(
                     children: [
                       const Text(
-                        'Kiến trúc Nền tảng Viper v1.0.0',
+                        'Kiến trúc Nền tảng Smart Finance v1.0.0',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 4),

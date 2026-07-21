@@ -112,11 +112,12 @@ class _MyAppContentState extends State<_MyAppContent> {
     final themeProvider = context.watch<ThemeProvider>();
 
     return MaterialApp.router(
-      title: 'Viper Platform',
+      title: 'Smart Finance Platform',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeProvider.themeMode,
+      themeAnimationDuration: Duration.zero,
       routerConfig: _router,
     );
   }

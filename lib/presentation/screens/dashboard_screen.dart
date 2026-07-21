@@ -30,7 +30,6 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   String selectedFilter = 'Tháng này';
-  bool _isLoading = true;
   String? _errorMessage;
 
   List<CategoryModel> _categories = [];
@@ -49,11 +48,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _initDashboard() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
     try {
       if (!mounted) return;
 
@@ -65,41 +59,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       // 2. Fetch Transactions for the current authenticated user
       final auth = context.read<AuthProvider>();
-      final userId = auth.user?.uid;
-      if (userId != null) {
-        await context.read<TransactionProvider>().fetchTransactions(userId);
-      }
-
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-      });
+      final userId = auth.user?.uid ?? '';
+      await context.read<TransactionProvider>().fetchTransactions(userId);
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = "Không thể tải dữ liệu từ Firebase: $e";
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = "Không thể tải dữ liệu từ Firebase: $e";
+        });
+      }
     }
   }
 
   void _processDataSync() {
-    // Phương án A: Chỉ tính toán và hiển thị các giao dịch ĐÃ PHÊ DUYỆT (status == 'confirmed')
+    // Ưu tiên tính toán các giao dịch đã phê duyệt (confirmed), nếu chưa có thì dùng tất cả giao dịch
     final confirmedTransactions = _allTransactions.where((tx) => tx.status == 'confirmed').toList();
+    final txsToCalculate = confirmedTransactions.isNotEmpty ? confirmedTransactions : _allTransactions;
 
     // Filter transactions based on selected chip
-    final filtered = _getFilteredTransactions(confirmedTransactions);
+    final filtered = _getFilteredTransactions(txsToCalculate);
 
     // Calculate dynamic KPI Metrics
-    kpiCards = _calculateKpis(filtered, confirmedTransactions);
+    kpiCards = _calculateKpis(filtered, txsToCalculate);
 
     // Calculate dynamic Monthly comparative data (Last 6 Months)
-    monthlyData = _calculateMonthlyData(confirmedTransactions);
+    monthlyData = _calculateMonthlyData(txsToCalculate);
 
     // Calculate dynamic Expenses category distribution
     spendingData = _calculatePieData(filtered);
 
     // Calculate dynamic Net Balance trend lines
-    trendData = _calculateTrendData(filtered, confirmedTransactions);
+    trendData = _calculateTrendData(filtered, txsToCalculate);
   }
 
   List<TransactionModel> _getFilteredTransactions(List<TransactionModel> allTxs) {
@@ -338,13 +327,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _allTransactions = txProvider.transactions;
     _processDataSync();
 
+    final isDataLoading = txProvider.isLoading && _allTransactions.isEmpty;
+
     return Scaffold(
       backgroundColor: isDark ? AppDesignTokens.darkBackground : AppColors.background,
       body: Column(
         children: [
           const ConnectionStatusBanner(),
           Expanded(
-            child: _isLoading
+            child: isDataLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _errorMessage != null
                     ? Center(
@@ -561,9 +552,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.start,
+            spacing: AppTheme.sp12,
+            runSpacing: AppTheme.sp8,
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -574,6 +567,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   _buildLegendDot(context, AppColors.success, 'Thu'),
                   const SizedBox(width: AppTheme.sp16),
@@ -672,9 +666,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.start,
+            spacing: AppTheme.sp12,
+            runSpacing: AppTheme.sp8,
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

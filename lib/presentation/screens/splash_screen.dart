@@ -83,7 +83,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                     ],
                   ),
                   child: const Icon(
-                    Icons.bolt_rounded,
+                    Icons.account_balance_wallet_rounded,
                     size: 60,
                     color: Colors.white,
                   ),
@@ -91,7 +91,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                 const SizedBox(height: AppDesignTokens.spaceLg),
                 // Glowing text
                 Text(
-                  'VIPER PLATFORM',
+                  'SMART FINANCE',
                   style: Theme.of(context).textTheme.displayMedium?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,

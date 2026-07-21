@@ -85,7 +85,7 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
   }) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: isDark ? AppDesignTokens.darkSurface : Colors.white,
           borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
@@ -369,30 +369,34 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                 // 1. Tiêu đề chính + Subtitle
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
-                    AppDesignTokens.spaceLg,
                     AppDesignTokens.spaceMd,
-                    AppDesignTokens.spaceLg,
                     AppDesignTokens.spaceSm,
+                    AppDesignTokens.spaceMd,
+                    2,
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Lịch sử giao dịch',
-                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 24,
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Lịch sử giao dịch',
+                            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 20,
+                                ),
+                          ),
+                          Text(
+                            '${provider.transactions.length} giao dịch · Tháng ${now.month}/${now.year}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: isDark
+                                  ? AppDesignTokens.darkTextSecondary
+                                  : AppDesignTokens.lightTextSecondary,
                             ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${provider.transactions.length} giao dịch · Tháng ${now.month}/${now.year}',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: isDark
-                              ? AppDesignTokens.darkTextSecondary
-                              : AppDesignTokens.lightTextSecondary,
-                        ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -401,8 +405,8 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                 // 2. Khối tóm tắt (3 thẻ bo góc nằm ngang)
                 Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: AppDesignTokens.spaceLg,
-                    vertical: AppDesignTokens.spaceSm,
+                    horizontal: AppDesignTokens.spaceMd,
+                    vertical: 4,
                   ),
                   child: Row(
                     children: [
@@ -413,7 +417,7 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                         amountColor: AppDesignTokens.success,
                         isDark: isDark,
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       _buildSummaryCard(
                         context: context,
                         title: 'Tổng Chi',
@@ -421,10 +425,10 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                         amountColor: AppDesignTokens.error,
                         isDark: isDark,
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       _buildSummaryCard(
                         context: context,
-                        title: 'Số dư cuối kỳ',
+                        title: 'Số dư cuối',
                         amountText: _formatVnd(balance),
                         amountColor: AppDesignTokens.primary,
                         isDark: isDark,
@@ -433,12 +437,11 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                   ),
                 ),
 
-                const SizedBox(height: AppDesignTokens.spaceSm),
-
                 // 3. Thanh công cụ tìm kiếm & bộ lọc
                 Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: AppDesignTokens.spaceLg,
+                    horizontal: AppDesignTokens.spaceMd,
+                    vertical: 2,
                   ),
                   child: _buildFilterBar(context),
                 ),

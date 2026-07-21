@@ -24,75 +24,86 @@ class AppNavigationShell extends StatelessWidget {
 
     final desktopLayout = Row(
       children: [
-        // Side Navigation Rail for Desktop/Tablet
+        // Side Navigation Rail for Desktop/Tablet/Landscape
         SafeArea(
-          child: NavigationRail(
-            selectedIndex: navigationShell.currentIndex,
-            onDestinationSelected: (index) => _onTap(context, index),
-            labelType: NavigationRailLabelType.all,
-            backgroundColor: isDark ? AppDesignTokens.darkSurface : Colors.white,
-            elevation: 1,
-            minWidth: 80,
-            leading: Column(
-              children: [
-                const SizedBox(height: AppDesignTokens.spaceSm),
-                Container(
-                  padding: const EdgeInsets.all(AppDesignTokens.spaceXs),
-                  decoration: BoxDecoration(
-                    gradient: AppDesignTokens.primaryGradient,
-                    borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
+          child: SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: MediaQuery.of(context).size.height - 30,
+              ),
+              child: IntrinsicHeight(
+                child: NavigationRail(
+                  selectedIndex: navigationShell.currentIndex,
+                  onDestinationSelected: (index) => _onTap(context, index),
+                  labelType: NavigationRailLabelType.all,
+                  backgroundColor: isDark ? AppDesignTokens.darkSurface : Colors.white,
+                  elevation: 1,
+                  minWidth: 72,
+                  leading: Column(
+                    children: [
+                      const SizedBox(height: AppDesignTokens.spaceXs),
+                      Container(
+                        padding: const EdgeInsets.all(AppDesignTokens.spaceXs),
+                        decoration: BoxDecoration(
+                          gradient: AppDesignTokens.primaryGradient,
+                          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
+                        ),
+                        child: const Icon(
+                          Icons.bolt_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(height: AppDesignTokens.spaceSm),
+                    ],
                   ),
-                  child: const Icon(
-                    Icons.bolt_rounded,
-                    color: Colors.white,
-                    size: 24,
+                  unselectedIconTheme: IconThemeData(
+                    color: isDark ? AppDesignTokens.darkTextSecondary : AppDesignTokens.lightTextSecondary,
+                    size: 20,
                   ),
+                  selectedIconTheme: const IconThemeData(
+                    color: AppDesignTokens.primary,
+                    size: 20,
+                  ),
+                  selectedLabelTextStyle: const TextStyle(
+                    color: AppDesignTokens.primary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 10,
+                  ),
+                  unselectedLabelTextStyle: TextStyle(
+                    color: isDark ? AppDesignTokens.darkTextSecondary : AppDesignTokens.lightTextSecondary,
+                    fontSize: 10,
+                  ),
+                  destinations: const [
+                    NavigationRailDestination(
+                      icon: Icon(Icons.dashboard_outlined),
+                      selectedIcon: Icon(Icons.dashboard),
+                      label: Text('Tổng quan'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.account_balance_wallet_outlined),
+                      selectedIcon: Icon(Icons.account_balance_wallet),
+                      label: Text('Giao dịch'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.receipt_long_outlined),
+                      selectedIcon: Icon(Icons.receipt_long),
+                      label: Text('Hóa đơn'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.person_outline),
+                      selectedIcon: Icon(Icons.person),
+                      label: Text('Cá nhân'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.settings_outlined),
+                      selectedIcon: Icon(Icons.settings),
+                      label: Text('Cài đặt'),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: AppDesignTokens.spaceLg),
-              ],
-            ),
-            unselectedIconTheme: IconThemeData(
-              color: isDark ? AppDesignTokens.darkTextSecondary : AppDesignTokens.lightTextSecondary,
-            ),
-            selectedIconTheme: const IconThemeData(
-              color: AppDesignTokens.primary,
-            ),
-            selectedLabelTextStyle: const TextStyle(
-              color: AppDesignTokens.primary,
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            ),
-            unselectedLabelTextStyle: TextStyle(
-              color: isDark ? AppDesignTokens.darkTextSecondary : AppDesignTokens.lightTextSecondary,
-              fontSize: 12,
-            ),
-            destinations: const [
-              NavigationRailDestination(
-                icon: Icon(Icons.dashboard_outlined),
-                selectedIcon: Icon(Icons.dashboard),
-                label: Text('Bảng điều khiển'),
               ),
-              NavigationRailDestination(
-                icon: Icon(Icons.account_balance_wallet_outlined),
-                selectedIcon: Icon(Icons.account_balance_wallet),
-                label: Text('Giao dịch'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.receipt_long_outlined),
-                selectedIcon: Icon(Icons.receipt_long),
-                label: Text('Hóa đơn'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.person_outline),
-                selectedIcon: Icon(Icons.person),
-                label: Text('Cá nhân'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.settings_outlined),
-                selectedIcon: Icon(Icons.settings),
-                label: Text('Cài đặt'),
-              ),
-            ],
+            ),
           ),
         ),
         const VerticalDivider(thickness: 1, width: 1),
@@ -126,15 +137,17 @@ class AppNavigationShell extends StatelessWidget {
           selectedItemColor: AppDesignTokens.primary,
           unselectedItemColor: isDark ? AppDesignTokens.darkTextSecondary : AppDesignTokens.lightTextSecondary,
           showUnselectedLabels: true,
+          selectedFontSize: 11,
+          unselectedFontSize: 10,
+          iconSize: 22,
           elevation: 0,
           type: BottomNavigationBarType.fixed,
           items: const [
             BottomNavigationBarItem(
               icon: Icon(Icons.dashboard_outlined),
               activeIcon: Icon(Icons.dashboard),
-              label: 'Bảng điều khiển',
+              label: 'Tổng quan',
             ),
-            // DEV-3: Thêm tab Giao dịch trong BottomNavigationBar
             BottomNavigationBarItem(
               icon: Icon(Icons.account_balance_wallet_outlined),
               activeIcon: Icon(Icons.account_balance_wallet),
