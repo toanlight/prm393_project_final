@@ -40,7 +40,7 @@ class MockAuthRepository implements AuthRepository {
       isAnonymous: true,
       createdAt: DateTime.now(),
       fullName: 'Khách Demo',
-      roleId: 'viewer',
+      roleId: 'accountant',
       taxCode: null,
       isActive: true,
     );
@@ -59,7 +59,7 @@ class MockAuthRepository implements AuthRepository {
     }
     
     // Assign role based on email prefix for easy testing
-    String roleId = 'viewer';
+    String roleId = 'accountant';
     String? taxCode;
     final prefix = email.split('@').first.toLowerCase();
     
@@ -75,7 +75,7 @@ class MockAuthRepository implements AuthRepository {
       roleId = 'manager';
     } else if (prefix.startsWith('partner')) {
       roleId = 'partner';
-      taxCode = '12345'; // default test tax code for partner
+      taxCode = '0102030405'; // test tax code for partner
     }
 
     final name = prefix;
@@ -109,16 +109,20 @@ class MockAuthRepository implements AuthRepository {
       throw Exception('Tên hiển thị không được bỏ trống!');
     }
 
-    String roleId = 'viewer';
+    String roleId = 'accountant';
     String? taxCode;
     final prefix = email.split('@').first.toLowerCase();
-    if (prefix.startsWith('partner')) {
-      roleId = 'partner';
-      taxCode = '12345';
+    if (prefix.startsWith('admin')) {
+      roleId = 'admin';
     } else if (prefix.startsWith('chief')) {
       roleId = 'chiefAccountant';
-    } else if (prefix.startsWith('accountant')) {
-      roleId = 'accountant';
+    } else if (prefix.startsWith('sales')) {
+      roleId = 'salesperson';
+    } else if (prefix.startsWith('manager')) {
+      roleId = 'manager';
+    } else if (prefix.startsWith('partner')) {
+      roleId = 'partner';
+      taxCode = '0102030405';
     }
 
     _currentUser = UserModel(

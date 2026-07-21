@@ -59,7 +59,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       // 2. Fetch Transactions for the current authenticated user
       final auth = context.read<AuthProvider>();
       final userId = auth.user?.uid ?? '';
-      await context.read<TransactionProvider>().fetchTransactions(userId);
+      final roleId = auth.user?.roleId;
+      await context.read<TransactionProvider>().fetchTransactions(userId, roleId: roleId);
     } catch (e) {
       if (mounted) {
         setState(() {

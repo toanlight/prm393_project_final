@@ -9,9 +9,9 @@ class UserModel {
   final bool isAnonymous;
   final DateTime createdAt;
   
-  // New ERD fields
+  // ERD fields (6 roles: admin, chiefAccountant, accountant, salesperson, manager, partner)
   final String fullName;
-  final String roleId; // admin, chiefAccountant, accountant, salesperson, manager, partner, viewer
+  final String roleId; // admin, chiefAccountant, accountant, salesperson, manager, partner
   final String? taxCode; // Nullable, only for 'partner' role
   final bool isActive;
   final String? passwordHash;
@@ -92,7 +92,7 @@ class UserModel {
       isAnonymous: map['isAnonymous'] ?? false,
       createdAt: parsedDate,
       fullName: map['fullName'] ?? map['displayName'] ?? '',
-      roleId: map['roleId'] ?? map['roleID'] ?? 'viewer', // default is viewer
+      roleId: map['roleId'] ?? map['roleID'] ?? 'accountant', // default is accountant
       taxCode: map['taxCode'] ?? map['taxCode'],
       isActive: map['isActive'] ?? true,
       passwordHash: map['passwordHash'] ?? map['passwordHash'],

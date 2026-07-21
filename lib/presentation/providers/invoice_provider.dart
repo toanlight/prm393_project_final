@@ -116,7 +116,11 @@ class InvoiceProvider extends ChangeNotifier {
     );
   }
 
-  Future<void> loadInvoices(String userId) async {
+  Future<void> loadInvoices(
+    String userId, {
+    String? roleId,
+    String? taxCode,
+  }) async {
     if (userId.trim().isEmpty) {
       _items = const [];
       _status = InvoiceLoadStatus.error;
@@ -133,14 +137,19 @@ class InvoiceProvider extends ChangeNotifier {
     try {
       debugPrint(
         '[InvoiceProvider] Tải trực tiếp invoice '
-            'cho userId=$userId',
+        'cho userId=$userId, roleId=$roleId, taxCode=$taxCode',
       );
 
-      final invoicesFuture =
-      _invoiceRepository.getInvoicesByUser(userId);
+      final invoicesFuture = _invoiceRepository.getInvoicesByUser(
+        userId,
+        roleId: roleId,
+        taxCode: taxCode,
+      );
 
-      final transactionsFuture =
-      _transactionRepository.getTransactions(userId);
+      final transactionsFuture = _transactionRepository.getTransactions(
+        userId,
+        roleId: roleId,
+      );
 
       final invoices = await invoicesFuture;
       final transactions = await transactionsFuture;

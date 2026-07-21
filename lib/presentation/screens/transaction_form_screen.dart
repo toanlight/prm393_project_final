@@ -722,12 +722,14 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                           const SizedBox(width: 4),
                           Expanded(
                             child: InkWell(
-                              onTap: () {
-                                setState(() {
-                                  _type = 'chi';
-                                  _updateTotalAmount();
-                                });
-                              },
+                              onTap: RbacPermissionService.canCreateExpenseTransaction(user)
+                                  ? () {
+                                      setState(() {
+                                        _type = 'chi';
+                                        _updateTotalAmount();
+                                      });
+                                    }
+                                  : null,
                               borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 150),
@@ -744,7 +746,9 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                                     fontWeight: FontWeight.bold,
                                     color: _type == 'chi'
                                         ? Colors.white
-                                        : (isDark ? AppDesignTokens.darkTextPrimary : AppDesignTokens.lightTextPrimary),
+                                        : (RbacPermissionService.canCreateExpenseTransaction(user)
+                                            ? (isDark ? AppDesignTokens.darkTextPrimary : AppDesignTokens.lightTextPrimary)
+                                            : Colors.grey),
                                   ),
                                 ),
                               ),

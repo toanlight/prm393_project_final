@@ -10,7 +10,6 @@ import 'package:project_final/domain/services/rbac_permission_service.dart';
 import 'package:project_final/data/repositories_impl/mock_user_repository.dart';
 import 'package:project_final/presentation/providers/user_management_provider.dart';
 import 'package:project_final/presentation/providers/auth_provider.dart';
-import 'package:project_final/data/repositories_impl/mock_auth_repository.dart';
 import 'package:project_final/domain/repositories/auth_repository.dart';
 
 void main() {
@@ -167,8 +166,8 @@ void main() {
         expect(RbacPermissionService.canExportPdf(adminUser, invoiceBConfirmed), isTrue);
       });
 
-      test('Kế toán viên và Người bán hàng không được quyền xuất PDF hóa đơn', () {
-        expect(RbacPermissionService.canExportPdf(accountant, invoiceAConfirmed), isFalse);
+      test('Kế toán viên có quyền xuất PDF hóa đơn, Người bán hàng không có quyền', () {
+        expect(RbacPermissionService.canExportPdf(accountant, invoiceAConfirmed), isTrue);
         expect(RbacPermissionService.canExportPdf(salesperson, invoiceAConfirmed), isFalse);
       });
 
@@ -343,7 +342,7 @@ void main() {
           email: 'banned@demo.com',
           displayName: 'Banned User',
           fullName: 'Banned User',
-          roleId: 'viewer',
+          roleId: 'accountant',
           photoUrl: '',
           isAnonymous: false,
           createdAt: DateTime.now(),

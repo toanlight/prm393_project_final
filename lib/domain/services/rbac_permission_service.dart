@@ -44,6 +44,26 @@ class RbacPermissionService {
   static bool canCreateTransaction(UserModel? user) => canCreate(user);
   static bool canCreateInvoice(UserModel? user) => canCreate(user);
 
+  /// Check if a user is allowed to create Expense (Chi) transactions.
+  /// Admin, Chief Accountant, and Accountant can create expense transactions.
+  /// Salesperson can ONLY create Income (Thu) transactions.
+  static bool canCreateExpenseTransaction(UserModel? user) {
+    if (user == null) return false;
+    return user.roleId == 'admin' ||
+        user.roleId == 'chiefAccountant' ||
+        user.roleId == 'accountant';
+  }
+
+  /// Check if a user is allowed to create Income (Thu) transactions.
+  /// Admin, Chief Accountant, Accountant, and Salesperson can create income transactions.
+  static bool canCreateIncomeTransaction(UserModel? user) {
+    if (user == null) return false;
+    return user.roleId == 'admin' ||
+        user.roleId == 'chiefAccountant' ||
+        user.roleId == 'accountant' ||
+        user.roleId == 'salesperson';
+  }
+
   /// Check if a user is allowed to edit existing transactions/invoices.
   /// Admin, Chief Accountant, Accountant, and Salesperson can edit.
   static bool canEditTransaction(UserModel? user) {

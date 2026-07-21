@@ -19,44 +19,55 @@ class FirebaseInvoiceRepository implements InvoiceRepository {
 
   @override
   Future<List<InvoiceModel>> getInvoicesByUser(
-      String userId,
-      ) async {
+    String userId, {
+    String? roleId,
+    String? taxCode,
+  }) async {
     try {
       debugPrint(
-        '[InvoiceRepository] Tải invoice '
-            'cho createdBy=$userId',
+        '[InvoiceRepository] Tải invoice cho userId=$userId, roleId=$roleId, taxCode=$taxCode',
       );
 
-      final snapshot = await _firestore
-          .collection('invoices')
-          .where(
-        'createdBy',
-        isEqualTo: userId,
-      )
-          .get();
+      final QuerySnapshot snapshot;
+
+      if (roleId == 'partner') {
+        if (taxCode == null || taxCode.trim().isEmpty) {
+          return [];
+        }
+        snapshot = await _firestore
+            .collection('invoices')
+            .where('taxCode', isEqualTo: taxCode.trim())
+            .get();
+      } else if (roleId == 'admin' ||
+          roleId == 'chiefAccountant' ||
+          roleId == 'accountant' ||
+          roleId == 'manager') {
+        snapshot = await _firestore.collection('invoices').get();
+      } else {
+        snapshot = await _firestore
+            .collection('invoices')
+            .where('createdBy', isEqualTo: userId)
+            .get();
+      }
 
       final invoices = snapshot.docs.map((document) {
         return InvoiceModel.fromMap({
-          ...document.data(),
+          ...document.data() as Map<String, dynamic>,
           'invoiceId': document.id,
         });
       }).toList();
 
       invoices.sort((a, b) {
         final aDate =
-            a.invoiceDate ??
-                DateTime.fromMillisecondsSinceEpoch(0);
-
+            a.invoiceDate ?? DateTime.fromMillisecondsSinceEpoch(0);
         final bDate =
-            b.invoiceDate ??
-                DateTime.fromMillisecondsSinceEpoch(0);
-
+            b.invoiceDate ?? DateTime.fromMillisecondsSinceEpoch(0);
         return bDate.compareTo(aDate);
       });
 
       debugPrint(
         '[InvoiceRepository] Firestore trả về '
-            '${invoices.length} invoice',
+        '${invoices.length} invoice',
       );
 
       for (final invoice in invoices) {
@@ -70,8 +81,11 @@ class FirebaseInvoiceRepository implements InvoiceRepository {
       );
       debugPrintStack(stackTrace: stackTrace);
 
-      final box =
-      await Hive.openBox(_cacheBoxName);
+      final box = await Hive.openBox(_cacheBoxName);
+      final isGlobalRole = roleId == 'admin' ||
+          roleId == 'chiefAccountant' ||
+          roleId == 'accountant' ||
+          roleId == 'manager';
 
       final invoices = <InvoiceModel>[];
 
@@ -81,7 +95,11 @@ class FirebaseInvoiceRepository implements InvoiceRepository {
             Map<String, dynamic>.from(raw as Map),
           );
 
-          if (invoice.createdBy == userId) {
+          if (roleId == 'partner') {
+            if (invoice.taxCode == taxCode) {
+              invoices.add(invoice);
+            }
+          } else if (isGlobalRole || invoice.createdBy == userId) {
             invoices.add(invoice);
           }
         } catch (_) {}

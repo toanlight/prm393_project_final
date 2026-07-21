@@ -96,9 +96,15 @@ class MockInvoiceRepository implements InvoiceRepository {
 
   @override
   Future<List<InvoiceModel>> getInvoicesByUser(
-      String userId,
-      ) async {
+    String userId, {
+    String? roleId,
+    String? taxCode,
+  }) async {
     final box = await _getBox();
+    final isGlobalRole = roleId == 'admin' ||
+        roleId == 'chiefAccountant' ||
+        roleId == 'accountant' ||
+        roleId == 'manager';
 
     final invoices = <InvoiceModel>[];
 
@@ -108,8 +114,11 @@ class MockInvoiceRepository implements InvoiceRepository {
           Map<String, dynamic>.from(raw),
         );
 
-        if (invoice.createdBy == userId ||
-            userId == 'mock-user-123') {
+        if (roleId == 'partner') {
+          if (taxCode != null && invoice.taxCode == taxCode) {
+            invoices.add(invoice);
+          }
+        } else if (isGlobalRole || invoice.createdBy == userId || userId == 'mock-user-123') {
           invoices.add(invoice);
         }
       } catch (_) {

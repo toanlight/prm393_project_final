@@ -48,7 +48,11 @@ class _InvoiceListScreenState
 
     await context
         .read<InvoiceProvider>()
-        .loadInvoices(user.uid);
+        .loadInvoices(
+          user.uid,
+          roleId: user.roleId,
+          taxCode: user.taxCode,
+        );
   }
 
   Future<void> _openScanner() async {

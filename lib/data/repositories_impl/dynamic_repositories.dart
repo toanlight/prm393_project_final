@@ -199,8 +199,14 @@ class DynamicInvoiceRepository implements InvoiceRepository {
 
   @override
   Future<List<InvoiceModel>> getInvoicesByUser(
-      String userId,
-      ) {
-    return _active.getInvoicesByUser(userId);
+    String userId, {
+    String? roleId,
+    String? taxCode,
+  }) {
+    return _active.getInvoicesByUser(
+      userId,
+      roleId: roleId,
+      taxCode: taxCode,
+    );
   }
 }

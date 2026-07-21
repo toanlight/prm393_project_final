@@ -16,7 +16,6 @@ class ProfileScreen extends StatelessWidget {
     'salesperson': 'Nhân viên bán hàng',
     'manager': 'Quản lý',
     'partner': 'Đối tác',
-    'viewer': 'Người xem',
   };
 
   static const Map<String, Color> _roleColors = {
@@ -26,7 +25,6 @@ class ProfileScreen extends StatelessWidget {
     'salesperson': Color(0xFF16A34A),
     'manager': Color(0xFFCA8A04),
     'partner': Color(0xFFEA580C),
-    'viewer': Color(0xFF6B7280),
   };
 
   @override

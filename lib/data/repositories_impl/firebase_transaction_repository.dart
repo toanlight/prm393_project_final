@@ -12,29 +12,44 @@ class FirebaseTransactionRepository implements TransactionRepository {
 
   @override
   Future<List<TransactionModel>> getTransactions(
-      String userId, {
-        String? roleId,
-      }) async {
+    String userId, {
+    String? roleId,
+  }) async {
     try {
-      final QuerySnapshot querySnapshot;
-
       if (userId.isEmpty) {
         return [];
       }
 
-      querySnapshot = await _firestore
-          .collection('transactions')
-          .where('userId', isEqualTo: userId)
-          .orderBy('transactionDate', descending: true)
-          .get();
+      if (roleId == 'partner') {
+        return [];
+      }
+
+      final QuerySnapshot querySnapshot;
+      final isGlobalRole = roleId == 'admin' ||
+          roleId == 'chiefAccountant' ||
+          roleId == 'accountant' ||
+          roleId == 'manager';
+
+      if (isGlobalRole) {
+        querySnapshot = await _firestore
+            .collection('transactions')
+            .orderBy('transactionDate', descending: true)
+            .get();
+      } else {
+        querySnapshot = await _firestore
+            .collection('transactions')
+            .where('userId', isEqualTo: userId)
+            .orderBy('transactionDate', descending: true)
+            .get();
+      }
 
       final list = querySnapshot.docs
           .map(
             (doc) => TransactionModel.fromMap({
-          ...Map<String, dynamic>.from(doc.data() as Map),
-          'transactionId': doc.id,
-        }),
-      )
+              ...Map<String, dynamic>.from(doc.data() as Map),
+              'transactionId': doc.id,
+            }),
+          )
           .toList();
 
       final box = await Hive.openBox(_cacheBoxName);
@@ -50,18 +65,22 @@ class FirebaseTransactionRepository implements TransactionRepository {
       );
 
       final box = await Hive.openBox(_cacheBoxName);
+      final isGlobalRole = roleId == 'admin' ||
+          roleId == 'chiefAccountant' ||
+          roleId == 'accountant' ||
+          roleId == 'manager';
 
       final list = box.values
           .map(
             (e) => TransactionModel.fromMap(
-          Map<String, dynamic>.from(e),
-        ),
-      )
-          .where((tx) => tx.userId == userId)
+              Map<String, dynamic>.from(e),
+            ),
+          )
+          .where((tx) => isGlobalRole || tx.userId == userId)
           .toList();
 
       list.sort(
-            (a, b) => b.transactionDate.compareTo(
+        (a, b) => b.transactionDate.compareTo(
           a.transactionDate,
         ),
       );
@@ -72,22 +91,31 @@ class FirebaseTransactionRepository implements TransactionRepository {
 
   @override
   Stream<List<TransactionModel>> streamTransactions(
-      String userId, {
-        String? roleId,
-      }) async* {
+    String userId, {
+    String? roleId,
+  }) async* {
+    if (roleId == 'partner') {
+      yield const [];
+      return;
+    }
+
     final box = await Hive.openBox(_cacheBoxName);
+    final isGlobalRole = roleId == 'admin' ||
+        roleId == 'chiefAccountant' ||
+        roleId == 'accountant' ||
+        roleId == 'manager';
 
     final cached = box.values
         .map(
           (e) => TransactionModel.fromMap(
-        Map<String, dynamic>.from(e),
-      ),
-    )
-        .where((tx) => tx.userId == userId)
+            Map<String, dynamic>.from(e),
+          ),
+        )
+        .where((tx) => isGlobalRole || tx.userId == userId)
         .toList();
 
     cached.sort(
-          (a, b) => b.transactionDate.compareTo(
+      (a, b) => b.transactionDate.compareTo(
         a.transactionDate,
       ),
     );
@@ -100,20 +128,28 @@ class FirebaseTransactionRepository implements TransactionRepository {
     }
 
     try {
-      final queryStream = _firestore
-          .collection('transactions')
-          .where('userId', isEqualTo: userId)
-          .orderBy('transactionDate', descending: true)
-          .snapshots();
+      final Stream<QuerySnapshot> queryStream;
+      if (isGlobalRole) {
+        queryStream = _firestore
+            .collection('transactions')
+            .orderBy('transactionDate', descending: true)
+            .snapshots();
+      } else {
+        queryStream = _firestore
+            .collection('transactions')
+            .where('userId', isEqualTo: userId)
+            .orderBy('transactionDate', descending: true)
+            .snapshots();
+      }
 
       await for (final querySnapshot in queryStream) {
         final list = querySnapshot.docs
             .map(
               (doc) => TransactionModel.fromMap({
-            ...Map<String, dynamic>.from(doc.data()),
-            'transactionId': doc.id,
-          }),
-        )
+                ...Map<String, dynamic>.from(doc.data() as Map),
+                'transactionId': doc.id,
+              }),
+            )
             .toList();
 
         final cacheBox = await Hive.openBox(_cacheBoxName);

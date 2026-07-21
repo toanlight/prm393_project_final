@@ -72,11 +72,6 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
       color: AppDesignTokens.success,
       icon: Icons.business_rounded,
     ),
-    'viewer': const _RoleMeta(
-      name: 'Viewer / Khách',
-      color: Colors.grey,
-      icon: Icons.visibility_rounded,
-    ),
   };
 
   _RoleMeta _getRoleMeta(String roleId) {

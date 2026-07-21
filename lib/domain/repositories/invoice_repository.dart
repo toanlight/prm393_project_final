@@ -2,8 +2,10 @@ import '../models/invoice_model.dart';
 
 abstract class InvoiceRepository {
   Future<List<InvoiceModel>> getInvoicesByUser(
-      String userId,
-      );
+    String userId, {
+    String? roleId,
+    String? taxCode,
+  });
 
   Future<InvoiceModel?> getInvoiceForTransaction(
       String transactionId, {
