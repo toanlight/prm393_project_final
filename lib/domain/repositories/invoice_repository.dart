@@ -6,8 +6,9 @@ abstract class InvoiceRepository {
       );
 
   Future<InvoiceModel?> getInvoiceForTransaction(
-      String transactionId,
-      );
+      String transactionId, {
+        String? invoiceId,
+      });
 
   Future<void> createInvoice(
       InvoiceModel invoice,

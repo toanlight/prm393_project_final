@@ -1,6 +1,9 @@
 import 'dart:typed_data';
 
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+
 
 class FirebaseReceiptStorageService {
   FirebaseReceiptStorageService._();
@@ -15,27 +18,71 @@ class FirebaseReceiptStorageService {
     String? fileName,
   }) async {
     if (bytes.isEmpty) {
-      throw ArgumentError('Ảnh hóa đơn không được để trống.');
+      throw ArgumentError(
+        'Ảnh hóa đơn không được để trống.',
+      );
     }
 
-    final extension = _extensionOf(fileName);
-    final contentType = _contentTypeFor(extension);
-    final path = 'users/$userId/receipts/$transactionId/$scanId.$extension';
+    final currentUser =
+        FirebaseAuth.instance.currentUser;
 
-    final ref = _storage.ref(path);
-    final task = await ref.putData(
+    if (currentUser == null) {
+      throw StateError(
+        'Người dùng chưa đăng nhập Firebase Auth.',
+      );
+    }
+
+    if (currentUser.uid != userId) {
+      throw StateError(
+        'UID không đồng bộ: '
+            'FirebaseAuth=${currentUser.uid}, '
+            'userId truyền vào=$userId',
+      );
+    }
+
+    // Bảo đảm token mới nhất trước khi upload.
+    await currentUser.getIdToken(true);
+
+    final extension = _extensionOf(fileName);
+    final contentType =
+    _contentTypeFor(extension);
+
+    final path =
+        'users/${currentUser.uid}/receipts/'
+        '$transactionId/$scanId.$extension';
+
+    debugPrint(
+      '[ReceiptUpload] Upload path=$path',
+    );
+
+    debugPrint(
+      '[ReceiptUpload] Firebase Auth UID='
+          '${currentUser.uid}',
+    );
+
+    final ref = _storage.ref().child(path);
+
+    final snapshot = await ref.putData(
       bytes,
       SettableMetadata(
         contentType: contentType,
         customMetadata: {
-          'userId': userId,
+          'userId': currentUser.uid,
           'transactionId': transactionId,
           'scanId': scanId,
         },
       ),
     );
 
-    return task.ref.getDownloadURL();
+    final downloadUrl =
+    await snapshot.ref.getDownloadURL();
+
+    debugPrint(
+      '[ReceiptUpload] Upload thành công: '
+          '$downloadUrl',
+    );
+
+    return downloadUrl;
   }
 
   static String _extensionOf(String? fileName) {

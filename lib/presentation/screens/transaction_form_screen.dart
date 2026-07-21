@@ -19,6 +19,9 @@ import '../providers/category_provider.dart';
 import '../providers/invoice_provider.dart';
 import '../providers/transaction_provider.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:firebase_auth/firebase_auth.dart'
+as firebase_auth;
+
 
 class TransactionFormScreen extends StatefulWidget {
   final TransactionModel? transactionToEdit;
@@ -118,7 +121,10 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     try {
       final invoice = await context
           .read<InvoiceRepository>()
-          .getInvoiceForTransaction(tx.transactionId);
+          .getInvoiceForTransaction(
+        tx.transactionId,
+        invoiceId: tx.invoiceId,
+      );
       if (invoice != null && mounted) {
         setState(() {
           _invoiceNumberController.text = invoice.invoiceNumber ?? '';
@@ -225,9 +231,45 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
       scanId ??= 'scan_${_type}_${now.microsecondsSinceEpoch}';
     }
 
-    final userId = _isEditing
-        ? widget.transactionToEdit!.userId
-        : (authProvider.user?.uid ?? 'mock-user-123');
+    final firebaseUser =
+        firebase_auth.FirebaseAuth.instance.currentUser;
+
+    debugPrint(
+      '[ReceiptUpload] AuthProvider UID='
+          '${authProvider.user?.uid}',
+    );
+
+    debugPrint(
+      '[ReceiptUpload] FirebaseAuth UID='
+          '${firebaseUser?.uid}',
+    );
+
+    debugPrint(
+      '[ReceiptUpload] FirebaseAuth email='
+          '${firebaseUser?.email}',
+    );
+
+
+
+    if (firebaseUser == null) {
+      if (!mounted) return;
+
+      setState(() => _isSaving = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Phiên đăng nhập Firebase chưa sẵn sàng. '
+                'Vui lòng đăng nhập lại.',
+          ),
+          backgroundColor: AppDesignTokens.error,
+        ),
+      );
+
+      return;
+    }
+
+    final userId = firebaseUser.uid;
 
     String? receiptDownloadUrl =
     _isEditing ? widget.transactionToEdit!.receiptImage : null;

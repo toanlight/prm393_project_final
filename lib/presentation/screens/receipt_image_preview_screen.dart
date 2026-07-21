@@ -11,6 +11,8 @@ import '../../domain/models/transaction_model.dart';
 import '../../domain/repositories/invoice_repository.dart';
 import '../../domain/services/invoice_pdf_service.dart';
 import '../../domain/services/mock_receipt_image_store.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
 
 class ReceiptImagePreviewScreen extends StatefulWidget {
   final TransactionModel transaction;
@@ -58,7 +60,10 @@ class _ReceiptImagePreviewScreenState
       // Tải dữ liệu hóa đơn trước. Lỗi tải ảnh không được làm hỏng toàn bộ trang.
       final invoice = await context
           .read<InvoiceRepository>()
-          .getInvoiceForTransaction(widget.transaction.transactionId);
+          .getInvoiceForTransaction(
+        widget.transaction.transactionId,
+        invoiceId: widget.transaction.invoiceId,
+      );
 
       if (!mounted) return;
 
@@ -86,13 +91,42 @@ class _ReceiptImagePreviewScreenState
       Uint8List? bytes;
 
       if (imageUrl != null &&
-          (imageUrl.startsWith('https://') || imageUrl.startsWith('http://'))) {
-        // Firebase Storage SDK hoạt động ổn định trên Web và dùng đúng auth token.
-        bytes = await FirebaseStorage.instance
-            .refFromURL(imageUrl)
-            .getData(10 * 1024 * 1024);
-      } else if (scanId != null) {
-        bytes = MockReceiptImageStore.get(scanId);
+          (imageUrl.startsWith('https://') ||
+              imageUrl.startsWith('http://'))) {
+        final currentUser =
+            FirebaseAuth.instance.currentUser;
+
+        if (currentUser == null) {
+          throw StateError(
+            'Không có phiên đăng nhập Firebase Auth.',
+          );
+        }
+
+        debugPrint(
+          '[ReceiptPreview] FirebaseAuth UID='
+              '${currentUser.uid}',
+        );
+
+        debugPrint(
+          '[ReceiptPreview] Transaction userId='
+              '${widget.transaction.userId}',
+        );
+
+        await currentUser.getIdToken(true);
+
+        final reference =
+        FirebaseStorage.instance.refFromURL(
+          imageUrl,
+        );
+
+        debugPrint(
+          '[ReceiptPreview] Storage fullPath='
+              '${reference.fullPath}',
+        );
+
+        bytes = await reference.getData(
+          10 * 1024 * 1024,
+        );
       }
 
       if (!mounted) return;

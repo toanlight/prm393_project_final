@@ -45,13 +45,38 @@ class MockInvoiceRepository implements InvoiceRepository {
     await _box!.put(initialInvoice.invoiceId, initialInvoice.toMap());
   }
   @override
-  Future<InvoiceModel?> getInvoiceForTransaction(String transactionId) async {
-    await Future.delayed(const Duration(milliseconds: 150));
+  Future<InvoiceModel?> getInvoiceForTransaction(
+      String transactionId, {
+        String? invoiceId,
+      }) async {
+    await Future.delayed(
+      const Duration(milliseconds: 150),
+    );
+
     final box = await _getBox();
+
+    if (invoiceId != null && invoiceId.isNotEmpty) {
+      final raw = box.get(invoiceId);
+
+      if (raw != null) {
+        return InvoiceModel.fromMap(
+          Map<String, dynamic>.from(raw),
+        );
+      }
+    }
+
     final match = box.values
-        .map((e) => InvoiceModel.fromMap(Map<String, dynamic>.from(e)))
-        .where((inv) => inv.transactionId == transactionId)
+        .map(
+          (e) => InvoiceModel.fromMap(
+        Map<String, dynamic>.from(e),
+      ),
+    )
+        .where(
+          (invoice) =>
+      invoice.transactionId == transactionId,
+    )
         .toList();
+
     return match.isNotEmpty ? match.first : null;
   }
 

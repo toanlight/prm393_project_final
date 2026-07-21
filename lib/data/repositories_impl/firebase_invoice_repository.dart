@@ -93,74 +93,47 @@ class FirebaseInvoiceRepository implements InvoiceRepository {
 
   @override
   Future<InvoiceModel?> getInvoiceForTransaction(
-      String transactionId,
-      ) async {
+      String transactionId, {
+        String? invoiceId,
+      }) async {
     try {
       debugPrint(
-        '[InvoiceRepository] Tìm invoice cho '
-            'transactionId=$transactionId',
+        '[InvoiceRepository] Tìm invoice '
+            'transactionId=$transactionId, invoiceId=$invoiceId',
       );
 
-      // Ưu tiên đọc collection top-level.
-      final topLevelSnapshot = await _firestore
-          .collection(_invoiceCollection)
-          .where(
-        'transactionId',
-        isEqualTo: transactionId,
-      )
-          .limit(1)
-          .get();
+      if (invoiceId != null && invoiceId.trim().isNotEmpty) {
+        final document = await _firestore
+            .collection(_invoiceCollection)
+            .doc(invoiceId)
+            .get();
 
-      if (topLevelSnapshot.docs.isNotEmpty) {
-        final document = topLevelSnapshot.docs.first;
+        if (document.exists && document.data() != null) {
+          final invoice = InvoiceModel.fromMap({
+            ...document.data()!,
+            'invoiceId': document.id,
+          });
 
-        final invoice = InvoiceModel.fromMap({
-          ...document.data(),
-          'invoiceId': document.id,
-        });
-
-        await _cacheInvoice(invoice);
-
-        debugPrint(
-          '[InvoiceRepository] Tìm thấy top-level invoice: '
-              '${invoice.invoiceId}',
-        );
-
-        return invoice;
+          await _cacheInvoice(invoice);
+          return invoice;
+        }
       }
 
-      // Hỗ trợ dữ liệu cũ lưu dưới transaction.
-      final subCollectionSnapshot = await _firestore
-          .collection('transactions')
-          .doc(transactionId)
-          .collection('invoices')
-          .limit(1)
-          .get();
+      final cached = await _findInvoiceInCache(
+        transactionId,
+      );
 
-      if (subCollectionSnapshot.docs.isNotEmpty) {
-        final document = subCollectionSnapshot.docs.first;
-
-        final invoice = InvoiceModel.fromMap({
-          ...document.data(),
-          'invoiceId': document.id,
-          'transactionId': transactionId,
-        });
-
-        await _cacheInvoice(invoice);
-
-        debugPrint(
-          '[InvoiceRepository] Tìm thấy subcollection invoice: '
-              '${invoice.invoiceId}',
-        );
-
-        return invoice;
+      if (cached != null) {
+        return cached;
       }
 
-      return _findInvoiceInCache(transactionId);
+      return null;
     } catch (error, stackTrace) {
       debugPrint(
-        '[InvoiceRepository] getInvoiceForTransaction lỗi: $error',
+        '[InvoiceRepository] getInvoiceForTransaction lỗi: '
+            '$error',
       );
+
       debugPrintStack(stackTrace: stackTrace);
 
       return _findInvoiceInCache(transactionId);

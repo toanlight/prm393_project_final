@@ -176,8 +176,15 @@ class DynamicInvoiceRepository implements InvoiceRepository {
   InvoiceRepository get _active => FirebaseService().isMockMode ? _mock : _real;
 
   @override
-  Future<InvoiceModel?> getInvoiceForTransaction(String transactionId) =>
-      _active.getInvoiceForTransaction(transactionId);
+  Future<InvoiceModel?> getInvoiceForTransaction(
+      String transactionId, {
+        String? invoiceId,
+      }) {
+    return _active.getInvoiceForTransaction(
+      transactionId,
+      invoiceId: invoiceId,
+    );
+  }
 
   @override
   Future<void> createInvoice(InvoiceModel invoice) =>

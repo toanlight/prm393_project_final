@@ -415,8 +415,15 @@ class _InvoiceSummarySection
         AppDesignTokens.spaceMd,
         mainAxisSpacing:
         AppDesignTokens.spaceMd,
-        childAspectRatio:
-        context.isDesktop ? 2.15 : 1.65,
+        // Trên mobile, card cũ bị ép theo childAspectRatio=1.65 nên
+        // không đủ chiều cao và phát sinh BOTTOM OVERFLOWED.
+        // Dùng chiều cao cố định cho mobile/tablet; desktop vẫn dùng tỷ lệ.
+        mainAxisExtent: context.valueForDeviceType<double?>(
+          mobile: 148,
+          tablet: 140,
+          desktop: null,
+        ),
+        childAspectRatio: context.isDesktop ? 2.15 : 1.0,
       ),
       itemBuilder: (context, index) {
         return _InvoiceSummaryCard(
@@ -456,8 +463,10 @@ class _InvoiceSummaryCard
             Brightness.dark;
 
     return Container(
-      padding: const EdgeInsets.all(
-        AppDesignTokens.spaceMd,
+      padding: EdgeInsets.all(
+        context.isDesktop
+            ? AppDesignTokens.spaceMd
+            : 12,
       ),
       decoration: BoxDecoration(
         color: isDark
@@ -494,6 +503,7 @@ class _InvoiceSummaryCard
             child: Icon(
               data.icon,
               color: data.color,
+              size: context.isDesktop ? 24 : 22,
             ),
           ),
           Column(
@@ -502,6 +512,8 @@ class _InvoiceSummaryCard
             children: [
               Text(
                 data.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: Theme.of(context)
                     .textTheme
                     .bodySmall,
@@ -515,8 +527,8 @@ class _InvoiceSummaryCard
                     .textTheme
                     .titleLarge
                     ?.copyWith(
-                  fontWeight:
-                  FontWeight.bold,
+                  fontWeight: FontWeight.bold,
+                  fontSize: context.isDesktop ? null : 20,
                 ),
               ),
             ],
