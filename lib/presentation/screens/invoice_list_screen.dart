@@ -12,17 +12,22 @@ class InvoiceListScreen extends StatefulWidget {
   const InvoiceListScreen({super.key});
 
   @override
-  State<InvoiceListScreen> createState() => _InvoiceListScreenState();
+  State<InvoiceListScreen> createState() =>
+      _InvoiceListScreenState();
 }
 
-class _InvoiceListScreenState extends State<InvoiceListScreen> {
-  final TextEditingController _searchController = TextEditingController();
+class _InvoiceListScreenState
+    extends State<InvoiceListScreen> {
+  final TextEditingController _searchController =
+  TextEditingController();
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
-  }
+  /// Ghi nhận UID đã được dùng để tải hóa đơn.
+  ///
+  /// Mục đích:
+  /// - Không tải bằng mock-user-123.
+  /// - Chờ Firebase Auth trả về user thật.
+  /// - Không gọi loadInvoices lặp lại ở mỗi lần build.
+  String? _loadedUserId;
 
   @override
   void dispose() {
@@ -30,20 +35,81 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
     super.dispose();
   }
 
+  /// Tải lại danh sách hóa đơn theo user Firebase hiện tại.
   Future<void> _loadData() async {
-    final userId = context.read<AuthProvider>().user?.uid ?? 'mock-user-123';
-    await context.read<InvoiceProvider>().loadInvoices(userId);
+    final authProvider = context.read<AuthProvider>();
+    final user = authProvider.user;
+
+    if (user == null) {
+      debugPrint(
+        '[InvoiceListScreen] Chưa có Firebase user, '
+            'không tải danh sách hóa đơn',
+      );
+      return;
+    }
+
+    debugPrint(
+      '[InvoiceListScreen] Tải hóa đơn cho uid=${user.uid}',
+    );
+
+    await context
+        .read<InvoiceProvider>()
+        .loadInvoices(user.uid);
   }
 
+  /// Mở màn hình scan hóa đơn.
+  ///
+  /// Nếu tạo hóa đơn thành công thì tải lại danh sách.
   Future<void> _openScanner() async {
-    final created = await context.push<bool>('/invoices/scan');
-    if (!mounted || created != true) return;
+    final created = await context.push<bool>(
+      '/invoices/scan',
+    );
+
+    if (!mounted || created != true) {
+      return;
+    }
+
     await _loadData();
+  }
+
+  /// Theo dõi AuthProvider.
+  ///
+  /// Khi Firebase trả về user thật lần đầu hoặc UID thay đổi,
+  /// hệ thống tự tải danh sách hóa đơn tương ứng.
+  void _scheduleInvoiceLoadForUser(
+      String? currentUserId,
+      ) {
+    if (currentUserId == null ||
+        currentUserId.isEmpty ||
+        currentUserId == _loadedUserId) {
+      return;
+    }
+
+    _loadedUserId = currentUserId;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      debugPrint(
+        '[InvoiceListScreen] Auth đã sẵn sàng, '
+            'tự tải invoice cho uid=$currentUserId',
+      );
+
+      context
+          .read<InvoiceProvider>()
+          .loadInvoices(currentUserId);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final authProvider = context.watch<AuthProvider>();
+    final currentUserId = authProvider.user?.uid;
+
+    _scheduleInvoiceLoadForUser(currentUserId);
+
+    final isDark =
+        Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       floatingActionButton: context.isDesktop
@@ -51,13 +117,28 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
           : FloatingActionButton.extended(
         heroTag: 'invoice_smart_scan',
         onPressed: _openScanner,
-        icon: const Icon(Icons.document_scanner_outlined),
+        icon: const Icon(
+          Icons.document_scanner_outlined,
+        ),
         label: const Text('Smart Scan'),
       ),
       body: Consumer<InvoiceProvider>(
         builder: (context, provider, _) {
+          if (authProvider.isLoading &&
+              authProvider.user == null) {
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          }
+
+          if (authProvider.user == null) {
+            return const _AuthenticationRequiredState();
+          }
+
           if (provider.isLoading) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
           }
 
           if (provider.isError) {
@@ -70,6 +151,8 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
           return RefreshIndicator(
             onRefresh: _loadData,
             child: ListView(
+              physics:
+              const AlwaysScrollableScrollPhysics(),
               padding: EdgeInsets.fromLTRB(
                 context.responsiveValue(
                   mobile: AppDesignTokens.spaceMd,
@@ -82,18 +165,33 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                   tablet: AppDesignTokens.spaceLg,
                   desktop: AppDesignTokens.spaceXl,
                 ),
-                context.isDesktop ? AppDesignTokens.spaceXl : 96,
+                context.isDesktop
+                    ? AppDesignTokens.spaceXl
+                    : 96,
               ),
               children: [
                 _buildHeader(context),
-                const SizedBox(height: AppDesignTokens.spaceLg),
-                _InvoiceSummarySection(provider: provider),
-                const SizedBox(height: AppDesignTokens.spaceLg),
-                _buildToolbar(context, provider, isDark),
-                const SizedBox(height: AppDesignTokens.spaceMd),
+                const SizedBox(
+                  height: AppDesignTokens.spaceLg,
+                ),
+                _InvoiceSummarySection(
+                  provider: provider,
+                ),
+                const SizedBox(
+                  height: AppDesignTokens.spaceLg,
+                ),
+                _buildToolbar(
+                  context,
+                  provider,
+                  isDark,
+                ),
+                const SizedBox(
+                  height: AppDesignTokens.spaceMd,
+                ),
                 if (provider.filteredItems.isEmpty)
                   _InvoiceEmptyState(
-                    hasFilters: provider.searchQuery.isNotEmpty ||
+                    hasFilters:
+                    provider.searchQuery.isNotEmpty ||
                         provider.statusFilter != 'all',
                     onClearFilters: () {
                       _searchController.clear();
@@ -103,9 +201,15 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                   )
                 else
                   AppResponsiveLayout(
-                    mobile: _InvoiceMobileList(items: provider.filteredItems),
-                    tablet: _InvoiceDesktopTable(items: provider.filteredItems),
-                    desktop: _InvoiceDesktopTable(items: provider.filteredItems),
+                    mobile: _InvoiceMobileList(
+                      items: provider.filteredItems,
+                    ),
+                    tablet: _InvoiceDesktopTable(
+                      items: provider.filteredItems,
+                    ),
+                    desktop: _InvoiceDesktopTable(
+                      items: provider.filteredItems,
+                    ),
                   ),
               ],
             ),
@@ -121,18 +225,25 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
       children: [
         Expanded(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment:
+            CrossAxisAlignment.start,
             children: [
               Text(
                 'Quản lý hóa đơn',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineMedium
+                    ?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
-                'Tra cứu, kiểm tra và mở chi tiết các hóa đơn đã quét.',
-                style: Theme.of(context).textTheme.bodyMedium,
+                'Tra cứu, kiểm tra và mở chi tiết '
+                    'các hóa đơn đã quét.',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium,
               ),
             ],
           ),
@@ -140,7 +251,9 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
         if (context.isDesktop)
           FilledButton.icon(
             onPressed: _openScanner,
-            icon: const Icon(Icons.document_scanner_outlined),
+            icon: const Icon(
+              Icons.document_scanner_outlined,
+            ),
             label: const Text('Smart Scan'),
           ),
       ],
@@ -153,10 +266,16 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
       bool isDark,
       ) {
     return Container(
-      padding: const EdgeInsets.all(AppDesignTokens.spaceMd),
+      padding: const EdgeInsets.all(
+        AppDesignTokens.spaceMd,
+      ),
       decoration: BoxDecoration(
-        color: isDark ? AppDesignTokens.darkSurface : Colors.white,
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusLg),
+        color: isDark
+            ? AppDesignTokens.darkSurface
+            : Colors.white,
+        borderRadius: BorderRadius.circular(
+          AppDesignTokens.radiusLg,
+        ),
         border: Border.all(
           color: isDark
               ? AppDesignTokens.darkBorder
@@ -166,17 +285,23 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
       child: Wrap(
         spacing: AppDesignTokens.spaceMd,
         runSpacing: AppDesignTokens.spaceSm,
-        crossAxisAlignment: WrapCrossAlignment.center,
+        crossAxisAlignment:
+        WrapCrossAlignment.center,
         children: [
           SizedBox(
-            width: context.isDesktop ? 360 : double.infinity,
+            width: context.isDesktop
+                ? 360
+                : double.infinity,
             child: TextField(
               controller: _searchController,
               onChanged: provider.setSearchQuery,
               decoration: InputDecoration(
-                hintText: 'Tìm theo số hóa đơn, đơn vị bán, MST...',
-                prefixIcon: const Icon(Icons.search_rounded),
-                suffixIcon: provider.searchQuery.isEmpty
+                hintText:
+                'Tìm theo số hóa đơn, đơn vị bán, MST...',
+                prefixIcon:
+                const Icon(Icons.search_rounded),
+                suffixIcon:
+                provider.searchQuery.isEmpty
                     ? null
                     : IconButton(
                   tooltip: 'Xóa tìm kiếm',
@@ -184,43 +309,63 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                     _searchController.clear();
                     provider.setSearchQuery('');
                   },
-                  icon: const Icon(Icons.close_rounded),
+                  icon: const Icon(
+                    Icons.close_rounded,
+                  ),
                 ),
               ),
             ),
           ),
           SizedBox(
-            width: context.isDesktop ? 210 : double.infinity,
-            child: DropdownButtonFormField<String>(
+            width: context.isDesktop
+                ? 210
+                : double.infinity,
+            child:
+            DropdownButtonFormField<String>(
               value: provider.statusFilter,
               decoration: const InputDecoration(
                 labelText: 'Trạng thái',
-                prefixIcon: Icon(Icons.filter_alt_outlined),
+                prefixIcon: Icon(
+                  Icons.filter_alt_outlined,
+                ),
               ),
               items: const [
-                DropdownMenuItem(value: 'all', child: Text('Tất cả')),
+                DropdownMenuItem(
+                  value: 'all',
+                  child: Text('Tất cả'),
+                ),
                 DropdownMenuItem(
                   value: 'confirmed',
                   child: Text('Đã xác nhận'),
                 ),
-                DropdownMenuItem(value: 'draft', child: Text('Bản nháp')),
+                DropdownMenuItem(
+                  value: 'draft',
+                  child: Text('Bản nháp'),
+                ),
               ],
               onChanged: (value) {
-                if (value != null) provider.setStatusFilter(value);
+                if (value != null) {
+                  provider.setStatusFilter(value);
+                }
               },
             ),
           ),
-          Text('${provider.filteredItems.length} hóa đơn'),
+          Text(
+            '${provider.filteredItems.length} hóa đơn',
+          ),
         ],
       ),
     );
   }
 }
 
-class _InvoiceSummarySection extends StatelessWidget {
+class _InvoiceSummarySection
+    extends StatelessWidget {
   final InvoiceProvider provider;
 
-  const _InvoiceSummarySection({required this.provider});
+  const _InvoiceSummarySection({
+    required this.provider,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -245,7 +390,9 @@ class _InvoiceSummarySection extends StatelessWidget {
       ),
       _InvoiceSummaryData(
         title: 'Tổng giá trị',
-        value: _formatMoney(provider.totalAmount),
+        value: _formatMoney(
+          provider.totalAmount,
+        ),
         icon: Icons.payments_outlined,
         color: AppDesignTokens.secondary,
       ),
@@ -253,19 +400,36 @@ class _InvoiceSummarySection extends StatelessWidget {
 
     return GridView.builder(
       shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
+      physics:
+      const NeverScrollableScrollPhysics(),
       itemCount: cards.length,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: context.valueForDeviceType(
+      gridDelegate:
+      SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount:
+        context.valueForDeviceType(
           mobile: 2,
           tablet: 2,
           desktop: 4,
         ),
-        crossAxisSpacing: AppDesignTokens.spaceMd,
-        mainAxisSpacing: AppDesignTokens.spaceMd,
-        childAspectRatio: context.isDesktop ? 2.15 : 1.65,
+        crossAxisSpacing:
+        AppDesignTokens.spaceMd,
+        mainAxisSpacing:
+        AppDesignTokens.spaceMd,
+        // Trên mobile, card cũ bị ép theo childAspectRatio=1.65 nên
+        // không đủ chiều cao và phát sinh BOTTOM OVERFLOWED.
+        // Dùng chiều cao cố định cho mobile/tablet; desktop vẫn dùng tỷ lệ.
+        mainAxisExtent: context.valueForDeviceType<double?>(
+          mobile: 148,
+          tablet: 140,
+          desktop: null,
+        ),
+        childAspectRatio: context.isDesktop ? 2.15 : 1.0,
       ),
-      itemBuilder: (context, index) => _InvoiceSummaryCard(data: cards[index]),
+      itemBuilder: (context, index) {
+        return _InvoiceSummaryCard(
+          data: cards[index],
+        );
+      },
     );
   }
 }
@@ -284,54 +448,87 @@ class _InvoiceSummaryData {
   });
 }
 
-class _InvoiceSummaryCard extends StatelessWidget {
+class _InvoiceSummaryCard
+    extends StatelessWidget {
   final _InvoiceSummaryData data;
 
-  const _InvoiceSummaryCard({required this.data});
+  const _InvoiceSummaryCard({
+    required this.data,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark =
+        Theme.of(context).brightness ==
+            Brightness.dark;
 
     return Container(
-      padding: const EdgeInsets.all(AppDesignTokens.spaceMd),
+      padding: EdgeInsets.all(
+        context.isDesktop
+            ? AppDesignTokens.spaceMd
+            : 12,
+      ),
       decoration: BoxDecoration(
-        color: isDark ? AppDesignTokens.darkSurface : Colors.white,
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusLg),
+        color: isDark
+            ? AppDesignTokens.darkSurface
+            : Colors.white,
+        borderRadius: BorderRadius.circular(
+          AppDesignTokens.radiusLg,
+        ),
         border: Border.all(
           color: isDark
               ? AppDesignTokens.darkBorder
               : AppDesignTokens.lightBorder,
         ),
-        boxShadow:
-        isDark ? AppDesignTokens.darkShadow : AppDesignTokens.lightShadow,
+        boxShadow: isDark
+            ? AppDesignTokens.darkShadow
+            : AppDesignTokens.lightShadow,
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment:
+        CrossAxisAlignment.start,
+        mainAxisAlignment:
+        MainAxisAlignment.spaceBetween,
         children: [
           Container(
-            padding: const EdgeInsets.all(AppDesignTokens.spaceSm),
+            padding: const EdgeInsets.all(
+              AppDesignTokens.spaceSm,
+            ),
             decoration: BoxDecoration(
               color: data.color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
+              borderRadius: BorderRadius.circular(
+                AppDesignTokens.radiusSm,
+              ),
             ),
-            child: Icon(data.icon, color: data.color),
+            child: Icon(
+              data.icon,
+              color: data.color,
+              size: context.isDesktop ? 24 : 22,
+            ),
           ),
           Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment:
+            CrossAxisAlignment.start,
             children: [
               Text(
                 data.title,
-                style: Theme.of(context).textTheme.bodySmall,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall,
               ),
               const SizedBox(height: 4),
               Text(
                 data.value,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                style: Theme.of(context)
+                    .textTheme
+                    .titleLarge
+                    ?.copyWith(
                   fontWeight: FontWeight.bold,
+                  fontSize: context.isDesktop ? null : 20,
                 ),
               ),
             ],
@@ -342,20 +539,29 @@ class _InvoiceSummaryCard extends StatelessWidget {
   }
 }
 
-class _InvoiceDesktopTable extends StatelessWidget {
+class _InvoiceDesktopTable
+    extends StatelessWidget {
   final List<InvoiceListEntry> items;
 
-  const _InvoiceDesktopTable({required this.items});
+  const _InvoiceDesktopTable({
+    required this.items,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark =
+        Theme.of(context).brightness ==
+            Brightness.dark;
 
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: isDark ? AppDesignTokens.darkSurface : Colors.white,
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusLg),
+        color: isDark
+            ? AppDesignTokens.darkSurface
+            : Colors.white,
+        borderRadius: BorderRadius.circular(
+          AppDesignTokens.radiusLg,
+        ),
         border: Border.all(
           color: isDark
               ? AppDesignTokens.darkBorder
@@ -368,48 +574,104 @@ class _InvoiceDesktopTable extends StatelessWidget {
           return SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: ConstrainedBox(
-              constraints: BoxConstraints(minWidth: constraints.maxWidth),
+              constraints: BoxConstraints(
+                minWidth:
+                constraints.maxWidth,
+              ),
               child: DataTable(
-                headingRowColor: WidgetStatePropertyAll(
+                headingRowColor:
+                WidgetStatePropertyAll(
                   isDark
-                      ? AppDesignTokens.darkSurfaceCard
-                      : AppDesignTokens.lightSurfaceCard,
+                      ? AppDesignTokens
+                      .darkSurfaceCard
+                      : AppDesignTokens
+                      .lightSurfaceCard,
                 ),
                 columns: const [
-                  DataColumn(label: Text('Số hóa đơn')),
-                  DataColumn(label: Expanded(child: Text('Đơn vị bán'))),
-                  DataColumn(label: Text('Ngày hóa đơn')),
-                  DataColumn(label: Text('Tổng tiền')),
-                  DataColumn(label: Text('Trạng thái')),
-                  DataColumn(label: Text('Thao tác')),
+                  DataColumn(
+                    label: Text('Số hóa đơn'),
+                  ),
+                  DataColumn(
+                    label: Text('Đơn vị bán'),
+                  ),
+                  DataColumn(
+                    label: Text('Ngày hóa đơn'),
+                  ),
+                  DataColumn(
+                    label: Text('Tổng tiền'),
+                  ),
+                  DataColumn(
+                    label: Text('Trạng thái'),
+                  ),
+                  DataColumn(
+                    label: Text('Thao tác'),
+                  ),
                 ],
                 rows: items.map((entry) {
-                  final invoice = entry.invoice;
+                  final invoice =
+                      entry.invoice;
+
                   return DataRow(
                     cells: [
-                      DataCell(Text(invoice.invoiceNumber ?? '—')),
                       DataCell(
                         Text(
-                          invoice.partnerName ?? '—',
-                          overflow: TextOverflow.ellipsis,
+                          invoice.invoiceNumber ??
+                              '—',
                         ),
                       ),
-                      DataCell(Text(_formatDate(invoice.invoiceDate))),
+                      DataCell(
+                        SizedBox(
+                          width: 260,
+                          child: Text(
+                            invoice.partnerName ??
+                                '—',
+                            maxLines: 1,
+                            overflow:
+                            TextOverflow
+                                .ellipsis,
+                          ),
+                        ),
+                      ),
                       DataCell(
                         Text(
-                          _formatMoney(invoice.totalAmount),
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                          _formatDate(
+                            invoice.invoiceDate,
+                          ),
                         ),
                       ),
-                      DataCell(_InvoiceStatusBadge(status: invoice.status)),
+                      DataCell(
+                        Text(
+                          _formatMoney(
+                            invoice.totalAmount,
+                          ),
+                          style:
+                          const TextStyle(
+                            fontWeight:
+                            FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      DataCell(
+                        _InvoiceStatusBadge(
+                          status:
+                          invoice.status,
+                        ),
+                      ),
                       DataCell(
                         IconButton(
-                          tooltip: 'Xem chi tiết',
-                          onPressed: () => context.push(
-                            '/invoices/receipt',
-                            extra: entry.transaction,
+                          tooltip:
+                          'Xem chi tiết',
+                          onPressed: () {
+                            context.push(
+                              '/invoices/receipt',
+                              extra:
+                              entry.transaction,
+                            );
+                          },
+                          icon: const Icon(
+                            Icons
+                                .visibility_outlined,
                           ),
-                          icon: const Icon(Icons.visibility_outlined),
                         ),
                       ),
                     ],
@@ -423,77 +685,136 @@ class _InvoiceDesktopTable extends StatelessWidget {
     );
   }
 }
-class _InvoiceMobileList extends StatelessWidget {
+
+class _InvoiceMobileList
+    extends StatelessWidget {
   final List<InvoiceListEntry> items;
 
-  const _InvoiceMobileList({required this.items});
+  const _InvoiceMobileList({
+    required this.items,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: items.map((entry) {
         final invoice = entry.invoice;
+
         return Padding(
-          padding: const EdgeInsets.only(bottom: AppDesignTokens.spaceSm),
+          padding: const EdgeInsets.only(
+            bottom: AppDesignTokens.spaceSm,
+          ),
           child: Card(
             child: InkWell(
-              borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
-              onTap: () => context.push(
-                '/invoices/receipt',
-                extra: entry.transaction,
+              borderRadius: BorderRadius.circular(
+                AppDesignTokens.radiusMd,
               ),
+              onTap: () {
+                context.push(
+                  '/invoices/receipt',
+                  extra: entry.transaction,
+                );
+              },
               child: Padding(
-                padding: const EdgeInsets.all(AppDesignTokens.spaceMd),
+                padding: const EdgeInsets.all(
+                  AppDesignTokens.spaceMd,
+                ),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment:
+                  CrossAxisAlignment.start,
                   children: [
                     Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment:
+                      CrossAxisAlignment.start,
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(AppDesignTokens.spaceSm),
-                          decoration: BoxDecoration(
-                            color: AppDesignTokens.primary.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(
-                              AppDesignTokens.radiusSm,
+                          padding:
+                          const EdgeInsets.all(
+                            AppDesignTokens
+                                .spaceSm,
+                          ),
+                          decoration:
+                          BoxDecoration(
+                            color: AppDesignTokens
+                                .primary
+                                .withOpacity(0.1),
+                            borderRadius:
+                            BorderRadius.circular(
+                              AppDesignTokens
+                                  .radiusSm,
                             ),
                           ),
                           child: const Icon(
-                            Icons.receipt_long_outlined,
-                            color: AppDesignTokens.primary,
+                            Icons
+                                .receipt_long_outlined,
+                            color:
+                            AppDesignTokens
+                                .primary,
                           ),
                         ),
-                        const SizedBox(width: AppDesignTokens.spaceMd),
+                        const SizedBox(
+                          width: AppDesignTokens
+                              .spaceMd,
+                        ),
                         Expanded(
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            crossAxisAlignment:
+                            CrossAxisAlignment
+                                .start,
                             children: [
                               Text(
-                                invoice.partnerName ?? 'Không rõ đơn vị bán',
+                                invoice.partnerName ??
+                                    'Không rõ đơn vị bán',
                                 maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
+                                overflow:
+                                TextOverflow
+                                    .ellipsis,
+                                style:
+                                const TextStyle(
+                                  fontWeight:
+                                  FontWeight
+                                      .bold,
                                   fontSize: 16,
                                 ),
                               ),
-                              const SizedBox(height: 4),
-                              Text(invoice.invoiceNumber ?? 'Chưa có số hóa đơn'),
+                              const SizedBox(
+                                height: 4,
+                              ),
+                              Text(
+                                invoice.invoiceNumber ??
+                                    'Chưa có số hóa đơn',
+                              ),
                             ],
                           ),
                         ),
-                        _InvoiceStatusBadge(status: invoice.status),
+                        const SizedBox(width: 8),
+                        _InvoiceStatusBadge(
+                          status: invoice.status,
+                        ),
                       ],
                     ),
-                    const Divider(height: AppDesignTokens.spaceLg),
+                    const Divider(
+                      height:
+                      AppDesignTokens.spaceLg,
+                    ),
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      mainAxisAlignment:
+                      MainAxisAlignment
+                          .spaceBetween,
                       children: [
-                        Text(_formatDate(invoice.invoiceDate)),
                         Text(
-                          _formatMoney(invoice.totalAmount),
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
+                          _formatDate(
+                            invoice.invoiceDate,
+                          ),
+                        ),
+                        Text(
+                          _formatMoney(
+                            invoice.totalAmount,
+                          ),
+                          style:
+                          const TextStyle(
+                            fontWeight:
+                            FontWeight.bold,
                             fontSize: 16,
                           ),
                         ),
@@ -510,23 +831,40 @@ class _InvoiceMobileList extends StatelessWidget {
   }
 }
 
-class _InvoiceStatusBadge extends StatelessWidget {
+class _InvoiceStatusBadge
+    extends StatelessWidget {
   final String status;
 
-  const _InvoiceStatusBadge({required this.status});
+  const _InvoiceStatusBadge({
+    required this.status,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final normalized = status.toLowerCase();
-    final isConfirmed = normalized == 'confirmed';
-    final color = isConfirmed ? AppDesignTokens.success : AppDesignTokens.warning;
-    final label = isConfirmed ? 'Đã xác nhận' : 'Bản nháp';
+    final normalized =
+    status.toLowerCase();
+
+    final isConfirmed =
+        normalized == 'confirmed';
+
+    final color = isConfirmed
+        ? AppDesignTokens.success
+        : AppDesignTokens.warning;
+
+    final label = isConfirmed
+        ? 'Đã xác nhận'
+        : 'Bản nháp';
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 5,
+      ),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusXl),
+        borderRadius: BorderRadius.circular(
+          AppDesignTokens.radiusXl,
+        ),
       ),
       child: Text(
         label,
@@ -540,7 +878,8 @@ class _InvoiceStatusBadge extends StatelessWidget {
   }
 }
 
-class _InvoiceEmptyState extends StatelessWidget {
+class _InvoiceEmptyState
+    extends StatelessWidget {
   final bool hasFilters;
   final VoidCallback onClearFilters;
   final VoidCallback onScan;
@@ -554,14 +893,24 @@ class _InvoiceEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 64),
+      padding: const EdgeInsets.symmetric(
+        vertical: 64,
+      ),
       child: Column(
         children: [
-          const Icon(Icons.receipt_long_outlined, size: 72),
+          const Icon(
+            Icons.receipt_long_outlined,
+            size: 72,
+          ),
           const SizedBox(height: 16),
           Text(
-            hasFilters ? 'Không tìm thấy hóa đơn phù hợp' : 'Chưa có hóa đơn',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            hasFilters
+                ? 'Không tìm thấy hóa đơn phù hợp'
+                : 'Chưa có hóa đơn',
+            style: Theme.of(context)
+                .textTheme
+                .titleLarge
+                ?.copyWith(
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -569,18 +918,27 @@ class _InvoiceEmptyState extends StatelessWidget {
           Text(
             hasFilters
                 ? 'Thử thay đổi từ khóa hoặc bộ lọc trạng thái.'
-                : 'Quét hóa đơn đầu tiên để hệ thống tự tạo hóa đơn và giao dịch.',
+                : 'Quét hóa đơn đầu tiên để hệ thống '
+                'tự tạo hóa đơn và giao dịch.',
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 20),
           FilledButton.icon(
-            onPressed: hasFilters ? onClearFilters : onScan,
+            onPressed: hasFilters
+                ? onClearFilters
+                : onScan,
             icon: Icon(
               hasFilters
-                  ? Icons.filter_alt_off_outlined
-                  : Icons.document_scanner_outlined,
+                  ? Icons
+                  .filter_alt_off_outlined
+                  : Icons
+                  .document_scanner_outlined,
             ),
-            label: Text(hasFilters ? 'Xóa bộ lọc' : 'Smart Scan'),
+            label: Text(
+              hasFilters
+                  ? 'Xóa bộ lọc'
+                  : 'Smart Scan',
+            ),
           ),
         ],
       ),
@@ -588,7 +946,8 @@ class _InvoiceEmptyState extends StatelessWidget {
   }
 }
 
-class _InvoiceErrorState extends StatelessWidget {
+class _InvoiceErrorState
+    extends StatelessWidget {
   final String message;
   final Future<void> Function() onRetry;
 
@@ -608,14 +967,23 @@ class _InvoiceErrorState extends StatelessWidget {
             Icon(
               Icons.error_outline_rounded,
               size: 64,
-              color: Theme.of(context).colorScheme.error,
+              color: Theme.of(context)
+                  .colorScheme
+                  .error,
             ),
             const SizedBox(height: 16),
-            Text(message, textAlign: TextAlign.center),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 20),
             FilledButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
+              onPressed: () {
+                onRetry();
+              },
+              icon: const Icon(
+                Icons.refresh_rounded,
+              ),
               label: const Text('Thử lại'),
             ),
           ],
@@ -625,8 +993,51 @@ class _InvoiceErrorState extends StatelessWidget {
   }
 }
 
-String _formatMoney(int value) =>
-    '${NumberFormat.decimalPattern('vi_VN').format(value)} đ';
+class _AuthenticationRequiredState
+    extends StatelessWidget {
+  const _AuthenticationRequiredState();
 
-String _formatDate(DateTime? value) =>
-    value == null ? '—' : DateFormat('dd/MM/yyyy').format(value);
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.lock_outline_rounded,
+              size: 64,
+              color: Theme.of(context)
+                  .colorScheme
+                  .primary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Bạn cần đăng nhập để xem hóa đơn.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _formatMoney(int value) {
+  return '${NumberFormat.decimalPattern('vi_VN').format(value)} đ';
+}
+
+String _formatDate(DateTime? value) {
+  if (value == null) {
+    return '—';
+  }
+
+  return DateFormat('dd/MM/yyyy').format(value);
+}

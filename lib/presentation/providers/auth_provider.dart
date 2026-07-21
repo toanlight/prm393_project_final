@@ -43,7 +43,7 @@ class AuthProvider extends ChangeNotifier {
             if (dbUser == null) {
               await _userRepository.createUser(user);
             } else {
-              // Update user fields
+              _user = dbUser;
               await _userRepository.updateUser(user);
             }
           } catch (e) {

@@ -22,8 +22,24 @@ class SeedDataService {
       return true; // Trong chế độ Mock, không cần seed lên Firebase thật
     }
     try {
-      final snapshot = await _firestore.collection('categories').limit(1).get();
-      return snapshot.docs.isNotEmpty;
+      final results = await Future.wait([
+        _firestore.collection('categories').limit(1).get(),
+        _firestore.collection('transactions').limit(1).get(),
+        _firestore.collection('invoices').limit(1).get(),
+      ]);
+
+      final hasCategories = results[0].docs.isNotEmpty;
+      final hasTransactions = results[1].docs.isNotEmpty;
+      final hasInvoices = results[2].docs.isNotEmpty;
+
+      debugPrint(
+        '[SeedData] Kiểm tra dữ liệu: '
+            'categories=$hasCategories, '
+            'transactions=$hasTransactions, '
+            'invoices=$hasInvoices',
+      );
+
+      return hasCategories && hasTransactions && hasInvoices;
     } on FirebaseException catch (e) {
       if (e.code == 'permission-denied') {
         debugPrint('[SeedData] ⚠️ Firestore yêu cầu quyền truy cập (permission-denied). Bỏ qua tự động check khi chưa đăng nhập.');

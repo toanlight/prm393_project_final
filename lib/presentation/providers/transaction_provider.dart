@@ -24,13 +24,13 @@ class TransactionProvider with ChangeNotifier {
   bool get isError => _status == TransactionStatus.error;
   bool get isSuccess => _status == TransactionStatus.success;
 
-  Future<void> fetchTransactions(String userId) async {
+  Future<void> fetchTransactions(String userId, {String? roleId}) async {
     _status = TransactionStatus.loading;
     _errorMessage = '';
     notifyListeners();
 
     try {
-      final list = await _transactionRepository.getTransactions(userId);
+      final list = await _transactionRepository.getTransactions(userId, roleId: roleId);
       _transactions = List.from(list);
       // Sắp xếp giao dịch mới nhất lên đầu
       _transactions.sort((a, b) => b.date.compareTo(a.date));

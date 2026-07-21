@@ -11,98 +11,145 @@ class FirebaseTransactionRepository implements TransactionRepository {
   static const String _cacheBoxName = 'firebase_transactions_cache';
 
   @override
-  Future<List<TransactionModel>> getTransactions(String userId) async {
+  Future<List<TransactionModel>> getTransactions(
+      String userId, {
+        String? roleId,
+      }) async {
     try {
-      QuerySnapshot querySnapshot;
-      if (userId.isEmpty) {
-        querySnapshot = await _firestore
-            .collection('transactions')
-            .orderBy('transactionDate', descending: true)
-            .get();
-      } else {
-        querySnapshot = await _firestore
-            .collection('transactions')
-            .where('userId', isEqualTo: userId)
-            .orderBy('transactionDate', descending: true)
-            .get();
+      final QuerySnapshot querySnapshot;
 
-        // If user-specific query returned empty, try fetching all transactions (e.g. for Admin/ChiefAccountant or Seed Data preview)
-        if (querySnapshot.docs.isEmpty) {
-          querySnapshot = await _firestore
-              .collection('transactions')
-              .orderBy('transactionDate', descending: true)
-              .get();
-        }
+      if (userId.isEmpty) {
+        return [];
       }
 
+      querySnapshot = await _firestore
+          .collection('transactions')
+          .where('userId', isEqualTo: userId)
+          .orderBy('transactionDate', descending: true)
+          .get();
+
       final list = querySnapshot.docs
-          .map((doc) => TransactionModel.fromMap({...Map<String, dynamic>.from(doc.data() as Map), 'transactionId': doc.id}))
+          .map(
+            (doc) => TransactionModel.fromMap({
+          ...Map<String, dynamic>.from(doc.data() as Map),
+          'transactionId': doc.id,
+        }),
+      )
           .toList();
 
-      // Update offline Hive cache
       final box = await Hive.openBox(_cacheBoxName);
-      for (var tx in list) {
+
+      for (final tx in list) {
         await box.put(tx.transactionId, tx.toMap());
       }
 
       return list;
     } catch (e) {
-      debugPrint('⚠️ Firestore getTransactions offline/error fallback: $e');
-      // Fallback to Hive Offline Cache
+      debugPrint(
+        '⚠️ Firestore getTransactions offline/error fallback: $e',
+      );
+
       final box = await Hive.openBox(_cacheBoxName);
+
       final list = box.values
-          .map((e) => TransactionModel.fromMap(Map<String, dynamic>.from(e)))
+          .map(
+            (e) => TransactionModel.fromMap(
+          Map<String, dynamic>.from(e),
+        ),
+      )
+          .where((tx) => tx.userId == userId)
           .toList();
-      list.sort((a, b) => b.transactionDate.compareTo(a.transactionDate));
+
+      list.sort(
+            (a, b) => b.transactionDate.compareTo(
+          a.transactionDate,
+        ),
+      );
+
       return list;
     }
   }
 
   @override
-  Stream<List<TransactionModel>> streamTransactions(String userId) async* {
-    // Yield cached data first for instant UI loading
+  Stream<List<TransactionModel>> streamTransactions(
+      String userId, {
+        String? roleId,
+      }) async* {
     final box = await Hive.openBox(_cacheBoxName);
+
     final cached = box.values
-        .map((e) => TransactionModel.fromMap(Map<String, dynamic>.from(e)))
+        .map(
+          (e) => TransactionModel.fromMap(
+        Map<String, dynamic>.from(e),
+      ),
+    )
+        .where((tx) => tx.userId == userId)
         .toList();
-    cached.sort((a, b) => b.transactionDate.compareTo(a.transactionDate));
+
+    cached.sort(
+          (a, b) => b.transactionDate.compareTo(
+        a.transactionDate,
+      ),
+    );
+
     yield cached;
 
-    // Listen to real-time updates from Firestore
+    if (userId.isEmpty) {
+      yield const [];
+      return;
+    }
+
     try {
-      final queryStream = userId.isEmpty
-          ? _firestore.collection('transactions').orderBy('transactionDate', descending: true).snapshots()
-          : _firestore.collection('transactions').where('userId', isEqualTo: userId).orderBy('transactionDate', descending: true).snapshots();
+      final queryStream = _firestore
+          .collection('transactions')
+          .where('userId', isEqualTo: userId)
+          .orderBy('transactionDate', descending: true)
+          .snapshots();
 
       await for (final querySnapshot in queryStream) {
-        var list = querySnapshot.docs
-            .map((doc) => TransactionModel.fromMap({...Map<String, dynamic>.from(doc.data()), 'transactionId': doc.id}))
+        final list = querySnapshot.docs
+            .map(
+              (doc) => TransactionModel.fromMap({
+            ...Map<String, dynamic>.from(doc.data()),
+            'transactionId': doc.id,
+          }),
+        )
             .toList();
 
-        // If user-specific stream returned empty, fetch all transactions as fallback
-        if (list.isEmpty && userId.isNotEmpty) {
-          final allSnap = await _firestore.collection('transactions').orderBy('transactionDate', descending: true).get();
-          list = allSnap.docs
-              .map((doc) => TransactionModel.fromMap({...Map<String, dynamic>.from(doc.data()), 'transactionId': doc.id}))
-              .toList();
-        }
-
-        // Update offline Hive cache
         final cacheBox = await Hive.openBox(_cacheBoxName);
-        for (var tx in list) {
-          await cacheBox.put(tx.transactionId, tx.toMap());
+
+        for (final tx in list) {
+          await cacheBox.put(
+            tx.transactionId,
+            tx.toMap(),
+          );
         }
 
         yield list;
       }
     } catch (e) {
-      debugPrint('⚠️ Firestore streamTransactions offline fallback: $e');
-      // Return cached list on stream error
-      final fallbackBox = await Hive.openBox(_cacheBoxName);
+      debugPrint(
+        '⚠️ Firestore streamTransactions offline fallback: $e',
+      );
+
+      final fallbackBox =
+      await Hive.openBox(_cacheBoxName);
+
       final list = fallbackBox.values
-          .map((e) => TransactionModel.fromMap(Map<String, dynamic>.from(e)))
+          .map(
+            (e) => TransactionModel.fromMap(
+          Map<String, dynamic>.from(e),
+        ),
+      )
+          .where((tx) => tx.userId == userId)
           .toList();
-      list.sort((a, b) => b.transactionDate.compareTo(a.transactionDate));
+
+      list.sort(
+            (a, b) => b.transactionDate.compareTo(
+          a.transactionDate,
+        ),
+      );
+
       yield list;
     }
   }
