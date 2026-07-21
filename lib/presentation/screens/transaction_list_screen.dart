@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../domain/models/transaction_model.dart';
 import '../../domain/models/transaction_type.dart';
+import '../../domain/services/finance_calculation_service.dart';
 import '../../domain/services/rbac_permission_service.dart';
 import '../providers/auth_provider.dart';
 import '../providers/transaction_provider.dart';
@@ -358,18 +359,9 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
             }
 
             // Tính toán tổng quan thu/chi và số dư (Chỉ tính các giao dịch đã được phê duyệt 'confirmed')
-            int totalIncome = 0;
-            int totalExpense = 0;
-            for (var tx in provider.transactions) {
-              if (tx.status == 'confirmed') {
-                if (tx.type == TransactionType.income) {
-                  totalIncome += tx.amountVnd;
-                } else {
-                  totalExpense += tx.amountVnd;
-                }
-              }
-            }
-            final balance = totalIncome - totalExpense;
+            final totalIncome = FinanceCalculationService.calculateConfirmedIncome(provider.transactions);
+            final totalExpense = FinanceCalculationService.calculateConfirmedExpense(provider.transactions);
+            final balance = FinanceCalculationService.calculateNetBalance(totalIncome, totalExpense);
 
             final filteredTxs = _getFilteredTransactions(provider.transactions);
 
