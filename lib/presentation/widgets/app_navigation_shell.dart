@@ -64,6 +64,13 @@ class AppNavigationShell extends StatelessWidget {
         activeIcon: Icons.settings,
         label: 'Cài đặt',
       ),
+      if (RbacPermissionService.canManageUsers(user))
+        const _NavItem(
+          branchIndex: 5,
+          icon: Icons.people_alt_outlined,
+          activeIcon: Icons.people_alt,
+          label: 'Quản lý User',
+        ),
     ];
 
     return allItems;
@@ -208,4 +215,3 @@ class AppNavigationShell extends StatelessWidget {
     );
   }
 }
-

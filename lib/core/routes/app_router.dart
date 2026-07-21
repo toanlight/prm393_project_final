@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../../domain/models/transaction_model.dart';
 import '../../domain/services/mock_ocr_service.dart';
@@ -15,6 +16,7 @@ import '../../presentation/screens/splash_screen.dart';
 import '../../presentation/screens/dashboard_screen.dart';
 import '../../presentation/screens/transaction_form_screen.dart';
 import '../../presentation/screens/transaction_list_screen.dart';
+import '../../presentation/screens/admin_user_management_screen.dart';
 import '../../presentation/widgets/app_navigation_shell.dart';
 
 class AppRouter {
@@ -31,6 +33,8 @@ class AppRouter {
     GlobalKey<NavigatorState>(debugLabel: 'profileBranch');
     final settingsBranchKey =
     GlobalKey<NavigatorState>(debugLabel: 'settingsBranch');
+    final adminBranchKey =
+    GlobalKey<NavigatorState>(debugLabel: 'adminBranch');
 
     return GoRouter(
       navigatorKey: rootNavigatorKey,
@@ -200,6 +204,23 @@ class AppRouter {
                   path: '/settings',
                   builder: (context, state) =>
                   const SettingsScreen(),
+                ),
+              ],
+            ),
+            StatefulShellBranch(
+              navigatorKey: adminBranchKey,
+              routes: [
+                GoRoute(
+                  path: '/admin-users',
+                  builder: (context, state) {
+                    final auth = context.read<AuthProvider>();
+                    if (auth.user?.roleId != 'admin') {
+                      return const _InvalidRouteScreen(
+                        message: 'Bạn không có quyền truy cập trang này.',
+                      );
+                    }
+                    return const AdminUserManagementScreen();
+                  },
                 ),
               ],
             ),

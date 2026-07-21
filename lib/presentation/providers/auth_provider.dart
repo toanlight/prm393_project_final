@@ -34,29 +34,42 @@ class AuthProvider extends ChangeNotifier {
   void _init() {
     _authSubscription = _authRepository.onAuthStateChanged.listen(
       (UserModel? user) async {
-        _user = user;
         _errorMessage = null;
         if (user != null) {
+          UserModel syncedUser = user;
           // Synced database user or create if not exists
           try {
             final dbUser = await _userRepository.getUser(user.uid);
             if (dbUser == null) {
               await _userRepository.createUser(user);
             } else {
+              if (!dbUser.isActive) {
+                await _authRepository.signOut();
+                _user = null;
+                _errorMessage = 'Tài khoản của bạn đã bị vô hiệu hóa hoặc bị khóa bởi Admin.';
+                _isInitializing = false;
+                _isActionLoading = false;
+                notifyListeners();
+                return;
+              }
               // Preserve roleId, fullName, taxCode, and other fields stored in Firestore database
+              // Sync updated fields from auth to DB (email, displayName, photoUrl)
               final updatedUser = dbUser.copyWith(
+                email: user.email,
                 displayName: user.displayName.isNotEmpty ? user.displayName : dbUser.displayName,
                 photoUrl: user.photoUrl.isNotEmpty ? user.photoUrl : dbUser.photoUrl,
               );
-              _user = updatedUser;
               await _userRepository.updateUser(updatedUser);
+              syncedUser = updatedUser;
             }
           } catch (e) {
             debugPrint("Failed to sync user to database: $e");
           }
+          _user = syncedUser;
           // Fetch application config
           await fetchAppConfig();
         } else {
+          _user = null;
           _appConfig = {};
         }
         _isInitializing = false;

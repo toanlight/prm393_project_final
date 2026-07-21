@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:project_final/domain/models/user_model.dart';
 import 'package:project_final/domain/models/transaction_model.dart';
@@ -6,6 +7,11 @@ import 'package:project_final/domain/models/invoice_model.dart';
 import 'package:project_final/domain/models/invoice_item_model.dart';
 import 'package:project_final/domain/models/ocr_scan_model.dart';
 import 'package:project_final/domain/services/rbac_permission_service.dart';
+import 'package:project_final/data/repositories_impl/mock_user_repository.dart';
+import 'package:project_final/presentation/providers/user_management_provider.dart';
+import 'package:project_final/presentation/providers/auth_provider.dart';
+import 'package:project_final/data/repositories_impl/mock_auth_repository.dart';
+import 'package:project_final/domain/repositories/auth_repository.dart';
 
 void main() {
   group('RBAC & Sơ đồ Database Unit Tests', () {
@@ -292,5 +298,114 @@ void main() {
         expect(invoice.subTotal, sumOfItems);
       });
     });
+
+    group('5. Test quản lý user (ban tài khoản & rule hạn chế admin)', () {
+      test('Không cho phép admin tự đổi vai trò của chính mình hoặc tự ban chính mình', () async {
+        final mockRepo = MockUserRepository();
+        final provider = UserManagementProvider(userRepository: mockRepo);
+        
+        final admin = UserModel(
+          uid: 'uid_admin',
+          email: 'admin@smartfinance.com',
+          displayName: 'Admin Hệ thống',
+          fullName: 'Nguyễn Văn Admin',
+          roleId: 'admin',
+          photoUrl: '',
+          isAnonymous: false,
+          createdAt: DateTime.now(),
+          isActive: true,
+        );
+
+        // Thử thay đổi vai trò của bản thân từ admin -> accountant
+        final userWithChangedRole = admin.copyWith(roleId: 'accountant');
+        final successRole = await provider.updateUser(userWithChangedRole, 'uid_admin');
+        expect(successRole, isFalse);
+        expect(provider.errorMessage, contains('Bạn không thể tự thay đổi vai trò của chính mình.'));
+
+        // Thử tự khóa tài khoản của bản thân
+        final userDeactivated = admin.copyWith(isActive: false);
+        final successBan = await provider.updateUser(userDeactivated, 'uid_admin');
+        expect(successBan, isFalse);
+        expect(provider.errorMessage, contains('Bạn không thể tự khóa tài khoản của chính mình.'));
+
+        // Cho phép cập nhật thông tin hợp lệ khác như đổi họ tên
+        final userWithNewName = admin.copyWith(fullName: 'Nguyễn Văn Admin Mới');
+        final successName = await provider.updateUser(userWithNewName, 'uid_admin');
+        expect(successName, isTrue);
+      });
+
+      test('AuthProvider tự động từ chối đăng nhập và đăng xuất nếu tài khoản bị vô hiệu hóa (isActive = false)', () async {
+        final mockUserRepo = MockUserRepository();
+        final testAuthRepo = TestAuthRepository();
+        
+        final user = UserModel(
+          uid: 'banned_uid',
+          email: 'banned@demo.com',
+          displayName: 'Banned User',
+          fullName: 'Banned User',
+          roleId: 'viewer',
+          photoUrl: '',
+          isAnonymous: false,
+          createdAt: DateTime.now(),
+          isActive: false, // Banned!
+        );
+        
+        // Đặt tài khoản bị khóa trong database
+        await mockUserRepo.createUser(user);
+
+        // Thiết lập AuthProvider
+        final authProvider = AuthProvider(
+          authRepository: testAuthRepo,
+          userRepository: mockUserRepo,
+        );
+
+        // Đặt người dùng hiện tại ở Repository và phát sinh trạng thái đăng nhập
+        testAuthRepo.setCurrentUser(user);
+        
+        // Chờ xử lý đồng bộ từ AuthProvider listener (MockUserRepository.getUser có delay 300ms)
+        await Future.delayed(const Duration(milliseconds: 1000));
+
+        // Kiểm tra xem AuthProvider có tự động đăng xuất và báo lỗi không
+        expect(authProvider.isAuthenticated, isFalse);
+        expect(authProvider.user, isNull);
+        expect(authProvider.errorMessage, contains('Tài khoản của bạn đã bị vô hiệu hóa hoặc bị khóa bởi Admin.'));
+      });
+    });
   });
+}
+
+class TestAuthRepository implements AuthRepository {
+  UserModel? _currentUser;
+  final _controller = StreamController<UserModel?>.broadcast();
+
+  void setCurrentUser(UserModel? user) {
+    _currentUser = user;
+    _controller.add(user);
+  }
+
+  @override
+  UserModel? get currentUser => _currentUser;
+
+  @override
+  Stream<UserModel?> get onAuthStateChanged => _controller.stream;
+
+  @override
+  Future<UserModel> signInAnonymously() async => throw UnimplementedError();
+
+  @override
+  Future<UserModel> signInWithEmailAndPassword(String email, String password) async {
+    return _currentUser!;
+  }
+
+  @override
+  Future<UserModel> signUpWithEmailAndPassword(String email, String password, String displayName) async => throw UnimplementedError();
+
+  @override
+  Future<void> signOut() async {
+    _currentUser = null;
+    _controller.add(null);
+  }
+
+  @override
+  Future<void> updateDisplayName(String name) async {}
 }

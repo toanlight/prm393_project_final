@@ -21,6 +21,7 @@ import 'presentation/providers/category_provider.dart';
 import 'presentation/providers/theme_provider.dart';
 import 'presentation/providers/transaction_provider.dart';
 import 'presentation/providers/invoice_provider.dart';
+import 'presentation/providers/user_management_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -73,6 +74,11 @@ void main() async {
           create: (context) => InvoiceProvider(
             invoiceRepository: context.read<InvoiceRepository>(),
             transactionRepository: context.read<TransactionRepository>(),
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => UserManagementProvider(
+            userRepository: userRepository,
           ),
         ),
       ],

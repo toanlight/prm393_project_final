@@ -83,6 +83,9 @@ class DynamicUserRepository implements UserRepository {
   }
 
   @override
+  Future<List<UserModel>> getUsers() => _active.getUsers();
+
+  @override
   Future<Map<String, dynamic>> getAppConfiguration() => _active.getAppConfiguration();
 }
 

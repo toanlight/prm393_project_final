@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/utils/responsive_helper.dart';
 import '../../data/services/firebase_service.dart';
@@ -162,6 +163,31 @@ class SettingsScreen extends StatelessWidget {
                     _showSeedConfirmDialog(context);
                   },
                 ),
+
+                if (authProvider.user?.roleId == 'admin') ...[
+                  const SizedBox(height: AppDesignTokens.spaceLg),
+                  const Divider(),
+                  const SizedBox(height: AppDesignTokens.spaceMd),
+                  Text(
+                    'Quản trị Hệ thống',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? AppDesignTokens.darkTextSecondary : AppDesignTokens.lightTextSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: AppDesignTokens.spaceSm),
+                  ListTile(
+                    leading: const Icon(Icons.people_alt_rounded, color: AppDesignTokens.primary),
+                    title: const Text('Quản lý người dùng'),
+                    subtitle: const Text(
+                      'Kích hoạt/vô hiệu hóa tài khoản, thay đổi vai trò và quyền truy cập',
+                    ),
+                    trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+                    onTap: () {
+                      context.push('/admin-users');
+                    },
+                  ),
+                ],
 
                 const SizedBox(height: AppDesignTokens.spaceLg),
                 const Divider(),
