@@ -15,7 +15,12 @@ class InvoiceListEntry {
   });
 }
 
-enum InvoiceLoadStatus { initial, loading, success, error }
+enum InvoiceLoadStatus {
+  initial,
+  loading,
+  success,
+  error,
+}
 
 class InvoiceProvider extends ChangeNotifier {
   final InvoiceRepository _invoiceRepository;
@@ -34,24 +39,43 @@ class InvoiceProvider extends ChangeNotifier {
   String _statusFilter = 'all';
 
   InvoiceLoadStatus get status => _status;
-  bool get isLoading => _status == InvoiceLoadStatus.loading;
-  bool get isError => _status == InvoiceLoadStatus.error;
+
+  bool get isLoading =>
+      _status == InvoiceLoadStatus.loading;
+
+  bool get isError =>
+      _status == InvoiceLoadStatus.error;
+
+  bool get isSuccess =>
+      _status == InvoiceLoadStatus.success;
+
   String get errorMessage => _errorMessage;
+
   String get searchQuery => _searchQuery;
+
   String get statusFilter => _statusFilter;
 
-  List<InvoiceListEntry> get items => List.unmodifiable(_items);
+  List<InvoiceListEntry> get items =>
+      List.unmodifiable(_items);
 
   List<InvoiceListEntry> get filteredItems {
     final query = _searchQuery.trim().toLowerCase();
 
     return _items.where((entry) {
       final invoice = entry.invoice;
-      final matchesStatus = _statusFilter == 'all' ||
-          invoice.status.toLowerCase() == _statusFilter;
 
-      if (!matchesStatus) return false;
-      if (query.isEmpty) return true;
+      final matchesStatus =
+          _statusFilter == 'all' ||
+              invoice.status.toLowerCase() ==
+                  _statusFilter.toLowerCase();
+
+      if (!matchesStatus) {
+        return false;
+      }
+
+      if (query.isEmpty) {
+        return true;
+      }
 
       final searchable = <String?>[
         invoice.invoiceNumber,
@@ -59,7 +83,10 @@ class InvoiceProvider extends ChangeNotifier {
         invoice.taxCode,
         entry.transaction.category,
         entry.transaction.note,
-      ].whereType<String>().join(' ').toLowerCase();
+      ]
+          .whereType<String>()
+          .join(' ')
+          .toLowerCase();
 
       return searchable.contains(query);
     }).toList(growable: false);
@@ -67,54 +94,119 @@ class InvoiceProvider extends ChangeNotifier {
 
   int get totalCount => _items.length;
 
-  int get confirmedCount => _items
-      .where((entry) => entry.invoice.status.toLowerCase() == 'confirmed')
-      .length;
+  int get confirmedCount {
+    return _items.where((entry) {
+      return entry.invoice.status.toLowerCase() ==
+          'confirmed';
+    }).length;
+  }
 
-  int get draftCount => _items
-      .where((entry) => entry.invoice.status.toLowerCase() == 'draft')
-      .length;
+  int get draftCount {
+    return _items.where((entry) {
+      return entry.invoice.status.toLowerCase() ==
+          'draft';
+    }).length;
+  }
 
-  int get totalAmount => _items.fold<int>(
-    0,
-        (sum, entry) => sum + entry.invoice.totalAmount,
-  );
+  int get totalAmount {
+    return _items.fold<int>(
+      0,
+          (sum, entry) =>
+      sum + entry.invoice.totalAmount,
+    );
+  }
 
   Future<void> loadInvoices(String userId) async {
+    if (userId.trim().isEmpty) {
+      _items = const [];
+      _status = InvoiceLoadStatus.error;
+      _errorMessage =
+      'Không xác định được tài khoản người dùng.';
+      notifyListeners();
+      return;
+    }
+
     _status = InvoiceLoadStatus.loading;
     _errorMessage = '';
     notifyListeners();
 
     try {
-      final transactions = await _transactionRepository.getTransactions(userId);
-      final invoiceTransactions = transactions
-          .where((transaction) => transaction.invoiceId != null)
-          .toList(growable: false);
-
-      final loaded = await Future.wait(
-        invoiceTransactions.map((transaction) async {
-          final invoice = await _invoiceRepository
-              .getInvoiceForTransaction(transaction.transactionId);
-          if (invoice == null) return null;
-
-          return InvoiceListEntry(
-            invoice: invoice,
-            transaction: transaction,
-          );
-        }),
+      debugPrint(
+        '[InvoiceProvider] Tải trực tiếp invoice '
+            'cho userId=$userId',
       );
 
-      _items = loaded.whereType<InvoiceListEntry>().toList()
-        ..sort((a, b) {
-          final aDate = a.invoice.invoiceDate ?? a.transaction.transactionDate;
-          final bDate = b.invoice.invoiceDate ?? b.transaction.transactionDate;
-          return bDate.compareTo(aDate);
-        });
+      final invoicesFuture =
+      _invoiceRepository.getInvoicesByUser(userId);
 
+      final transactionsFuture =
+      _transactionRepository.getTransactions(userId);
+
+      final invoices = await invoicesFuture;
+      final transactions = await transactionsFuture;
+
+      debugPrint(
+        '[InvoiceProvider] Nhận ${invoices.length} invoice '
+            'và ${transactions.length} transaction',
+      );
+
+      final transactionMap = <String, TransactionModel>{
+        for (final transaction in transactions)
+          transaction.transactionId: transaction,
+      };
+
+      final loaded = <InvoiceListEntry>[];
+
+      for (final invoice in invoices) {
+        final transaction =
+        transactionMap[invoice.transactionId];
+
+        if (transaction == null) {
+          debugPrint(
+            '[InvoiceProvider] Bỏ qua invoice='
+                '${invoice.invoiceId} vì không tìm thấy '
+                'transactionId=${invoice.transactionId}',
+          );
+          continue;
+        }
+
+        loaded.add(
+          InvoiceListEntry(
+            invoice: invoice,
+            transaction: transaction,
+          ),
+        );
+      }
+
+      loaded.sort((a, b) {
+        final aDate =
+            a.invoice.invoiceDate ??
+                a.transaction.transactionDate;
+
+        final bDate =
+            b.invoice.invoiceDate ??
+                b.transaction.transactionDate;
+
+        return bDate.compareTo(aDate);
+      });
+
+      _items = loaded;
       _status = InvoiceLoadStatus.success;
-    } catch (error) {
+
+      debugPrint(
+        '[InvoiceProvider] Hiển thị '
+            '${_items.length}/${invoices.length} invoice',
+      );
+    } catch (error, stackTrace) {
+      debugPrint(
+        '[InvoiceProvider] loadInvoices lỗi: $error',
+      );
+      debugPrintStack(stackTrace: stackTrace);
+
+      _items = const [];
       _status = InvoiceLoadStatus.error;
-      _errorMessage = 'Không thể tải danh sách hóa đơn: $error';
+      _errorMessage =
+      'Không thể tải danh sách hóa đơn: $error';
     }
 
     notifyListeners();
@@ -122,17 +214,28 @@ class InvoiceProvider extends ChangeNotifier {
 
   void setSearchQuery(String value) {
     if (_searchQuery == value) return;
+
     _searchQuery = value;
     notifyListeners();
   }
 
   void setStatusFilter(String value) {
     if (_statusFilter == value) return;
+
     _statusFilter = value;
     notifyListeners();
   }
 
   void clearFilters() {
+    _searchQuery = '';
+    _statusFilter = 'all';
+    notifyListeners();
+  }
+
+  void clear() {
+    _items = const [];
+    _status = InvoiceLoadStatus.initial;
+    _errorMessage = '';
     _searchQuery = '';
     _statusFilter = 'all';
     notifyListeners();

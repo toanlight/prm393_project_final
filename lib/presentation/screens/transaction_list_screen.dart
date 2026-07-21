@@ -30,10 +30,17 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
     });
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _loadData();
+  }
+
   void _loadData() {
     final authProvider = context.read<AuthProvider>();
     final userId = authProvider.user?.uid ?? 'mock-user-123';
-    context.read<TransactionProvider>().fetchTransactions(userId);
+    final roleId = authProvider.user?.roleId;
+    context.read<TransactionProvider>().fetchTransactions(userId, roleId: roleId);
   }
 
   List<TransactionModel> _getFilteredTransactions(List<TransactionModel> txs) {

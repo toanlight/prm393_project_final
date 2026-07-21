@@ -6,16 +6,22 @@ import 'package:provider/provider.dart';
 
 import '../../core/theme/design_tokens.dart';
 import '../../domain/models/invoice_model.dart';
+import '../../domain/models/ocr_scan_model.dart';
 import '../../domain/models/transaction_model.dart';
 import '../../domain/models/transaction_type.dart';
 import '../../domain/repositories/invoice_repository.dart';
+import '../../domain/repositories/ocr_scan_repository.dart';
 import '../../domain/services/mock_ocr_service.dart';
 import '../../domain/services/mock_receipt_image_store.dart';
+import '../../data/services/firebase_receipt_storage_service.dart';
 import '../providers/auth_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/invoice_provider.dart';
 import '../providers/transaction_provider.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:firebase_auth/firebase_auth.dart'
+as firebase_auth;
+
 
 class TransactionFormScreen extends StatefulWidget {
   final TransactionModel? transactionToEdit;
@@ -115,7 +121,10 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     try {
       final invoice = await context
           .read<InvoiceRepository>()
-          .getInvoiceForTransaction(tx.transactionId);
+          .getInvoiceForTransaction(
+        tx.transactionId,
+        invoiceId: tx.invoiceId,
+      );
       if (invoice != null && mounted) {
         setState(() {
           _invoiceNumberController.text = invoice.invoiceNumber ?? '';
@@ -181,127 +190,331 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
   }
 
   Future<void> _saveTransaction() async {
-    if (_isSaving || !_formKey.currentState!.validate()) return;
+    if (_isSaving) return;
 
-    _formKey.currentState!.save();
-    setState(() => _isSaving = true);
+    // 1. Validate ngay trên thiết bị.
+    // Không bật loading, không upload ảnh, không gọi Firebase nếu form chưa hợp lệ.
+    final isFormValid =
+        _formKey.currentState?.validate() ?? false;
 
-    final provider = context.read<TransactionProvider>();
-    final invoiceRepository = context.read<InvoiceRepository>();
-    final authProvider = context.read<AuthProvider>();
-    final now = DateTime.now();
-
-    final transactionId = _isEditing
-        ? widget.transactionToEdit!.transactionId
-        : 'tx_${now.microsecondsSinceEpoch}';
-
-    final hasInvoiceInfo = _isFromOcr ||
-        _type == 'thu' ||
-        _pickedImageBytes != null ||
-        _invoiceNumberController.text.trim().isNotEmpty ||
-        _partnerNameController.text.trim().isNotEmpty;
-
-    // Khởi tạo các mã liên kết hóa đơn
-    String? invoiceId = hasInvoiceInfo
-        ? (_isEditing && widget.transactionToEdit!.invoiceId != null
-            ? widget.transactionToEdit!.invoiceId
-            : 'invoice_${now.microsecondsSinceEpoch}')
-        : null;
-
-    String? scanId = _isFromOcr
-        ? widget.initialOcrData!.scanId
-        : (_isEditing ? widget.transactionToEdit!.scanId : null);
-
-    if (_pickedImageBytes != null) {
-      scanId ??= 'scan_${_type}_${now.microsecondsSinceEpoch}';
-      MockReceiptImageStore.save(scanId: scanId, bytes: _pickedImageBytes!);
+    if (!isFormValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Vui lòng kiểm tra và nhập đầy đủ các trường bắt buộc.',
+          ),
+          backgroundColor: AppDesignTokens.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
     }
 
-    final userId = _isEditing
-        ? widget.transactionToEdit!.userId
-        : (authProvider.user?.uid ?? 'mock-user-123');
+    // 2. Parse số tiền một lần duy nhất.
+    final amountText = _amountController.text.trim();
+    final amount = int.tryParse(amountText);
 
-    final transaction = TransactionModel(
-      transactionId: transactionId,
-      userId: userId,
-      categoryId: _selectedCategoryId ?? 'cat_khac',
-      invoiceId: invoiceId,
-      scanId: scanId,
-      amount: int.parse(_amountController.text),
-      type: _type == 'thu'
-          ? TransactionType.income
-          : TransactionType.expense,
-      transactionDate: _date,
-      note: _noteController.text.trim(),
-      receiptImage: _isFromOcr
-          ? 'mock://${widget.initialOcrData!.scanId}'
-          : (scanId != null
-              ? 'mock://$scanId'
-              : (_isEditing ? widget.transactionToEdit!.receiptImage : null)),
-      status: _isEditing ? widget.transactionToEdit!.status : 'pending',
-      createdAt: _isEditing ? widget.transactionToEdit!.createdAt : now,
-    );
+    if (amount == null || amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Vui lòng nhập số tiền lớn hơn 0.',
+          ),
+          backgroundColor: AppDesignTokens.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
 
-    bool transactionCreated = false;
-    bool invoiceChanged = false;
+    // 3. Kiểm tra riêng giao dịch Thu.
+    int? validatedSubTotal;
+
+    if (_type == 'thu') {
+      validatedSubTotal = int.tryParse(
+        _subTotalController.text.trim(),
+      );
+
+      if (validatedSubTotal == null ||
+          validatedSubTotal <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Vui lòng nhập tiền hàng lớn hơn 0.',
+            ),
+            backgroundColor: AppDesignTokens.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+    }
+
+    // 4. Chỉ save form và bật loading sau khi dữ liệu hợp lệ.
+    _formKey.currentState?.save();
+
+    setState(() => _isSaving = true);
+
+    final provider =
+    context.read<TransactionProvider>();
+    final invoiceRepository =
+    context.read<InvoiceRepository>();
+    final authProvider =
+    context.read<AuthProvider>();
+    final now = DateTime.now();
 
     try {
+      // 5. Kiểm tra Firebase Auth trước khi upload hoặc ghi dữ liệu.
+      final firebaseUser =
+          firebase_auth.FirebaseAuth.instance.currentUser;
+
+      debugPrint(
+        '[ReceiptUpload] AuthProvider UID='
+            '${authProvider.user?.uid}',
+      );
+
+      debugPrint(
+        '[ReceiptUpload] FirebaseAuth UID='
+            '${firebaseUser?.uid}',
+      );
+
+      debugPrint(
+        '[ReceiptUpload] FirebaseAuth email='
+            '${firebaseUser?.email}',
+      );
+
+      if (firebaseUser == null) {
+        throw StateError(
+          'Phiên đăng nhập Firebase chưa sẵn sàng. '
+              'Vui lòng đăng nhập lại.',
+        );
+      }
+
+      final userId = firebaseUser.uid;
+
+      // 6. Tạo hoặc sử dụng lại transactionId.
+      final transactionId = _isEditing
+          ? widget.transactionToEdit!.transactionId
+          : 'tx_${now.microsecondsSinceEpoch}';
+
+      // 7. Xác định giao dịch có hóa đơn hay không.
+      final hasInvoiceInfo =
+          _isFromOcr ||
+              _type == 'thu' ||
+              _pickedImageBytes != null ||
+              _invoiceNumberController.text
+                  .trim()
+                  .isNotEmpty ||
+              _partnerNameController.text
+                  .trim()
+                  .isNotEmpty;
+
+      // 8. Tạo hoặc sử dụng lại invoiceId.
+      final String? invoiceId = hasInvoiceInfo
+          ? (
+          _isEditing &&
+              widget.transactionToEdit!.invoiceId !=
+                  null
+              ? widget.transactionToEdit!.invoiceId
+              : 'invoice_${now.microsecondsSinceEpoch}'
+      )
+          : null;
+
+      // 9. Xác định scanId.
+      String? scanId = _isFromOcr
+          ? widget.initialOcrData!.scanId
+          : (
+          _isEditing
+              ? widget.transactionToEdit!.scanId
+              : null
+      );
+
+      // 10. Lấy bytes ảnh.
+      Uint8List? receiptBytes = _pickedImageBytes;
+
+      if (_isFromOcr && receiptBytes == null) {
+        receiptBytes = MockReceiptImageStore.get(
+          widget.initialOcrData!.scanId,
+        );
+      }
+
+      if (receiptBytes != null) {
+        scanId ??=
+        'scan_${_type}_${now.microsecondsSinceEpoch}';
+      }
+
+      // 11. Giữ URL ảnh cũ khi edit.
+      String? receiptDownloadUrl = _isEditing
+          ? widget.transactionToEdit!.receiptImage
+          : null;
+
+      // 12. Chỉ upload sau khi toàn bộ dữ liệu đầu vào hợp lệ.
+      if (receiptBytes != null && scanId != null) {
+        receiptDownloadUrl =
+        await FirebaseReceiptStorageService
+            .uploadReceipt(
+          userId: userId,
+          transactionId: transactionId,
+          scanId: scanId,
+          bytes: receiptBytes,
+          fileName: _pickedImage?.name,
+        );
+      }
+
+      // 13. Tạo TransactionModel.
+      final transaction = TransactionModel(
+        transactionId: transactionId,
+        userId: userId,
+        categoryId:
+        _selectedCategoryId ?? 'cat_khac',
+        invoiceId: invoiceId,
+        scanId: scanId,
+        amount: amount,
+        type: _type == 'thu'
+            ? TransactionType.income
+            : TransactionType.expense,
+        transactionDate: _date,
+        note: _noteController.text.trim(),
+        receiptImage: receiptDownloadUrl,
+        status: _isEditing
+            ? widget.transactionToEdit!.status
+            : 'pending',
+        createdAt: _isEditing
+            ? widget.transactionToEdit!.createdAt
+            : now,
+      );
+
+      bool transactionCreated = false;
+      bool invoiceChanged = false;
+
+      // 14. Lưu transaction.
       if (_isEditing) {
-        await provider.updateTransaction(transaction);
+        await provider.updateTransaction(
+          transaction,
+        );
       } else {
-        await provider.addTransaction(transaction);
+        await provider.addTransaction(
+          transaction,
+        );
         transactionCreated = true;
       }
 
-      // Tạo/Cập nhật Hóa đơn nếu có thông tin chứng từ (cho cả Thu và Chi)
+      // 15. Tạo hóa đơn từ OCR.
       if (_isFromOcr && invoiceId != null) {
-        final invoice = widget.initialOcrData!.toInvoiceModel(
+        final invoice =
+        widget.initialOcrData!.toInvoiceModel(
           invoiceId: invoiceId,
           transactionId: transactionId,
           createdBy: userId,
         );
 
-        await invoiceRepository.createInvoice(invoice);
+        await invoiceRepository.createInvoice(
+          invoice,
+        );
+
         invoiceChanged = true;
-      } else if (hasInvoiceInfo && invoiceId != null) {
-        final totalAmount = int.parse(_amountController.text);
-        final subTotal = int.tryParse(_subTotalController.text) ??
-            (_type == 'thu' ? totalAmount : (totalAmount / (1 + _vatRate / 100)).round());
-        final vatAmount = totalAmount - subTotal;
+      }
 
-        final invNumber = _invoiceNumberController.text.trim().isNotEmpty
-            ? _invoiceNumberController.text.trim()
-            : 'HĐ ${_type == 'thu' ? 'Thu' : 'Chi'} #${now.millisecondsSinceEpoch.toString().substring(5)}';
+      // 16. Tạo hóa đơn nhập tay.
+      else if (hasInvoiceInfo &&
+          invoiceId != null) {
+        final totalAmount = amount;
 
-        final partner = _partnerNameController.text.trim().isNotEmpty
-            ? _partnerNameController.text.trim()
-            : (_type == 'thu' ? 'Khách hàng' : 'Nhà cung cấp / Đối tác');
+        final subTotal = validatedSubTotal ??
+            int.tryParse(
+              _subTotalController.text.trim(),
+            ) ??
+            (
+                _type == 'thu'
+                    ? totalAmount
+                    : (
+                    totalAmount /
+                        (1 + _vatRate / 100)
+                ).round()
+            );
+
+        final vatAmount =
+            totalAmount - subTotal;
+
+        final invoiceNumberText =
+        _invoiceNumberController.text.trim();
+
+        final partnerNameText =
+        _partnerNameController.text.trim();
+
+        final invoiceNumber =
+        invoiceNumberText.isNotEmpty
+            ? invoiceNumberText
+            : 'HĐ ${_type == 'thu' ? 'Thu' : 'Chi'} '
+            '#${now.millisecondsSinceEpoch.toString().substring(5)}';
+
+        final partnerName =
+        partnerNameText.isNotEmpty
+            ? partnerNameText
+            : (
+            _type == 'thu'
+                ? 'Khách hàng'
+                : 'Nhà cung cấp / Đối tác'
+        );
 
         final manualInvoice = InvoiceModel(
           invoiceId: invoiceId,
           transactionId: transactionId,
-          invoiceNumber: invNumber,
-          partnerName: partner,
-          partnerAddress: _partnerAddressController.text.trim(),
-          taxCode: _taxCodeController.text.trim(),
+          invoiceNumber: invoiceNumber,
+          partnerName: partnerName,
+          partnerAddress:
+          _partnerAddressController.text.trim(),
+          taxCode:
+          _taxCodeController.text.trim(),
           invoiceDate: _date,
           subTotal: subTotal,
           vatRate: _vatRate,
-          vatAmount: vatAmount > 0 ? vatAmount : 0,
+          vatAmount:
+          vatAmount > 0 ? vatAmount : 0,
           totalAmount: totalAmount,
-          pdfPath: 'invoices/pdf/$invoiceId.pdf',
+          pdfPath:
+          'invoices/pdf/$invoiceId.pdf',
           createdBy: userId,
           scanId: scanId,
           status: transaction.status,
         );
 
-        await invoiceRepository.createInvoice(manualInvoice);
+        await invoiceRepository.createInvoice(
+          manualInvoice,
+        );
+
         invoiceChanged = true;
       }
 
-      // Tải lại InvoiceProvider để đồng bộ trang Hóa đơn
+      // 17. Lưu OCR scan nếu có ảnh thật và invoice.
+      if (scanId != null &&
+          receiptDownloadUrl != null &&
+          invoiceId != null) {
+        final ocrScan = OCRScanModel(
+          scanId: scanId,
+          userId: userId,
+          imagePath: receiptDownloadUrl,
+          extractedAmount: amount,
+          extractedTaxCode:
+          _taxCodeController.text.trim(),
+          extractedDate: _date,
+          rawJson: '{}',
+          status: 'completed',
+          transactionId: transactionId,
+          invoiceId: invoiceId,
+          createdAt: now,
+        );
+
+        await context
+            .read<OCRScanRepository>()
+            .createOCRScan(ocrScan);
+      }
+
+      // 18. Đồng bộ lại danh sách hóa đơn.
       if (invoiceChanged && mounted) {
-        await context.read<InvoiceProvider>().loadInvoices(userId);
+        await context
+            .read<InvoiceProvider>()
+            .loadInvoices(userId);
       }
 
       if (!mounted) return;
@@ -313,8 +526,10 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                 ? 'Đã tạo giao dịch mới thành công'
                 : 'Đã cập nhật giao dịch',
           ),
-          backgroundColor: AppDesignTokens.success,
-          behavior: SnackBarBehavior.floating,
+          backgroundColor:
+          AppDesignTokens.success,
+          behavior:
+          SnackBarBehavior.floating,
         ),
       );
 
@@ -323,16 +538,33 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
       } else {
         context.pop();
       }
-    } catch (e) {
+    } catch (error, stackTrace) {
+      debugPrint(
+        '[TransactionForm] Không thể lưu giao dịch: '
+            '$error',
+      );
+
+      debugPrintStack(
+        stackTrace: stackTrace,
+      );
+
       if (!mounted) return;
-      setState(() => _isSaving = false);
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Không thể lưu giao dịch: $e'),
-          backgroundColor: AppDesignTokens.error,
-          behavior: SnackBarBehavior.floating,
+          content: Text(
+            'Không thể lưu giao dịch: $error',
+          ),
+          backgroundColor:
+          AppDesignTokens.error,
+          behavior:
+          SnackBarBehavior.floating,
         ),
       );
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
     }
   }
 
@@ -364,12 +596,12 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                   _isEditing
                       ? 'Chỉnh sửa giao dịch'
                       : _isFromOcr
-                          ? 'Kiểm tra dữ liệu OCR'
-                          : 'Thêm giao dịch mới',
+                      ? 'Kiểm tra dữ liệu OCR'
+                      : 'Thêm giao dịch mới',
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 24,
-                      ),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 24,
+                  ),
                 ),
                 const SizedBox(height: 20),
 
@@ -531,10 +763,10 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                       items: cats
                           .map(
                             (cat) => DropdownMenuItem(
-                              value: cat.categoryId,
-                              child: Text(cat.categoryName),
-                            ),
-                          )
+                          value: cat.categoryId,
+                          child: Text(cat.categoryName),
+                        ),
+                      )
                           .toList(),
                       onChanged: (value) {
                         if (value != null) {
@@ -618,9 +850,9 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                           ? 'Thông tin hóa đơn (Bắt buộc)'
                           : 'Thông tin hóa đơn / Chứng từ (Tùy chọn)',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: _type == 'thu' ? AppDesignTokens.primary : AppDesignTokens.error,
-                          ),
+                        fontWeight: FontWeight.bold,
+                        color: _type == 'thu' ? AppDesignTokens.primary : AppDesignTokens.error,
+                      ),
                     ),
                   ],
                 ),
@@ -847,18 +1079,18 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                           ),
                           child: _isSaving
                               ? const SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                                )
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          )
                               : const Text(
-                                  'Lưu giao dịch',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
+                            'Lưu giao dịch',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -902,9 +1134,9 @@ class _OcrSummaryCard extends StatelessWidget {
               Text(
                 'Dữ liệu trích xuất từ hóa đơn (OCR)',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: AppDesignTokens.primary,
-                    ),
+                  fontWeight: FontWeight.bold,
+                  color: AppDesignTokens.primary,
+                ),
               ),
             ],
           ),

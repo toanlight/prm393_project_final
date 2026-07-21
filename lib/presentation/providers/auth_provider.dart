@@ -52,14 +52,15 @@ class AuthProvider extends ChangeNotifier {
                 notifyListeners();
                 return;
               }
+              // Preserve roleId, fullName, taxCode, and other fields stored in Firestore database
               // Sync updated fields from auth to DB (email, displayName, photoUrl)
-              final updated = dbUser.copyWith(
+              final updatedUser = dbUser.copyWith(
                 email: user.email,
-                displayName: user.displayName,
-                photoUrl: user.photoUrl,
+                displayName: user.displayName.isNotEmpty ? user.displayName : dbUser.displayName,
+                photoUrl: user.photoUrl.isNotEmpty ? user.photoUrl : dbUser.photoUrl,
               );
-              await _userRepository.updateUser(updated);
-              syncedUser = updated;
+              await _userRepository.updateUser(updatedUser);
+              syncedUser = updatedUser;
             }
           } catch (e) {
             debugPrint("Failed to sync user to database: $e");
