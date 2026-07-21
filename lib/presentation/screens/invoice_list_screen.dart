@@ -122,7 +122,8 @@ class _InvoiceListScreenState
         ),
         label: const Text('Smart Scan'),
       ),
-      body: Consumer<InvoiceProvider>(
+      body: SafeArea(
+        child: Consumer<InvoiceProvider>(
         builder: (context, provider, _) {
           if (authProvider.isLoading &&
               authProvider.user == null) {
@@ -172,13 +173,13 @@ class _InvoiceListScreenState
               children: [
                 _buildHeader(context),
                 const SizedBox(
-                  height: AppDesignTokens.spaceLg,
+                  height: AppDesignTokens.spaceSm,
                 ),
                 _InvoiceSummarySection(
                   provider: provider,
                 ),
                 const SizedBox(
-                  height: AppDesignTokens.spaceLg,
+                  height: AppDesignTokens.spaceSm,
                 ),
                 _buildToolbar(
                   context,
@@ -186,7 +187,7 @@ class _InvoiceListScreenState
                   isDark,
                 ),
                 const SizedBox(
-                  height: AppDesignTokens.spaceMd,
+                  height: AppDesignTokens.spaceSm,
                 ),
                 if (provider.filteredItems.isEmpty)
                   _InvoiceEmptyState(
@@ -216,7 +217,8 @@ class _InvoiceListScreenState
           );
         },
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildHeader(BuildContext context) {
@@ -411,16 +413,11 @@ class _InvoiceSummarySection
           tablet: 2,
           desktop: 4,
         ),
-        crossAxisSpacing:
-        AppDesignTokens.spaceMd,
-        mainAxisSpacing:
-        AppDesignTokens.spaceMd,
-        // Trên mobile, card cũ bị ép theo childAspectRatio=1.65 nên
-        // không đủ chiều cao và phát sinh BOTTOM OVERFLOWED.
-        // Dùng chiều cao cố định cho mobile/tablet; desktop vẫn dùng tỷ lệ.
+        crossAxisSpacing: AppDesignTokens.spaceSm,
+        mainAxisSpacing: AppDesignTokens.spaceSm,
         mainAxisExtent: context.valueForDeviceType<double?>(
-          mobile: 148,
-          tablet: 140,
+          mobile: 68,
+          tablet: 72,
           desktop: null,
         ),
         childAspectRatio: context.isDesktop ? 2.15 : 1.0,
@@ -448,8 +445,7 @@ class _InvoiceSummaryData {
   });
 }
 
-class _InvoiceSummaryCard
-    extends StatelessWidget {
+class _InvoiceSummaryCard extends StatelessWidget {
   final _InvoiceSummaryData data;
 
   const _InvoiceSummaryCard({
@@ -458,80 +454,62 @@ class _InvoiceSummaryCard
 
   @override
   Widget build(BuildContext context) {
-    final isDark =
-        Theme.of(context).brightness ==
-            Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      padding: EdgeInsets.all(
-        context.isDesktop
-            ? AppDesignTokens.spaceMd
-            : 12,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: isDark
-            ? AppDesignTokens.darkSurface
-            : Colors.white,
-        borderRadius: BorderRadius.circular(
-          AppDesignTokens.radiusLg,
-        ),
+        color: isDark ? AppDesignTokens.darkSurface : Colors.white,
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
         border: Border.all(
-          color: isDark
-              ? AppDesignTokens.darkBorder
-              : AppDesignTokens.lightBorder,
+          color: isDark ? AppDesignTokens.darkBorder : AppDesignTokens.lightBorder,
         ),
-        boxShadow: isDark
-            ? AppDesignTokens.darkShadow
-            : AppDesignTokens.lightShadow,
+        boxShadow: isDark ? AppDesignTokens.darkShadow : AppDesignTokens.lightShadow,
       ),
-      child: Column(
-        crossAxisAlignment:
-        CrossAxisAlignment.start,
-        mainAxisAlignment:
-        MainAxisAlignment.spaceBetween,
+      child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(
-              AppDesignTokens.spaceSm,
-            ),
+            padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
               color: data.color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(
-                AppDesignTokens.radiusSm,
-              ),
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
             ),
             child: Icon(
               data.icon,
               color: data.color,
-              size: context.isDesktop ? 24 : 22,
+              size: 20,
             ),
           ),
-          Column(
-            crossAxisAlignment:
-            CrossAxisAlignment.start,
-            children: [
-              Text(
-                data.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                data.value,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  fontSize: context.isDesktop ? null : 20,
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  data.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isDark ? AppDesignTokens.darkTextSecondary : AppDesignTokens.lightTextSecondary,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 2),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    data.value,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: data.color,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
