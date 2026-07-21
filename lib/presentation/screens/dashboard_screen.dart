@@ -362,21 +362,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       )
                     : RefreshIndicator(
                         onRefresh: _initDashboard,
-                        child: SingleChildScrollView(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.all(AppTheme.sp24),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              _buildHeader(context),
-                              const SizedBox(height: AppTheme.sp24),
-                              AppResponsiveLayout(
-                                mobile: _buildMobileLayout(context),
-                                desktop: _buildDesktopLayout(context),
-                              ),
-                            ],
-                          ),
-                        ),
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: EdgeInsets.symmetric(
+                  horizontal: MediaQuery.sizeOf(context).width < 600
+                      ? AppTheme.sp16
+                      : AppTheme.sp24,
+                  vertical: AppTheme.sp24,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildHeader(context),
+                    const SizedBox(height: AppTheme.sp24),
+                    AppResponsiveLayout(
+                      mobile: _buildMobileLayout(context),
+                      desktop: _buildDesktopLayout(context),
+                    ),
+                  ],
+                ),
+              ),
                       ),
           ),
         ],
@@ -387,8 +392,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildHeader(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final user = context.watch<AuthProvider>().user;
-    final textColor = isDark ? AppDesignTokens.darkTextPrimary : AppColors.foreground;
-    final mutedTextColor = isDark ? AppDesignTokens.darkTextSecondary : AppColors.mutedFg;
+
+    final textColor = isDark
+        ? AppDesignTokens.darkTextPrimary
+        : AppColors.foreground;
+
+    final mutedTextColor = isDark
+        ? AppDesignTokens.darkTextSecondary
+        : AppColors.mutedFg;
 
     String getRoleName(String? roleId) {
       switch (roleId) {
@@ -409,54 +420,125 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    Widget buildRoleBadge() {
+      if (user == null) {
+        return const SizedBox.shrink();
+      }
+
+      return Container(
+        constraints: const BoxConstraints(maxWidth: 180),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 10,
+          vertical: 6,
+        ),
+        decoration: BoxDecoration(
+          color: AppDesignTokens.primary.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(
+            AppDesignTokens.radiusMd,
+          ),
+          border: Border.all(
+            color: AppDesignTokens.primary.withOpacity(0.3),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Tổng quan', style: AppTextStyles.h1.copyWith(color: textColor)),
-                const SizedBox(height: AppTheme.sp4),
-                Text(
-                  '${_getCurrentDateRangeString()} - cập nhật lúc ${_getLastUpdatedTimeString()}',
-                  style: AppTextStyles.caption.copyWith(color: mutedTextColor),
-                ),
-              ],
+            const Icon(
+              Icons.shield_outlined,
+              size: 16,
+              color: AppDesignTokens.primary,
             ),
-            if (user != null)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppDesignTokens.primary.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
-                  border: Border.all(color: AppDesignTokens.primary.withOpacity(0.3)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.shield_outlined, size: 16, color: AppDesignTokens.primary),
-                    const SizedBox(width: 6),
-                    Text(
-                      getRoleName(user.roleId),
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: AppDesignTokens.primary,
-                      ),
-                    ),
-                  ],
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                getRoleName(user.roleId),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: AppDesignTokens.primary,
                 ),
               ),
+            ),
           ],
         ),
-        const SizedBox(height: AppTheme.sp24),
-        _buildFilterChips(context),
-      ],
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 520;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (isNarrow) ...[
+              Text(
+                'Tổng quan',
+                style: AppTextStyles.h1.copyWith(
+                  color: textColor,
+                ),
+              ),
+              const SizedBox(height: AppTheme.sp4),
+              Text(
+                '${_getCurrentDateRangeString()} - '
+                    'cập nhật lúc ${_getLastUpdatedTimeString()}',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.caption.copyWith(
+                  color: mutedTextColor,
+                ),
+              ),
+              if (user != null) ...[
+                const SizedBox(height: AppTheme.sp12),
+                buildRoleBadge(),
+              ],
+            ] else
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Tổng quan',
+                          style: AppTextStyles.h1.copyWith(
+                            color: textColor,
+                          ),
+                        ),
+                        const SizedBox(height: AppTheme.sp4),
+                        Text(
+                          '${_getCurrentDateRangeString()} - '
+                              'cập nhật lúc ${_getLastUpdatedTimeString()}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.caption.copyWith(
+                            color: mutedTextColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (user != null) ...[
+                    const SizedBox(width: AppTheme.sp12),
+                    buildRoleBadge(),
+                  ],
+                ],
+              ),
+
+            const SizedBox(height: AppTheme.sp24),
+            _buildFilterChips(context),
+          ],
+        );
+      },
     );
   }
+
+
+
 
   Widget _buildFilterChips(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
