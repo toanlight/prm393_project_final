@@ -301,7 +301,11 @@ void main() {
     group('5. Test quản lý user (ban tài khoản & rule hạn chế admin)', () {
       test('Không cho phép admin tự đổi vai trò của chính mình hoặc tự ban chính mình', () async {
         final mockRepo = MockUserRepository();
-        final provider = UserManagementProvider(userRepository: mockRepo);
+        final testAuthRepo = TestAuthRepository();
+        final provider = UserManagementProvider(
+          userRepository: mockRepo,
+          authRepository: testAuthRepo,
+        );
         
         final admin = UserModel(
           uid: 'uid_admin',
@@ -331,6 +335,55 @@ void main() {
         final userWithNewName = admin.copyWith(fullName: 'Nguyễn Văn Admin Mới');
         final successName = await provider.updateUser(userWithNewName, 'uid_admin');
         expect(successName, isTrue);
+      });
+
+      test('Chỉ cho phép tối đa 1 tài khoản Admin Hệ thống hoặc Kế toán trưởng hoạt động', () async {
+        final mockRepo = MockUserRepository();
+        final testAuthRepo = TestAuthRepository();
+        final provider = UserManagementProvider(
+          userRepository: mockRepo,
+          authRepository: testAuthRepo,
+        );
+
+        // Fetch initial mock users (which has active 'uid_admin' and active 'uid_chiefAccountant')
+        await provider.fetchUsers();
+
+        // 1. Thử tạo thêm một Admin đang hoạt động khác -> Phải thất bại
+        final successCreateAdmin = await provider.createUser(
+          email: 'admin2@smartfinance.com',
+          password: 'password123',
+          fullName: 'Admin Thứ Hai',
+          roleId: 'admin',
+        );
+        expect(successCreateAdmin, isFalse);
+        expect(provider.errorMessage, contains('Hệ thống đã tồn tại một tài khoản Admin Hệ thống đang hoạt động.'));
+
+        // 2. Thử tạo thêm một Kế toán trưởng đang hoạt động khác -> Phải thất bại
+        final successCreateChief = await provider.createUser(
+          email: 'chief2@smartfinance.com',
+          password: 'password123',
+          fullName: 'Kế toán trưởng thứ 2',
+          roleId: 'chiefAccountant',
+        );
+        expect(successCreateChief, isFalse);
+        expect(provider.errorMessage, contains('Hệ thống đã tồn tại một tài khoản Kế toán trưởng đang hoạt động.'));
+
+        // 3. Khóa tài khoản Admin hiện tại
+        final currentAdmin = provider.users.firstWhere((u) => u.uid == 'uid_admin');
+        final successDeactivate = await provider.updateUser(
+          currentAdmin.copyWith(isActive: false),
+          'another_admin_uid', // use different uid to bypass self-ban rule
+        );
+        expect(successDeactivate, isTrue);
+
+        // 4. Tạo Admin mới sau khi Admin cũ đã khóa -> Phải thành công
+        final successCreateAdminNew = await provider.createUser(
+          email: 'new_admin@smartfinance.com',
+          password: 'password123',
+          fullName: 'Admin Mới',
+          roleId: 'admin',
+        );
+        expect(successCreateAdminNew, isTrue);
       });
 
       test('AuthProvider tự động từ chối đăng nhập và đăng xuất nếu tài khoản bị vô hiệu hóa (isActive = false)', () async {
@@ -404,6 +457,14 @@ class TestAuthRepository implements AuthRepository {
     _currentUser = null;
     _controller.add(null);
   }
+
+  @override
+  Future<String> createUserInAuth(String email, String password) async {
+    return 'test_uid';
+  }
+
+  @override
+  Future<void> changePassword(String oldPassword, String newPassword) async {}
 
   @override
   Future<void> updateDisplayName(String name) async {}
