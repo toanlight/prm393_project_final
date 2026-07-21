@@ -1,329 +1,196 @@
-import '../../domain/models/category_model.dart';
-import '../../domain/models/invoice_model.dart';
-import '../../domain/models/ocr_scan_model.dart';
-import '../../domain/models/transaction_model.dart';
-import '../../domain/models/user_model.dart';
-
-import '../../domain/repositories/auth_repository.dart';
-import '../../domain/repositories/category_repository.dart';
-import '../../domain/repositories/invoice_repository.dart';
-import '../../domain/repositories/ocr_scan_repository.dart';
-import '../../domain/repositories/transaction_repository.dart';
-import '../../domain/repositories/user_repository.dart';
-
+import '../../../domain/models/user_model.dart';
+import '../../../domain/models/transaction_model.dart';
+import '../../../domain/models/category_model.dart';
+import '../../../domain/models/ocr_scan_model.dart';
+import '../../../domain/models/invoice_model.dart';
+import '../../../domain/repositories/auth_repository.dart';
+import '../../../domain/repositories/user_repository.dart';
+import '../../../domain/repositories/transaction_repository.dart';
+import '../../../domain/repositories/category_repository.dart';
+import '../../../domain/repositories/ocr_scan_repository.dart';
+import '../../../domain/repositories/invoice_repository.dart';
 import '../services/firebase_service.dart';
-
-import 'firebase_auth_repository.dart';
-import 'firebase_category_repository.dart';
-import 'firebase_invoice_repository.dart';
-import 'firebase_ocr_scan_repository.dart';
-import 'firebase_transaction_repository.dart';
-import 'firebase_user_repository.dart';
-
 import 'mock_auth_repository.dart';
-import 'mock_category_repository.dart';
-import 'mock_invoice_repository.dart';
-import 'mock_ocr_scan_repository.dart';
-import 'mock_transaction_repository.dart';
 import 'mock_user_repository.dart';
+import 'mock_transaction_repository.dart';
+import 'mock_category_repository.dart';
+import 'mock_ocr_scan_repository.dart';
+import 'mock_invoice_repository.dart';
+import 'firebase_auth_repository.dart';
+import 'firebase_user_repository.dart';
+import 'firebase_transaction_repository.dart';
+import 'firebase_category_repository.dart';
+import 'firebase_ocr_scan_repository.dart';
+import 'firebase_invoice_repository.dart';
 
-/// Chọn repository Firebase thật hoặc repository mock.
-///
-/// FirebaseService.isMockMode == true:
-///   → sử dụng Mock Repository.
-///
-/// FirebaseService.isMockMode == false:
-///   → sử dụng Firebase Repository.
 class DynamicAuthRepository implements AuthRepository {
   final MockAuthRepository _mock = MockAuthRepository();
+  FirebaseAuthRepository? _realInstance;
 
-  FirebaseAuthRepository? _firebaseInstance;
+  FirebaseAuthRepository get _real => _realInstance ??= FirebaseAuthRepository();
 
-  FirebaseAuthRepository get _firebase {
-    return _firebaseInstance ??= FirebaseAuthRepository();
-  }
-
-  AuthRepository get _active {
-    return FirebaseService().isMockMode
-        ? _mock
-        : _firebase;
-  }
+  AuthRepository get _active => FirebaseService().isMockMode ? _mock : _real;
 
   @override
   UserModel? get currentUser => _active.currentUser;
 
   @override
   Stream<UserModel?> get onAuthStateChanged {
-    return _active.onAuthStateChanged;
+    // Return the active repository's stream.
+    return FirebaseService().isMockMode ? _mock.onAuthStateChanged : _real.onAuthStateChanged;
   }
 
   @override
-  Future<UserModel> signInAnonymously() {
-    return _active.signInAnonymously();
-  }
+  Future<UserModel> signInAnonymously() => _active.signInAnonymously();
 
   @override
-  Future<UserModel> signInWithEmailAndPassword(
-      String email,
-      String password,
-      ) {
-    return _active.signInWithEmailAndPassword(
-      email,
-      password,
-    );
-  }
+  Future<UserModel> signInWithEmailAndPassword(String email, String password) =>
+      _active.signInWithEmailAndPassword(email, password);
 
   @override
   Future<UserModel> signUpWithEmailAndPassword(
-      String email,
-      String password,
-      String displayName,
-      ) {
-    return _active.signUpWithEmailAndPassword(
-      email,
-      password,
-      displayName,
-    );
-  }
+          String email, String password, String displayName) =>
+      _active.signUpWithEmailAndPassword(email, password, displayName);
 
   @override
   Future<void> signOut() async {
-    await _active.signOut();
-
-    if (FirebaseService().isMockMode) {
-      try {
-        await _firebase.signOut();
-      } catch (_) {
-        // Firebase có thể chưa được khởi tạo hoặc chưa đăng nhập.
-      }
-    }
+    await _mock.signOut();
+    try {
+      await _real.signOut();
+    } catch (_) {}
   }
 }
 
 class DynamicUserRepository implements UserRepository {
   final MockUserRepository _mock = MockUserRepository();
+  FirebaseUserRepository? _realInstance;
 
-  FirebaseUserRepository? _firebaseInstance;
+  FirebaseUserRepository get _real => _realInstance ??= FirebaseUserRepository();
 
-  FirebaseUserRepository get _firebase {
-    return _firebaseInstance ??= FirebaseUserRepository();
-  }
+  UserRepository get _active => FirebaseService().isMockMode ? _mock : _real;
 
-  UserRepository get _active {
-    return FirebaseService().isMockMode
-        ? _mock
-        : _firebase;
+  @override
+  Future<UserModel?> getUser(String uid) => _active.getUser(uid);
+
+  @override
+  Future<void> createUser(UserModel user) async {
+    await _active.createUser(user);
   }
 
   @override
-  Future<UserModel?> getUser(String uid) {
-    return _active.getUser(uid);
+  Future<void> updateUser(UserModel user) async {
+    await _active.updateUser(user);
   }
 
   @override
-  Future<void> createUser(UserModel user) {
-    return _active.createUser(user);
-  }
-
-  @override
-  Future<void> updateUser(UserModel user) {
-    return _active.updateUser(user);
-  }
-
-  @override
-  Future<Map<String, dynamic>> getAppConfiguration() {
-    return _active.getAppConfiguration();
-  }
+  Future<Map<String, dynamic>> getAppConfiguration() => _active.getAppConfiguration();
 }
 
-class DynamicTransactionRepository
-    implements TransactionRepository {
-  final MockTransactionRepository _mock =
-  MockTransactionRepository();
+class DynamicTransactionRepository implements TransactionRepository {
+  final MockTransactionRepository _mock = MockTransactionRepository();
+  FirebaseTransactionRepository? _realInstance;
 
-  FirebaseTransactionRepository? _firebaseInstance;
+  FirebaseTransactionRepository get _real => _realInstance ??= FirebaseTransactionRepository();
 
-  FirebaseTransactionRepository get _firebase {
-    return _firebaseInstance ??=
-        FirebaseTransactionRepository();
-  }
-
-  TransactionRepository get _active {
-    return FirebaseService().isMockMode
-        ? _mock
-        : _firebase;
-  }
+  TransactionRepository get _active => FirebaseService().isMockMode ? _mock : _real;
 
   @override
   Future<List<TransactionModel>> getTransactions(
-      String userId,
-      ) {
-    return _active.getTransactions(userId);
+      String userId, {
+        String? roleId,
+      }) {
+    return _active.getTransactions(
+      userId,
+      roleId: roleId,
+    );
   }
 
   @override
   Stream<List<TransactionModel>> streamTransactions(
-      String userId,
-      ) {
-    return _active.streamTransactions(userId);
+      String userId, {
+        String? roleId,
+      }) {
+    return _active.streamTransactions(
+      userId,
+      roleId: roleId,
+    );
   }
 
   @override
-  Future<void> createTransaction(
-      TransactionModel transaction,
-      ) {
-    return _active.createTransaction(transaction);
-  }
+  Future<void> createTransaction(TransactionModel transaction) => _active.createTransaction(transaction);
 
   @override
-  Future<void> updateTransaction(
-      TransactionModel transaction,
-      ) {
-    return _active.updateTransaction(transaction);
-  }
+  Future<void> updateTransaction(TransactionModel transaction) => _active.updateTransaction(transaction);
 
   @override
-  Future<void> deleteTransaction(
-      String transactionId,
-      ) {
-    return _active.deleteTransaction(transactionId);
-  }
+  Future<void> deleteTransaction(String transactionId) => _active.deleteTransaction(transactionId);
 }
 
-class DynamicCategoryRepository
-    implements CategoryRepository {
-  final MockCategoryRepository _mock =
-  MockCategoryRepository();
 
-  FirebaseCategoryRepository? _firebaseInstance;
+class DynamicCategoryRepository implements CategoryRepository {
+  final MockCategoryRepository _mock = MockCategoryRepository();
+  FirebaseCategoryRepository? _realInstance;
 
-  FirebaseCategoryRepository get _firebase {
-    return _firebaseInstance ??=
-        FirebaseCategoryRepository();
-  }
+  FirebaseCategoryRepository get _real => _realInstance ??= FirebaseCategoryRepository();
 
-  CategoryRepository get _active {
-    return FirebaseService().isMockMode
-        ? _mock
-        : _firebase;
-  }
+  CategoryRepository get _active => FirebaseService().isMockMode ? _mock : _real;
 
   @override
-  Future<List<CategoryModel>> getCategories() {
-    return _active.getCategories();
-  }
+  Future<List<CategoryModel>> getCategories() => _active.getCategories();
 
   @override
-  Future<void> createCategory(
-      CategoryModel category,
-      ) {
-    return _active.createCategory(category);
-  }
+  Future<void> createCategory(CategoryModel category) => _active.createCategory(category);
 
   @override
-  Future<void> deleteCategory(
-      String categoryId,
-      ) {
-    return _active.deleteCategory(categoryId);
-  }
+  Future<void> deleteCategory(String categoryId) => _active.deleteCategory(categoryId);
 }
 
-class DynamicOCRScanRepository
-    implements OCRScanRepository {
-  final MockOCRScanRepository _mock =
-  MockOCRScanRepository();
 
-  FirebaseOCRScanRepository? _firebaseInstance;
+class DynamicOCRScanRepository implements OCRScanRepository {
+  final MockOCRScanRepository _mock = MockOCRScanRepository();
+  FirebaseOCRScanRepository? _realInstance;
 
-  FirebaseOCRScanRepository get _firebase {
-    return _firebaseInstance ??=
-        FirebaseOCRScanRepository();
-  }
+  FirebaseOCRScanRepository get _real => _realInstance ??= FirebaseOCRScanRepository();
 
-  OCRScanRepository get _active {
-    return FirebaseService().isMockMode
-        ? _mock
-        : _firebase;
-  }
+  OCRScanRepository get _active => FirebaseService().isMockMode ? _mock : _real;
 
   @override
-  Future<OCRScanModel?> getOCRScan(
-      String scanId,
-      ) {
-    return _active.getOCRScan(scanId);
-  }
+  Future<OCRScanModel?> getOCRScan(String scanId) => _active.getOCRScan(scanId);
 
   @override
-  Future<List<OCRScanModel>> getOCRScansByUser(
-      String userId,
-      ) {
-    return _active.getOCRScansByUser(userId);
-  }
+  Future<List<OCRScanModel>> getOCRScansByUser(String userId) => _active.getOCRScansByUser(userId);
 
   @override
-  Future<void> createOCRScan(
-      OCRScanModel scan,
-      ) {
-    return _active.createOCRScan(scan);
-  }
+  Future<void> createOCRScan(OCRScanModel scan) => _active.createOCRScan(scan);
 
   @override
-  Future<void> updateOCRScan(
-      OCRScanModel scan,
-      ) {
-    return _active.updateOCRScan(scan);
-  }
+  Future<void> updateOCRScan(OCRScanModel scan) => _active.updateOCRScan(scan);
 }
 
-class DynamicInvoiceRepository
-    implements InvoiceRepository {
-  final MockInvoiceRepository _mock =
-  MockInvoiceRepository();
+class DynamicInvoiceRepository implements InvoiceRepository {
+  final MockInvoiceRepository _mock = MockInvoiceRepository();
+  FirebaseInvoiceRepository? _realInstance;
 
-  FirebaseInvoiceRepository? _firebaseInstance;
+  FirebaseInvoiceRepository get _real => _realInstance ??= FirebaseInvoiceRepository();
 
-  FirebaseInvoiceRepository get _firebase {
-    return _firebaseInstance ??=
-        FirebaseInvoiceRepository();
-  }
+  InvoiceRepository get _active => FirebaseService().isMockMode ? _mock : _real;
 
-  InvoiceRepository get _active {
-    return FirebaseService().isMockMode
-        ? _mock
-        : _firebase;
-  }
+  @override
+  Future<InvoiceModel?> getInvoiceForTransaction(String transactionId) =>
+      _active.getInvoiceForTransaction(transactionId);
+
+  @override
+  Future<void> createInvoice(InvoiceModel invoice) =>
+      _active.createInvoice(invoice);
+
+  @override
+  Future<void> deleteInvoice(String transactionId, String invoiceId) =>
+      _active.deleteInvoice(transactionId, invoiceId);
 
   @override
   Future<List<InvoiceModel>> getInvoicesByUser(
       String userId,
       ) {
     return _active.getInvoicesByUser(userId);
-  }
-
-  @override
-  Future<InvoiceModel?> getInvoiceForTransaction(
-      String transactionId,
-      ) {
-    return _active.getInvoiceForTransaction(
-      transactionId,
-    );
-  }
-
-  @override
-  Future<void> createInvoice(
-      InvoiceModel invoice,
-      ) {
-    return _active.createInvoice(invoice);
-  }
-
-  @override
-  Future<void> deleteInvoice(
-      String transactionId,
-      String invoiceId,
-      ) {
-    return _active.deleteInvoice(
-      transactionId,
-      invoiceId,
-    );
   }
 }

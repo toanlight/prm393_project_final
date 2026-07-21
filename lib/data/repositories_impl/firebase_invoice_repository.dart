@@ -16,7 +16,7 @@ class FirebaseInvoiceRepository implements InvoiceRepository {
     FirebaseFirestore? firestore,
   }) : _firestore = firestore ?? FirebaseFirestore.instance;
 
-  @override
+
   @override
   Future<List<InvoiceModel>> getInvoicesByUser(
       String userId,
