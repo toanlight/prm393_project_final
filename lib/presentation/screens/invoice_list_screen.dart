@@ -24,6 +24,9 @@ class _InvoiceListScreenState
 
   String? _loadedUserId;
 
+  static const int _itemsPerPage = 10;
+  int _currentPage = 1;
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -49,10 +52,10 @@ class _InvoiceListScreenState
     await context
         .read<InvoiceProvider>()
         .loadInvoices(
-          user.uid,
-          roleId: user.roleId,
-          taxCode: user.taxCode,
-        );
+      user.uid,
+      roleId: user.roleId,
+      taxCode: user.taxCode,
+    );
   }
 
   Future<void> _openScanner() async {
@@ -108,6 +111,91 @@ class _InvoiceListScreenState
     });
   }
 
+
+  Widget _buildPagination({
+    required int totalItems,
+    required bool isDark,
+  }) {
+    final totalPages = (totalItems / _itemsPerPage).ceil();
+
+    if (totalPages <= 1) {
+      return const SizedBox.shrink();
+    }
+
+    final startItem = ((_currentPage - 1) * _itemsPerPage) + 1;
+    final endItem = (_currentPage * _itemsPerPage).clamp(0, totalItems);
+
+    return Padding(
+      padding: const EdgeInsets.only(
+        top: AppDesignTokens.spaceMd,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Hiển thị $startItem–$endItem trên $totalItems hóa đơn',
+              style: TextStyle(
+                fontSize: 12,
+                color: isDark
+                    ? AppDesignTokens.darkTextSecondary
+                    : AppDesignTokens.lightTextSecondary,
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Trang trước',
+            onPressed: _currentPage > 1
+                ? () {
+              setState(() {
+                _currentPage--;
+              });
+            }
+                : null,
+            icon: const Icon(Icons.chevron_left_rounded),
+          ),
+          Container(
+            constraints: const BoxConstraints(minWidth: 74),
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 8,
+            ),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? AppDesignTokens.darkSurfaceCard
+                  : Colors.white,
+              borderRadius: BorderRadius.circular(
+                AppDesignTokens.radiusSm,
+              ),
+              border: Border.all(
+                color: isDark
+                    ? AppDesignTokens.darkBorder
+                    : AppDesignTokens.lightBorder,
+              ),
+            ),
+            child: Text(
+              '$_currentPage/$totalPages',
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Trang sau',
+            onPressed: _currentPage < totalPages
+                ? () {
+              setState(() {
+                _currentPage++;
+              });
+            }
+                : null,
+            icon: const Icon(Icons.chevron_right_rounded),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
@@ -133,112 +221,138 @@ class _InvoiceListScreenState
       ),
       body: SafeArea(
         child: Consumer<InvoiceProvider>(
-        builder: (context, provider, _) {
-          if (authProvider.isLoading &&
-              authProvider.user == null) {
-            return const Center(
-              child: CircularProgressIndicator(),
+          builder: (context, provider, _) {
+            if (authProvider.isLoading &&
+                authProvider.user == null) {
+              return const Center(
+                child: CircularProgressIndicator(),
+              );
+            }
+
+            if (authProvider.user == null) {
+              return const _AuthenticationRequiredState();
+            }
+
+            if (provider.isLoading) {
+              return const Center(
+                child: CircularProgressIndicator(),
+              );
+            }
+
+            if (provider.isError) {
+              return _InvoiceErrorState(
+                message: provider.errorMessage,
+                onRetry: _loadData,
+              );
+            }
+
+            // Lọc danh sách hóa đơn hiển thị theo vai trò người dùng (Partner chỉ thấy hóa đơn trùng MST)
+            final visibleInvoices = RbacPermissionService.filterVisibleInvoices(
+              user,
+              provider.filteredItems.map((e) => e.invoice).toList(),
             );
-          }
+            final visibleSet = visibleInvoices.map((i) => i.invoiceId).toSet();
+            final visibleItems = provider.filteredItems
+                .where(
+                  (entry) =>
+                  visibleSet.contains(entry.invoice.invoiceId),
+            )
+                .toList();
 
-          if (authProvider.user == null) {
-            return const _AuthenticationRequiredState();
-          }
+            final totalPages =
+            (visibleItems.length / _itemsPerPage).ceil();
 
-          if (provider.isLoading) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
+            if (totalPages > 0 && _currentPage > totalPages) {
+              _currentPage = totalPages;
+            }
 
-          if (provider.isError) {
-            return _InvoiceErrorState(
-              message: provider.errorMessage,
-              onRetry: _loadData,
-            );
-          }
+            final startIndex =
+                (_currentPage - 1) * _itemsPerPage;
 
-          // Lọc danh sách hóa đơn hiển thị theo vai trò người dùng (Partner chỉ thấy hóa đơn trùng MST)
-          final visibleInvoices = RbacPermissionService.filterVisibleInvoices(
-            user,
-            provider.filteredItems.map((e) => e.invoice).toList(),
-          );
-          final visibleSet = visibleInvoices.map((i) => i.invoiceId).toSet();
-          final visibleItems = provider.filteredItems
-              .where((entry) => visibleSet.contains(entry.invoice.invoiceId))
-              .toList();
+            final pagedItems = visibleItems
+                .skip(startIndex)
+                .take(_itemsPerPage)
+                .toList(growable: false);
 
-          return RefreshIndicator(
-            onRefresh: _loadData,
-            child: ListView(
-              physics:
-              const AlwaysScrollableScrollPhysics(),
-              padding: EdgeInsets.fromLTRB(
-                context.responsiveValue(
-                  mobile: AppDesignTokens.spaceMd,
-                  tablet: AppDesignTokens.spaceLg,
-                  desktop: AppDesignTokens.spaceXl,
-                ),
-                AppDesignTokens.spaceMd,
-                context.responsiveValue(
-                  mobile: AppDesignTokens.spaceMd,
-                  tablet: AppDesignTokens.spaceLg,
-                  desktop: AppDesignTokens.spaceXl,
-                ),
-                context.isDesktop
-                    ? AppDesignTokens.spaceXl
-                    : 96,
-              ),
-              children: [
-                _buildHeader(context, canCreate),
-                const SizedBox(
-                  height: AppDesignTokens.spaceSm,
-                ),
-                _InvoiceSummarySection(
-                  provider: provider,
-                ),
-                const SizedBox(
-                  height: AppDesignTokens.spaceSm,
-                ),
-                _buildToolbar(
-                  context,
-                  provider,
-                  isDark,
-                  visibleItems.length,
-                ),
-                const SizedBox(
-                  height: AppDesignTokens.spaceSm,
-                ),
-                if (visibleItems.isEmpty)
-                  _InvoiceEmptyState(
-                    hasFilters:
-                    provider.searchQuery.isNotEmpty ||
-                        provider.statusFilter != 'all',
-                    onClearFilters: () {
-                      _searchController.clear();
-                      provider.clearFilters();
-                    },
-                    onScan: canCreate ? () => _openScanner() : null,
-                  )
-                else
-                  AppResponsiveLayout(
-                    mobile: _InvoiceMobileList(
-                      items: visibleItems,
-                    ),
-                    tablet: _InvoiceDesktopTable(
-                      items: visibleItems,
-                    ),
-                    desktop: _InvoiceDesktopTable(
-                      items: visibleItems,
-                    ),
+            return RefreshIndicator(
+              onRefresh: _loadData,
+              child: ListView(
+                physics:
+                const AlwaysScrollableScrollPhysics(),
+                padding: EdgeInsets.fromLTRB(
+                  context.responsiveValue(
+                    mobile: AppDesignTokens.spaceMd,
+                    tablet: AppDesignTokens.spaceLg,
+                    desktop: AppDesignTokens.spaceXl,
                   ),
-              ],
-            ),
-          );
-        },
+                  AppDesignTokens.spaceMd,
+                  context.responsiveValue(
+                    mobile: AppDesignTokens.spaceMd,
+                    tablet: AppDesignTokens.spaceLg,
+                    desktop: AppDesignTokens.spaceXl,
+                  ),
+                  context.isDesktop
+                      ? AppDesignTokens.spaceXl
+                      : 96,
+                ),
+                children: [
+                  _buildHeader(context, canCreate),
+                  const SizedBox(
+                    height: AppDesignTokens.spaceSm,
+                  ),
+                  _InvoiceSummarySection(
+                    provider: provider,
+                  ),
+                  const SizedBox(
+                    height: AppDesignTokens.spaceSm,
+                  ),
+                  _buildToolbar(
+                    context,
+                    provider,
+                    isDark,
+                    visibleItems.length,
+                  ),
+                  const SizedBox(
+                    height: AppDesignTokens.spaceSm,
+                  ),
+                  if (visibleItems.isEmpty)
+                    _InvoiceEmptyState(
+                      hasFilters:
+                      provider.searchQuery.isNotEmpty ||
+                          provider.statusFilter != 'all',
+                      onClearFilters: () {
+                        _searchController.clear();
+                        provider.clearFilters();
+                        setState(() {
+                          _currentPage = 1;
+                        });
+                      },
+                      onScan: canCreate ? () => _openScanner() : null,
+                    )
+                  else
+                    AppResponsiveLayout(
+                      mobile: _InvoiceMobileList(
+                        items: pagedItems,
+                      ),
+                      tablet: _InvoiceDesktopTable(
+                        items: pagedItems,
+                      ),
+                      desktop: _InvoiceDesktopTable(
+                        items: pagedItems,
+                      ),
+                    ),
+                  if (visibleItems.isNotEmpty)
+                    _buildPagination(
+                      totalItems: visibleItems.length,
+                      isDark: isDark,
+                    ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
-    ),
-  );
+    );
   }
 
   Widget _buildHeader(BuildContext context, bool canCreate) {
@@ -317,7 +431,12 @@ class _InvoiceListScreenState
                 : double.infinity,
             child: TextField(
               controller: _searchController,
-              onChanged: provider.setSearchQuery,
+              onChanged: (value) {
+                provider.setSearchQuery(value);
+                setState(() {
+                  _currentPage = 1;
+                });
+              },
               decoration: InputDecoration(
                 hintText:
                 'Tìm theo số hóa đơn, đơn vị bán, MST...',
@@ -331,6 +450,9 @@ class _InvoiceListScreenState
                   onPressed: () {
                     _searchController.clear();
                     provider.setSearchQuery('');
+                    setState(() {
+                      _currentPage = 1;
+                    });
                   },
                   icon: const Icon(
                     Icons.close_rounded,
@@ -369,6 +491,9 @@ class _InvoiceListScreenState
               onChanged: (value) {
                 if (value != null) {
                   provider.setStatusFilter(value);
+                  setState(() {
+                    _currentPage = 1;
+                  });
                 }
               },
             ),

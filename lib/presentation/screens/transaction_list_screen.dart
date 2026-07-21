@@ -23,6 +23,9 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
   String _selectedStatus = 'all'; // 'all', 'pending', 'confirmed', 'rejected'
   String _searchQuery = '';
 
+  static const int _itemsPerPage = 10;
+  int _currentPage = 1;
+
   @override
   void initState() {
     super.initState();
@@ -136,6 +139,7 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
       onChanged: (val) {
         setState(() {
           _searchQuery = val;
+          _currentPage = 1;
         });
       },
       decoration: InputDecoration(
@@ -164,6 +168,7 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
         onTap: () {
           setState(() {
             _selectedType = value;
+            _currentPage = 1;
           });
         },
         borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
@@ -219,6 +224,7 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
       onSelected: (val) {
         setState(() {
           _selectedStatus = val;
+          _currentPage = 1;
         });
       },
       itemBuilder: (context) => const [
@@ -234,17 +240,17 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
 
     final addButton = canCreate
         ? ElevatedButton.icon(
-            onPressed: () => context.push('/transactions/create'),
-            icon: const Icon(Icons.add, size: 18, color: Colors.white),
-            label: const Text('Thêm mới', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppDesignTokens.primary,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
-              ),
-            ),
-          )
+      onPressed: () => context.push('/transactions/create'),
+      icon: const Icon(Icons.add, size: 18, color: Colors.white),
+      label: const Text('Thêm mới', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppDesignTokens.primary,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
+        ),
+      ),
+    )
         : const SizedBox.shrink();
 
     return LayoutBuilder(
@@ -296,6 +302,94 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
           );
         }
       },
+    );
+  }
+
+
+  Widget _buildPagination({
+    required int totalItems,
+    required bool isDark,
+  }) {
+    final totalPages = (totalItems / _itemsPerPage).ceil();
+
+    if (totalPages <= 1) {
+      return const SizedBox.shrink();
+    }
+
+    final startItem = ((_currentPage - 1) * _itemsPerPage) + 1;
+    final endItem = (_currentPage * _itemsPerPage).clamp(0, totalItems);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppDesignTokens.spaceLg,
+        AppDesignTokens.spaceSm,
+        AppDesignTokens.spaceLg,
+        AppDesignTokens.spaceMd,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Hiển thị $startItem–$endItem trên $totalItems giao dịch',
+              style: TextStyle(
+                fontSize: 12,
+                color: isDark
+                    ? AppDesignTokens.darkTextSecondary
+                    : AppDesignTokens.lightTextSecondary,
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Trang trước',
+            onPressed: _currentPage > 1
+                ? () {
+              setState(() {
+                _currentPage--;
+              });
+            }
+                : null,
+            icon: const Icon(Icons.chevron_left_rounded),
+          ),
+          Container(
+            constraints: const BoxConstraints(minWidth: 74),
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 8,
+            ),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? AppDesignTokens.darkSurfaceCard
+                  : Colors.white,
+              borderRadius: BorderRadius.circular(
+                AppDesignTokens.radiusSm,
+              ),
+              border: Border.all(
+                color: isDark
+                    ? AppDesignTokens.darkBorder
+                    : AppDesignTokens.lightBorder,
+              ),
+            ),
+            child: Text(
+              '$_currentPage/$totalPages',
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Trang sau',
+            onPressed: _currentPage < totalPages
+                ? () {
+              setState(() {
+                _currentPage++;
+              });
+            }
+                : null,
+            icon: const Icon(Icons.chevron_right_rounded),
+          ),
+        ],
+      ),
     );
   }
 
@@ -371,7 +465,23 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
             }
             final balance = totalIncome - totalExpense;
 
-            final filteredTxs = _getFilteredTransactions(provider.transactions);
+            final filteredTxs =
+            _getFilteredTransactions(provider.transactions);
+
+            final totalPages =
+            (filteredTxs.length / _itemsPerPage).ceil();
+
+            if (totalPages > 0 && _currentPage > totalPages) {
+              _currentPage = totalPages;
+            }
+
+            final startIndex =
+                (_currentPage - 1) * _itemsPerPage;
+
+            final pagedTransactions = filteredTxs
+                .skip(startIndex)
+                .take(_itemsPerPage)
+                .toList(growable: false);
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -393,9 +503,9 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                           Text(
                             'Lịch sử giao dịch',
                             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 20,
-                                ),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 20,
+                            ),
                           ),
                           Text(
                             '${provider.transactions.length} giao dịch · Tháng ${now.month}/${now.year}',
@@ -467,39 +577,45 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                     child: provider.transactions.isEmpty
                         ? TransactionEmptyState(onRefresh: _loadData)
                         : (filteredTxs.isEmpty
-                            ? const Center(
-                                child: Padding(
-                                  padding: EdgeInsets.all(AppDesignTokens.spaceLg),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(Icons.filter_list_off, size: 48, color: Colors.grey),
-                                      SizedBox(height: 8),
-                                      Text(
-                                        'Không tìm thấy giao dịch phù hợp với bộ lọc.',
-                                        style: TextStyle(color: Colors.grey),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              )
-                            : LayoutBuilder(
-                                builder: (context, constraints) {
-                                  if (constraints.maxWidth >= 900) {
-                                    return TransactionListDesktop(
-                                      transactions: filteredTxs,
-                                      onDelete: (id) => provider.deleteTransaction(id, userId),
-                                    );
-                                  } else {
-                                    return TransactionListMobile(
-                                      transactions: filteredTxs,
-                                      onDelete: (id) => provider.deleteTransaction(id, userId),
-                                    );
-                                  }
-                                },
-                              )),
+                        ? const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(AppDesignTokens.spaceLg),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.filter_list_off, size: 48, color: Colors.grey),
+                            SizedBox(height: 8),
+                            Text(
+                              'Không tìm thấy giao dịch phù hợp với bộ lọc.',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                        : LayoutBuilder(
+                      builder: (context, constraints) {
+                        if (constraints.maxWidth >= 900) {
+                          return TransactionListDesktop(
+                            transactions: pagedTransactions,
+                            onDelete: (id) => provider.deleteTransaction(id, userId),
+                          );
+                        } else {
+                          return TransactionListMobile(
+                            transactions: pagedTransactions,
+                            onDelete: (id) => provider.deleteTransaction(id, userId),
+                          );
+                        }
+                      },
+                    )),
                   ),
                 ),
+
+                if (filteredTxs.isNotEmpty)
+                  _buildPagination(
+                    totalItems: filteredTxs.length,
+                    isDark: isDark,
+                  ),
               ],
             );
           },

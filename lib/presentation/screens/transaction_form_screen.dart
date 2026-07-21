@@ -42,6 +42,11 @@ class TransactionFormScreen extends StatefulWidget {
 class _TransactionFormScreenState extends State<TransactionFormScreen> {
   final _formKey = GlobalKey<FormState>();
 
+  // Giới hạn nghiệp vụ: tối đa 999.999.999.999 VND.
+  // 12 chữ số cũng an toàn khi chạy Flutter Web và đủ cho giao dịch SME.
+  static const int _maxMoneyVnd = 999999999999;
+  static const int _maxMoneyDigits = 12;
+
   late final TextEditingController _amountController;
   late final TextEditingController _noteController;
 
@@ -107,11 +112,54 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     });
   }
 
+  String? _validateMoney(
+      String? value, {
+        required String fieldName,
+      }) {
+    final text = value?.trim() ?? '';
+
+    if (text.isEmpty) {
+      return 'Vui lòng nhập $fieldName';
+    }
+
+    if (!RegExp(r'^\d+$').hasMatch(text)) {
+      return '$fieldName chỉ được chứa chữ số';
+    }
+
+    // Kiểm tra độ dài trước khi parse để chặn chuỗi số cực lớn.
+    if (text.length > _maxMoneyDigits) {
+      return '$fieldName không được vượt quá 999.999.999.999 đ';
+    }
+
+    final amount = int.tryParse(text);
+    if (amount == null || amount <= 0) {
+      return '$fieldName phải lớn hơn 0';
+    }
+
+    if (amount > _maxMoneyVnd) {
+      return '$fieldName không được vượt quá 999.999.999.999 đ';
+    }
+
+    return null;
+  }
+
   void _updateTotalAmount() {
     if (_type != 'thu') return;
-    final subTotal = int.tryParse(_subTotalController.text) ?? 0;
-    final total = FinanceCalculationService.calculateTotalInvoiceAmount(subTotal, _vatRate.round());
-    if (total > 0) {
+
+    final text = _subTotalController.text.trim();
+    if (_validateMoney(text, fieldName: 'Tiền hàng') != null) {
+      _amountController.text = '';
+      return;
+    }
+
+    final subTotal = int.parse(text);
+    final total = FinanceCalculationService.calculateTotalInvoiceAmount(
+      subTotal,
+      _vatRate.round(),
+    );
+
+    // Tổng tiền sau VAT cũng không được vượt giới hạn.
+    if (total > 0 && total <= _maxMoneyVnd) {
       _amountController.text = total.toString();
     } else {
       _amountController.text = '';
@@ -215,12 +263,15 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     final amountText = _amountController.text.trim();
     final amount = int.tryParse(amountText);
 
-    if (amount == null || amount <= 0) {
+    final amountError = _validateMoney(
+      amountText,
+      fieldName: 'Số tiền',
+    );
+
+    if (amountError != null || amount == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Vui lòng nhập số tiền lớn hơn 0.',
-          ),
+        SnackBar(
+          content: Text(amountError ?? 'Số tiền không hợp lệ.'),
           backgroundColor: AppDesignTokens.error,
           behavior: SnackBarBehavior.floating,
         ),
@@ -236,12 +287,33 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
         _subTotalController.text.trim(),
       );
 
-      if (validatedSubTotal == null ||
-          validatedSubTotal <= 0) {
+      final subTotalError = _validateMoney(
+        _subTotalController.text,
+        fieldName: 'Tiền hàng',
+      );
+
+      if (subTotalError != null || validatedSubTotal == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(subTotalError ?? 'Tiền hàng không hợp lệ.'),
+            backgroundColor: AppDesignTokens.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
+      final calculatedTotal =
+      FinanceCalculationService.calculateTotalInvoiceAmount(
+        validatedSubTotal,
+        _vatRate.round(),
+      );
+
+      if (calculatedTotal > _maxMoneyVnd) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Vui lòng nhập tiền hàng lớn hơn 0.',
+              'Tổng tiền sau VAT không được vượt quá 999.999.999.999 đ.',
             ),
             backgroundColor: AppDesignTokens.error,
             behavior: SnackBarBehavior.floating,
@@ -608,8 +680,8 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                 Text(
                   'Quyền truy cập bị từ chối',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: AppDesignTokens.spaceSm),
                 Text(
@@ -727,11 +799,11 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                             child: InkWell(
                               onTap: RbacPermissionService.canCreateExpenseTransaction(user)
                                   ? () {
-                                      setState(() {
-                                        _type = 'chi';
-                                        _updateTotalAmount();
-                                      });
-                                    }
+                                setState(() {
+                                  _type = 'chi';
+                                  _updateTotalAmount();
+                                });
+                              }
                                   : null,
                               borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
                               child: AnimatedContainer(
@@ -750,8 +822,8 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                                     color: _type == 'chi'
                                         ? Colors.white
                                         : (RbacPermissionService.canCreateExpenseTransaction(user)
-                                            ? (isDark ? AppDesignTokens.darkTextPrimary : AppDesignTokens.lightTextPrimary)
-                                            : Colors.grey),
+                                        ? (isDark ? AppDesignTokens.darkTextPrimary : AppDesignTokens.lightTextPrimary)
+                                        : Colors.grey),
                                   ),
                                 ),
                               ),
@@ -786,14 +858,12 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                   keyboardType: TextInputType.number,
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(_maxMoneyDigits),
                   ],
-                  validator: (value) {
-                    final amount = int.tryParse(value ?? '');
-                    if (amount == null || amount <= 0) {
-                      return 'Số tiền phải là số nguyên dương';
-                    }
-                    return null;
-                  },
+                  validator: (value) => _validateMoney(
+                    value,
+                    fieldName: 'Số tiền',
+                  ),
                 ),
                 const SizedBox(height: 20),
 
@@ -1055,15 +1125,16 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                             prefixIcon: const Icon(Icons.monetization_on_outlined),
                           ),
                           keyboardType: TextInputType.number,
-                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(_maxMoneyDigits),
+                          ],
                           validator: (value) {
-                            if (_type == 'thu') {
-                              final amount = int.tryParse(value ?? '');
-                              if (amount == null || amount <= 0) {
-                                return 'Nhập tiền hàng';
-                              }
-                            }
-                            return null;
+                            if (_type != 'thu') return null;
+                            return _validateMoney(
+                              value,
+                              fieldName: 'Tiền hàng',
+                            );
                           },
                         ),
                       ),
