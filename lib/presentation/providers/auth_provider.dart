@@ -146,13 +146,26 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> changePassword(String oldPassword, String newPassword) async {
+    _setActionLoading(true);
+    _clearError();
+    try {
+      await _authRepository.changePassword(oldPassword, newPassword);
+    } catch (e) {
+      _setError(e.toString().replaceAll('Exception: ', ''));
+      rethrow;
+    } finally {
+      _setActionLoading(false);
+    }
+  }
+
   void _setActionLoading(bool value) {
     _isActionLoading = value;
     notifyListeners();
   }
 
   void _setError(String message) {
-    _errorMessage = message;
+    _errorMessage = message.replaceAll('Exception: ', '');
     notifyListeners();
   }
 

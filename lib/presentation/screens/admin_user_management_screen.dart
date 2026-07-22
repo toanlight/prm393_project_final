@@ -72,6 +72,11 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
       color: AppDesignTokens.success,
       icon: Icons.business_rounded,
     ),
+    'viewer': const _RoleMeta(
+      name: 'Người xem',
+      color: Colors.grey,
+      icon: Icons.visibility_rounded,
+    ),
   };
 
   _RoleMeta _getRoleMeta(String roleId) {
@@ -113,10 +118,26 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
       appBar: AppBar(
         title: const Text('Quản lý người dùng'),
         actions: [
+          ElevatedButton.icon(
+            onPressed: _showCreateUserBottomSheet,
+            icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+            label: const Text('Thêm thành viên'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppDesignTokens.primary,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: AppDesignTokens.spaceMd),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSm),
+              ),
+            ),
+          ),
+          const SizedBox(width: AppDesignTokens.spaceSm),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             onPressed: () => provider.fetchUsers(),
           ),
+          const SizedBox(width: AppDesignTokens.spaceSm),
         ],
       ),
       body: Center(
@@ -246,7 +267,7 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
               Expanded(
                 child: provider.isLoading
                     ? const Center(child: CircularProgressIndicator())
-                    : provider.errorMessage != null
+                    : provider.loadError != null
                         ? Center(
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -254,7 +275,7 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
                                 const Icon(Icons.error_outline_rounded, size: 48, color: AppDesignTokens.error),
                                 const SizedBox(height: AppDesignTokens.spaceSm),
                                 Text(
-                                  'Đã xảy ra lỗi:\n${provider.errorMessage}',
+                                  'Đã xảy ra lỗi:\n${provider.loadError}',
                                   textAlign: TextAlign.center,
                                   style: const TextStyle(color: AppDesignTokens.error),
                                 ),
@@ -324,7 +345,7 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
                                 },
                               ),
               ),
-              if (!provider.isLoading && provider.errorMessage == null && filteredUsers.isNotEmpty)
+              if (!provider.isLoading && provider.loadError == null && filteredUsers.isNotEmpty)
                 _buildPaginationControls(totalPages, filteredUsers.length, isDark),
             ],
           ),
@@ -823,6 +844,7 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
           
           final infoText = Text(
             'Hiển thị $startIndex-$endIndex trong số $totalItems người dùng',
+            textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 13,
               color: isDark ? AppDesignTokens.darkTextSecondary : AppDesignTokens.lightTextSecondary,
@@ -861,12 +883,17 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
           );
 
           if (isSmall) {
-            return Column(
-              children: [
-                infoText,
-                const SizedBox(height: AppDesignTokens.spaceSm),
-                buttons,
-              ],
+            return SizedBox(
+              width: double.infinity,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  infoText,
+                  const SizedBox(height: AppDesignTokens.spaceSm),
+                  buttons,
+                ],
+              ),
             );
           } else {
             return Row(
@@ -936,6 +963,305 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
                   ),
           ),
         ),
+      ),
+    );
+  }
+
+  void _showCreateUserBottomSheet() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    // Form variables
+    String selectedRole = 'accountant'; // default role
+    final nameController = TextEditingController();
+    final emailController = TextEditingController();
+    final passwordController = TextEditingController();
+    final taxCodeController = TextEditingController();
+    
+    // Error variables
+    String? nameError;
+    String? emailError;
+    String? passwordError;
+    String? taxCodeError;
+    
+    bool isCreating = false;
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (bottomSheetCtx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final isPartner = selectedRole == 'partner';
+            
+            return Container(
+              margin: const EdgeInsets.all(AppDesignTokens.spaceMd),
+              decoration: BoxDecoration(
+                color: isDark ? AppDesignTokens.darkSurface : Colors.white,
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusLg),
+                boxShadow: isDark ? AppDesignTokens.darkShadow : AppDesignTokens.lightShadow,
+                border: Border.all(
+                  color: isDark ? AppDesignTokens.darkBorder : AppDesignTokens.lightBorder,
+                ),
+              ),
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: AppDesignTokens.spaceLg,
+                  right: AppDesignTokens.spaceLg,
+                  top: AppDesignTokens.spaceLg,
+                  bottom: MediaQuery.of(context).viewInsets.bottom + AppDesignTokens.spaceLg,
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Tạo tài khoản mới',
+                            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close_rounded),
+                            onPressed: () => Navigator.pop(bottomSheetCtx),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppDesignTokens.spaceLg),
+                      
+                      // Full Name
+                      const Text('Họ và tên nhân viên', style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: AppDesignTokens.spaceXs),
+                      TextField(
+                        controller: nameController,
+                        decoration: InputDecoration(
+                          hintText: 'Nhập họ và tên...',
+                          border: const OutlineInputBorder(),
+                          errorText: nameError,
+                        ),
+                      ),
+                      const SizedBox(height: AppDesignTokens.spaceMd),
+
+                      // Email
+                      const Text('Email đăng nhập', style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: AppDesignTokens.spaceXs),
+                      TextField(
+                        controller: emailController,
+                        decoration: InputDecoration(
+                          hintText: 'Nhập email (ví dụ: employee@company.com)...',
+                          border: const OutlineInputBorder(),
+                          errorText: emailError,
+                        ),
+                        keyboardType: TextInputType.emailAddress,
+                      ),
+                      const SizedBox(height: AppDesignTokens.spaceMd),
+
+                      // Password
+                      const Text('Mật khẩu khởi tạo', style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: AppDesignTokens.spaceXs),
+                      TextField(
+                        controller: passwordController,
+                        decoration: InputDecoration(
+                          hintText: 'Nhập mật khẩu (tối thiểu 6 ký tự)...',
+                          border: const OutlineInputBorder(),
+                          errorText: passwordError,
+                        ),
+                        obscureText: true,
+                      ),
+                      const SizedBox(height: AppDesignTokens.spaceMd),
+
+                      // Role Select Dropdown
+                      const Text('Vai trò hệ thống', style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: AppDesignTokens.spaceXs),
+                      DropdownButtonFormField<String>(
+                        value: selectedRole,
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                        ),
+                        items: _roleMetas.entries.map((entry) {
+                          return DropdownMenuItem<String>(
+                            value: entry.key,
+                            child: Row(
+                              children: [
+                                Icon(entry.value.icon, size: 18, color: entry.value.color),
+                                const SizedBox(width: 8),
+                                Text(entry.value.name),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setModalState(() {
+                              selectedRole = val;
+                              // clear tax code error when role changes
+                              taxCodeError = null;
+                            });
+                          }
+                        },
+                      ),
+                      const SizedBox(height: AppDesignTokens.spaceMd),
+
+                      // Tax code field (partner only)
+                      if (isPartner) ...[
+                        const Text('Mã số thuế doanh nghiệp', style: TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: AppDesignTokens.spaceXs),
+                        TextField(
+                          controller: taxCodeController,
+                          decoration: InputDecoration(
+                            hintText: 'Nhập mã số thuế (bắt buộc cho Đối tác)...',
+                            border: const OutlineInputBorder(),
+                            errorText: taxCodeError,
+                          ),
+                          keyboardType: TextInputType.number,
+                        ),
+                        const SizedBox(height: AppDesignTokens.spaceMd),
+                      ],
+
+                      const SizedBox(height: AppDesignTokens.spaceLg),
+
+                      // Actions
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: isCreating ? null : () => Navigator.pop(bottomSheetCtx),
+                              child: const Text('Hủy'),
+                            ),
+                          ),
+                          const SizedBox(width: AppDesignTokens.spaceMd),
+                          Expanded(
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppDesignTokens.primary,
+                                foregroundColor: Colors.white,
+                              ),
+                              onPressed: isCreating
+                                  ? null
+                                  : () async {
+                                      final fullName = nameController.text.trim();
+                                      final email = emailController.text.trim();
+                                      final password = passwordController.text;
+                                      final taxCode = taxCodeController.text.trim();
+
+                                      // Clear previous errors
+                                      setModalState(() {
+                                        nameError = null;
+                                        emailError = null;
+                                        passwordError = null;
+                                        taxCodeError = null;
+                                      });
+
+                                      bool hasValidationError = false;
+
+                                      if (fullName.isEmpty) {
+                                        setModalState(() {
+                                          nameError = 'Họ và tên không được bỏ trống!';
+                                        });
+                                        hasValidationError = true;
+                                      }
+
+                                      if (email.isEmpty || !email.contains('@')) {
+                                        setModalState(() {
+                                          emailError = 'Email đăng nhập không hợp lệ!';
+                                        });
+                                        hasValidationError = true;
+                                      }
+
+                                      if (password.length < 6) {
+                                        setModalState(() {
+                                          passwordError = 'Mật khẩu khởi tạo phải từ 6 ký tự trở lên!';
+                                        });
+                                        hasValidationError = true;
+                                      }
+
+                                      if (selectedRole == 'partner' && taxCode.isEmpty) {
+                                        setModalState(() {
+                                          taxCodeError = 'Vui lòng nhập Mã số thuế cho Đối tác!';
+                                        });
+                                        hasValidationError = true;
+                                      }
+
+                                      if (hasValidationError) {
+                                        return;
+                                      }
+
+                                      setModalState(() {
+                                        isCreating = true;
+                                      });
+
+                                      final success = await context.read<UserManagementProvider>().createUser(
+                                        email: email,
+                                        password: password,
+                                        fullName: fullName,
+                                        roleId: selectedRole,
+                                        taxCode: selectedRole == 'partner' ? taxCode : null,
+                                      );
+
+                                      if (success) {
+                                        if (mounted) {
+                                          Navigator.pop(bottomSheetCtx);
+                                          _showSnackBar('Tạo tài khoản thành công!');
+                                        }
+                                      } else {
+                                        setModalState(() {
+                                          isCreating = false;
+                                        });
+                                        if (mounted) {
+                                          showDialog(
+                                            context: context,
+                                            builder: (errCtx) => AlertDialog(
+                                              title: const Text('Lỗi tạo tài khoản'),
+                                              content: Text(
+                                                'Không thể tạo tài khoản:\n${context.read<UserManagementProvider>().errorMessage}',
+                                              ),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () => Navigator.pop(errCtx),
+                                                  child: const Text('Đóng'),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        }
+                                      }
+                                    },
+                              child: isCreating
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      ),
+                                    )
+                                  : const Text('Tạo tài khoản'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showSnackBar(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? AppDesignTokens.error : AppDesignTokens.success,
       ),
     );
   }

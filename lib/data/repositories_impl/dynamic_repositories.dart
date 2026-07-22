@@ -53,6 +53,14 @@ class DynamicAuthRepository implements AuthRepository {
       _active.signUpWithEmailAndPassword(email, password, displayName);
 
   @override
+  Future<String> createUserInAuth(String email, String password) =>
+      _active.createUserInAuth(email, password);
+
+  @override
+  Future<void> changePassword(String oldPassword, String newPassword) =>
+      _active.changePassword(oldPassword, newPassword);
+
+  @override
   Future<void> signOut() async {
     await _mock.signOut();
     try {

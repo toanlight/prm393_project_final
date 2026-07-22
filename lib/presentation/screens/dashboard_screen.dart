@@ -11,6 +11,7 @@ import '../../domain/models/category_model.dart';
 import '../../domain/models/mock_chart_data.dart' hide kpiCards, monthlyData, spendingData, trendData;
 import '../../domain/models/transaction_model.dart';
 import '../../domain/models/transaction_type.dart';
+import '../../domain/services/finance_calculation_service.dart';
 import '../../domain/repositories/category_repository.dart';
 import '../../presentation/providers/auth_provider.dart';
 import '../../presentation/providers/transaction_provider.dart';
@@ -114,9 +115,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   int _getSumForPeriod(List<TransactionModel> txs, TransactionType type) {
-    return txs
-        .where((tx) => tx.type == type)
-        .fold<int>(0, (sum, tx) => sum + tx.amount);
+    return FinanceCalculationService.calculateSumForPeriod(txs, type);
   }
 
   List<TransactionModel> _getPreviousPeriodTransactions(List<TransactionModel> allTxs) {
@@ -147,18 +146,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<KpiData> _calculateKpis(List<TransactionModel> filtered, List<TransactionModel> all) {
     final income = _getSumForPeriod(filtered, TransactionType.income);
     final expense = _getSumForPeriod(filtered, TransactionType.expense);
-    final balance = income - expense;
+    final balance = FinanceCalculationService.calculateNetBalance(income, expense);
 
     final prevTxs = _getPreviousPeriodTransactions(all);
     final prevIncome = _getSumForPeriod(prevTxs, TransactionType.income);
     final prevExpense = _getSumForPeriod(prevTxs, TransactionType.expense);
-    final prevBalance = prevIncome - prevExpense;
+    final prevBalance = FinanceCalculationService.calculateNetBalance(prevIncome, prevExpense);
 
     String getTrendStr(int current, int prev) {
-      if (prev == 0) return current == 0 ? "0%" : "+100%";
-      final pct = ((current - prev) / prev) * 100;
-      final sign = pct >= 0 ? "+" : "";
-      return "$sign${pct.toStringAsFixed(1)}%";
+      return FinanceCalculationService.calculateTrendPercentage(current, prev);
     }
 
     bool? getTrendUp(int current, int prev) {

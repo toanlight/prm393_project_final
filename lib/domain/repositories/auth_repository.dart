@@ -7,5 +7,7 @@ abstract class AuthRepository {
   Future<UserModel> signInAnonymously();
   Future<UserModel> signInWithEmailAndPassword(String email, String password);
   Future<UserModel> signUpWithEmailAndPassword(String email, String password, String displayName);
+  Future<String> createUserInAuth(String email, String password);
+  Future<void> changePassword(String oldPassword, String newPassword);
   Future<void> signOut();
 }

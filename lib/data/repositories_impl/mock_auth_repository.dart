@@ -143,6 +143,29 @@ class MockAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<String> createUserInAuth(String email, String password) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (email.isEmpty || !email.contains('@')) {
+      throw Exception('Email không hợp lệ!');
+    }
+    if (password.length < 6) {
+      throw Exception('Mật khẩu phải dài hơn 5 ký tự!');
+    }
+    return 'mock_user_${DateTime.now().millisecondsSinceEpoch}';
+  }
+
+  @override
+  Future<void> changePassword(String oldPassword, String newPassword) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (oldPassword.isEmpty) {
+      throw Exception('Mật khẩu cũ không chính xác.');
+    }
+    if (newPassword.length < 6) {
+      throw Exception('Mật khẩu mới phải dài hơn 5 ký tự!');
+    }
+  }
+
+  @override
   Future<void> signOut() async {
     await Future.delayed(const Duration(milliseconds: 200));
     _currentUser = null;
