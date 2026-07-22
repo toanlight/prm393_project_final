@@ -131,8 +131,32 @@ class SyncService {
 
           if (op.action == 'create' || op.action == 'update') {
             await docRef.set(op.payload ?? {});
+
+            // Nếu sync hóa đơn, đồng thời cập nhật transaction tương ứng
+            if (op.collection == 'invoices' && op.payload != null) {
+              final txId = op.payload!['transactionId'] as String?;
+              final invId = op.payload!['invoiceId'] as String?;
+              final scanId = op.payload!['scanId'] as String?;
+              if (txId != null && txId.isNotEmpty && invId != null && invId.isNotEmpty) {
+                await firestore.collection('transactions').doc(txId).set({
+                  'invoiceId': invId,
+                  if (scanId != null) 'scanId': scanId,
+                }, SetOptions(merge: true));
+                debugPrint('✅ Synced linked transaction for invoice: $txId');
+              }
+            }
           } else if (op.action == 'delete') {
             await docRef.delete();
+
+            if (op.collection == 'invoices' && op.payload != null) {
+              final txId = op.payload!['transactionId'] as String?;
+              if (txId != null && txId.isNotEmpty) {
+                await firestore.collection('transactions').doc(txId).set({
+                  'invoiceId': FieldValue.delete(),
+                  'scanId': FieldValue.delete(),
+                }, SetOptions(merge: true));
+              }
+            }
           }
 
           // Successfully synced, remove from queue

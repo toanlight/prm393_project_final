@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'transaction_type.dart';
 
@@ -94,6 +95,17 @@ class TransactionModel {
       return DateTime.now();
     }
 
+    final rawType = map['type']?.toString().toLowerCase().trim();
+    final TransactionType parsedType;
+    if (rawType == 'expense' || rawType == 'chi') {
+      parsedType = TransactionType.expense;
+    } else if (rawType == 'income' || rawType == 'thu') {
+      parsedType = TransactionType.income;
+    } else {
+      debugPrint('⚠️ TransactionModel.fromMap: Unknown transaction type "$rawType", defaulting to expense');
+      parsedType = TransactionType.expense;
+    }
+
     return TransactionModel(
       transactionId: map['transactionId'] ?? map['id'] ?? '',
       userId: map['userId'] ?? map['createdBy'] ?? '',
@@ -103,7 +115,7 @@ class TransactionModel {
       amount: map['amount'] is int 
           ? map['amount'] 
           : (map['amount'] as num?)?.toInt() ?? (map['amountVnd'] is int ? map['amountVnd'] : (map['amountVnd'] as num?)?.toInt()) ?? 0,
-      type: map['type'] == 'expense' ? TransactionType.expense : TransactionType.income,
+      type: parsedType,
       transactionDate: parseDate(map['transactionDate'] ?? map['date']),
       note: map['note'] ?? '',
       receiptImage: map['receiptImage'] ?? map['receiptImageUrl'],

@@ -264,9 +264,62 @@ class FirebaseInvoiceRepository implements InvoiceRepository {
         collection: _invoiceCollection,
         action: 'delete',
         documentId: invoiceId,
+        payload: {
+          'transactionId': transactionId,
+          'invoiceId': invoiceId,
+        },
       );
 
       rethrow;
+    }
+  }
+
+  @override
+  Future<bool> checkDuplicateInvoice(
+    String taxCode,
+    String invoiceNumber, {
+    String? excludeInvoiceId,
+  }) async {
+    try {
+      final cleanTaxCode = taxCode.trim();
+      final cleanInvoiceNumber = invoiceNumber.trim();
+
+      if (cleanTaxCode.isEmpty || cleanInvoiceNumber.isEmpty) {
+        return false;
+      }
+
+      final querySnapshot = await _firestore
+          .collection(_invoiceCollection)
+          .where('taxCode', isEqualTo: cleanTaxCode)
+          .where('invoiceNumber', isEqualTo: cleanInvoiceNumber)
+          .limit(2)
+          .get();
+
+      for (final doc in querySnapshot.docs) {
+        if (excludeInvoiceId == null || doc.id != excludeInvoiceId) {
+          return true;
+        }
+      }
+
+      // Kiểm tra trong Hive cache nếu đang offline
+      final box = await Hive.openBox(_cacheBoxName);
+      for (final raw in box.values) {
+        try {
+          final map = Map<String, dynamic>.from(raw as Map);
+          if (map['taxCode'] == cleanTaxCode &&
+              map['invoiceNumber'] == cleanInvoiceNumber) {
+            final id = map['invoiceId'] as String?;
+            if (excludeInvoiceId == null || id != excludeInvoiceId) {
+              return true;
+            }
+          }
+        } catch (_) {}
+      }
+
+      return false;
+    } catch (e) {
+      debugPrint('[InvoiceRepository] checkDuplicateInvoice error: $e');
+      return false;
     }
   }
 

@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
+import '../../domain/models/invoice_status.dart';
 import '../../domain/models/transaction_model.dart';
+import '../../domain/models/transaction_status.dart';
 import '../../domain/repositories/invoice_repository.dart';
 import '../../domain/repositories/transaction_repository.dart';
 
-enum TransactionStatus { initial, loading, success, error }
+enum TransactionProviderStatus { initial, loading, success, error }
 
 class TransactionProvider with ChangeNotifier {
   final TransactionRepository _transactionRepository;
 
   List<TransactionModel> _transactions = [];
-  TransactionStatus _status = TransactionStatus.initial;
+  TransactionProviderStatus _status = TransactionProviderStatus.initial;
   String _errorMessage = '';
 
   TransactionProvider({
@@ -17,42 +19,61 @@ class TransactionProvider with ChangeNotifier {
   }) : _transactionRepository = transactionRepository;
 
   List<TransactionModel> get transactions => _transactions;
-  TransactionStatus get status => _status;
+  TransactionProviderStatus get status => _status;
   String get errorMessage => _errorMessage;
 
-  bool get isLoading => _status == TransactionStatus.loading;
-  bool get isError => _status == TransactionStatus.error;
-  bool get isSuccess => _status == TransactionStatus.success;
+  bool get isLoading => _status == TransactionProviderStatus.loading;
+  bool get isError => _status == TransactionProviderStatus.error;
+  bool get isSuccess => _status == TransactionProviderStatus.success;
 
   Future<void> fetchTransactions(String userId, {String? roleId}) async {
-    _status = TransactionStatus.loading;
+    _status = TransactionProviderStatus.loading;
     _errorMessage = '';
     notifyListeners();
 
     try {
       final list = await _transactionRepository.getTransactions(userId, roleId: roleId);
       _transactions = List.from(list);
-      // Sắp xếp giao dịch mới nhất lên đầu
-      _transactions.sort((a, b) => b.date.compareTo(a.date));
-      _status = TransactionStatus.success;
+      _status = TransactionProviderStatus.success;
     } catch (e) {
-      _status = TransactionStatus.error;
+      _status = TransactionProviderStatus.error;
       _errorMessage = e.toString();
     }
     notifyListeners();
   }
 
-  Future<void> deleteTransaction(String id, String userId) async {
-    // Không chuyển trạng thái sang loading chính để tránh biến mất toàn bộ danh sách,
-    // nhưng ta có thể xóa tạm thời phần tử khỏi danh sách hoặc hiển thị loading riêng.
+  Future<void> deleteTransaction(
+    String id,
+    String userId, {
+    InvoiceRepository? invoiceRepository,
+  }) async {
     try {
+      final index = _transactions.indexWhere((t) => t.id == id);
+      if (index != -1) {
+        final tx = _transactions[index];
+        // Quy tắc BA: Giao dịch đã xác nhận (confirmed) tuyệt đối không cho phép xóa
+        if (tx.status.toLowerCase() == 'confirmed') {
+          throw StateError('Giao dịch đã xác nhận không thể xóa.');
+        }
+
+        // Cascade xóa hóa đơn liên kết nếu có
+        if (tx.invoiceId != null && tx.invoiceId!.isNotEmpty && invoiceRepository != null) {
+          try {
+            await invoiceRepository.deleteInvoice(tx.transactionId, tx.invoiceId!);
+          } catch (e) {
+            debugPrint('⚠️ Lỗi xóa hóa đơn liên kết: $e');
+          }
+        }
+      }
+
       await _transactionRepository.deleteTransaction(id);
       _transactions.removeWhere((t) => t.id == id);
       notifyListeners();
     } catch (e) {
-      _status = TransactionStatus.error;
+      _status = TransactionProviderStatus.error;
       _errorMessage = 'Không thể xóa giao dịch: ${e.toString()}';
       notifyListeners();
+      rethrow;
     }
   }
 
@@ -60,10 +81,9 @@ class TransactionProvider with ChangeNotifier {
     try {
       await _transactionRepository.createTransaction(transaction);
       _transactions.insert(0, transaction);
-      _transactions.sort((a, b) => b.date.compareTo(a.date));
       notifyListeners();
     } catch (e) {
-      _status = TransactionStatus.error;
+      _status = TransactionProviderStatus.error;
       _errorMessage = 'Không thể thêm giao dịch: ${e.toString()}';
       notifyListeners();
       rethrow;
@@ -76,11 +96,10 @@ class TransactionProvider with ChangeNotifier {
       final index = _transactions.indexWhere((t) => t.id == transaction.id);
       if (index != -1) {
         _transactions[index] = transaction;
-        _transactions.sort((a, b) => b.date.compareTo(a.date));
         notifyListeners();
       }
     } catch (e) {
-      _status = TransactionStatus.error;
+      _status = TransactionProviderStatus.error;
       _errorMessage = 'Không thể cập nhật giao dịch: ${e.toString()}';
       notifyListeners();
       rethrow;
@@ -101,12 +120,14 @@ class TransactionProvider with ChangeNotifier {
         await _transactionRepository.updateTransaction(updatedTx);
         _transactions[index] = updatedTx;
 
-        // Đồng bộ trạng thái Hóa đơn liên kết nếu có
+        // Đồng bộ trạng thái Hóa đơn liên kết theo đúng InvoiceStatus enum
         if (currentTx.invoiceId != null && invoiceRepository != null) {
           try {
             final invoice = await invoiceRepository.getInvoiceForTransaction(currentTx.transactionId);
             if (invoice != null) {
-              final updatedInvoice = invoice.copyWith(status: newStatus);
+              final txDomainStatus = TransactionStatus.fromString(newStatus);
+              final mappedInvoiceStatus = InvoiceStatus.fromTransactionStatus(txDomainStatus).value;
+              final updatedInvoice = invoice.copyWith(status: mappedInvoiceStatus);
               await invoiceRepository.createInvoice(updatedInvoice);
             }
           } catch (e) {
@@ -117,7 +138,7 @@ class TransactionProvider with ChangeNotifier {
         notifyListeners();
       }
     } catch (e) {
-      _status = TransactionStatus.error;
+      _status = TransactionProviderStatus.error;
       _errorMessage = 'Không thể cập nhật trạng thái: ${e.toString()}';
       notifyListeners();
       rethrow;

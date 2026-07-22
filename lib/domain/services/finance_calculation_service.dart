@@ -42,10 +42,14 @@ class FinanceCalculationService {
     DateTime? startDate,
     DateTime? endDate,
   }) {
+    final effectiveEndDate = endDate != null
+        ? DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59, 999)
+        : null;
+
     return transactions.where((tx) {
       if (tx.type != type) return false;
       if (startDate != null && tx.date.isBefore(startDate)) return false;
-      if (endDate != null && tx.date.isAfter(endDate)) return false;
+      if (effectiveEndDate != null && tx.date.isAfter(effectiveEndDate)) return false;
       return true;
     }).fold(0, (sum, tx) => sum + tx.amountVnd);
   }
@@ -54,21 +58,21 @@ class FinanceCalculationService {
   static String calculateTrendPercentage(num current, num previous) {
     if (previous == 0) {
       if (current == 0) return '0%';
-      return '+100%';
+      return 'N/A';
     }
     final change = ((current - previous) / previous) * 100;
     final prefix = change > 0 ? '+' : '';
     return '$prefix${change.toStringAsFixed(1)}%';
   }
 
-  /// Calculates the VAT amount (Tiền thuế VAT) from subtotal (Tiền hàng) and rate (percentage as int e.g. 8 or 10).
-  static int calculateVatAmount(int subtotal, int vatRate) {
+  /// Calculates the VAT amount (Tiền thuế VAT) from subtotal (Tiền hàng) and rate (percentage e.g. 8, 8.5, 10).
+  static int calculateVatAmount(int subtotal, num vatRate) {
     if (subtotal < 0 || vatRate < 0) return 0;
     return ((subtotal * vatRate) / 100).round();
   }
 
   /// Calculates the total invoice payment (Tổng thanh toán = Tiền hàng + Tiền thuế VAT).
-  static int calculateTotalInvoiceAmount(int subtotal, int vatRate) {
+  static int calculateTotalInvoiceAmount(int subtotal, num vatRate) {
     final vatAmount = calculateVatAmount(subtotal, vatRate);
     return subtotal + vatAmount;
   }

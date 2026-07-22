@@ -20,4 +20,10 @@ abstract class InvoiceRepository {
       String transactionId,
       String invoiceId,
       );
+
+  Future<bool> checkDuplicateInvoice(
+    String taxCode,
+    String invoiceNumber, {
+    String? excludeInvoiceId,
+  });
 }

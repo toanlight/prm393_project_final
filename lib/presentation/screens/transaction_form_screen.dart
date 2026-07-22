@@ -142,26 +142,54 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     return null;
   }
 
-  void _updateTotalAmount() {
-    if (_type != 'thu') return;
+  String _generateUniqueId(String prefix) {
+    final ts = DateTime.now().microsecondsSinceEpoch;
+    final rand = (100000 + (ts % 900000)).toString();
+    return '${prefix}_${ts}_$rand';
+  }
 
+  bool _isDuplicateInvoice = false;
+
+  Future<void> _checkDuplicateInvoice() async {
+    final invoiceNumber = _invoiceNumberController.text.trim();
+    final taxCode = _taxCodeController.text.trim();
+
+    if (invoiceNumber.isEmpty || taxCode.isEmpty) {
+      if (_isDuplicateInvoice) {
+        setState(() => _isDuplicateInvoice = false);
+      }
+      return;
+    }
+
+    try {
+      final isDup = await context.read<InvoiceRepository>().checkDuplicateInvoice(
+        taxCode,
+        invoiceNumber,
+        excludeInvoiceId: widget.transactionToEdit?.invoiceId,
+      );
+
+      if (mounted && isDup != _isDuplicateInvoice) {
+        setState(() => _isDuplicateInvoice = isDup);
+      }
+    } catch (_) {}
+  }
+
+  void _updateTotalAmount() {
     final text = _subTotalController.text.trim();
+    if (text.isEmpty) return;
+
     if (_validateMoney(text, fieldName: 'Tiền hàng') != null) {
-      _amountController.text = '';
       return;
     }
 
     final subTotal = int.parse(text);
     final total = FinanceCalculationService.calculateTotalInvoiceAmount(
       subTotal,
-      _vatRate.round(),
+      _vatRate,
     );
 
-    // Tổng tiền sau VAT cũng không được vượt giới hạn.
     if (total > 0 && total <= _maxMoneyVnd) {
       _amountController.text = total.toString();
-    } else {
-      _amountController.text = '';
     }
   }
 
@@ -181,9 +209,8 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
           _taxCodeController.text = invoice.taxCode ?? '';
           _subTotalController.text = invoice.subTotal.toString();
           _vatRate = invoice.vatRate;
-
-
         });
+        _checkDuplicateInvoice();
       }
     } catch (e) {
       debugPrint("Lỗi tải hóa đơn liên kết: $e");
@@ -239,9 +266,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     if (_isSaving) return;
 
     // 1. Validate ngay trên thiết bị.
-    // Không bật loading, không upload ảnh, không gọi Firebase nếu form chưa hợp lệ.
-    final isFormValid =
-        _formKey.currentState?.validate() ?? false;
+    final isFormValid = _formKey.currentState?.validate() ?? false;
 
     if (!isFormValid) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -256,7 +281,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
       return;
     }
 
-    // 2. Parse số tiền một lần duy nhất.
+    // 2. Parse số tiền.
     final amountText = _amountController.text.trim();
     final amount = int.tryParse(amountText);
 
@@ -276,48 +301,31 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
       return;
     }
 
-    // 3. Kiểm tra riêng giao dịch Thu.
+    // 3. Quy tắc BA: Chi BẮT BUỘC có hóa đơn hợp lệ! Thu có thể có hoặc không.
     int? validatedSubTotal;
 
-    if (_type == 'thu') {
-      validatedSubTotal = int.tryParse(
-        _subTotalController.text.trim(),
-      );
+    if (_type == 'chi') {
+      final subText = _subTotalController.text.trim();
+      validatedSubTotal = int.tryParse(subText);
 
       final subTotalError = _validateMoney(
-        _subTotalController.text,
+        subText,
         fieldName: 'Tiền hàng',
       );
 
       if (subTotalError != null || validatedSubTotal == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(subTotalError ?? 'Tiền hàng không hợp lệ.'),
+            content: Text(subTotalError ?? 'Giao dịch Chi bắt buộc phải có thông tin Tiền hàng hóa đơn hợp lệ.'),
             backgroundColor: AppDesignTokens.error,
             behavior: SnackBarBehavior.floating,
           ),
         );
         return;
       }
-
-      final calculatedTotal =
-      FinanceCalculationService.calculateTotalInvoiceAmount(
-        validatedSubTotal,
-        _vatRate.round(),
-      );
-
-      if (calculatedTotal > _maxMoneyVnd) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Tổng tiền sau VAT không được vượt quá 999.999.999.999 đ.',
-            ),
-            backgroundColor: AppDesignTokens.error,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        return;
-      }
+    } else {
+      // Dành cho Thu (Income): Tiền hàng có thể lấy từ subTotal hoặc bằng chính amount
+      validatedSubTotal = int.tryParse(_subTotalController.text.trim());
     }
 
     // 4. Chỉ save form và bật loading sau khi dữ liệu hợp lệ.
@@ -325,38 +333,17 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
 
     setState(() => _isSaving = true);
 
-    final provider =
-    context.read<TransactionProvider>();
-    final invoiceRepository =
-    context.read<InvoiceRepository>();
-    final authProvider =
-    context.read<AuthProvider>();
+    final provider = context.read<TransactionProvider>();
+    final invoiceRepository = context.read<InvoiceRepository>();
+    final authProvider = context.read<AuthProvider>();
     final now = DateTime.now();
 
     try {
-      // 5. Kiểm tra Firebase Auth trước khi upload hoặc ghi dữ liệu.
-      final firebaseUser =
-          firebase_auth.FirebaseAuth.instance.currentUser;
-
-      debugPrint(
-        '[ReceiptUpload] AuthProvider UID='
-            '${authProvider.user?.uid}',
-      );
-
-      debugPrint(
-        '[ReceiptUpload] FirebaseAuth UID='
-            '${firebaseUser?.uid}',
-      );
-
-      debugPrint(
-        '[ReceiptUpload] FirebaseAuth email='
-            '${firebaseUser?.email}',
-      );
+      final firebaseUser = firebase_auth.FirebaseAuth.instance.currentUser;
 
       if (firebaseUser == null) {
         throw StateError(
-          'Phiên đăng nhập Firebase chưa sẵn sàng. '
-              'Vui lòng đăng nhập lại.',
+          'Phiên đăng nhập Firebase chưa sẵn sàng. Vui lòng đăng nhập lại.',
         );
       }
 
@@ -365,60 +352,41 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
       // 6. Tạo hoặc sử dụng lại transactionId.
       final transactionId = _isEditing
           ? widget.transactionToEdit!.transactionId
-          : 'tx_${now.microsecondsSinceEpoch}';
+          : _generateUniqueId('tx');
 
-      // 7. Xác định giao dịch có hóa đơn hay không.
-      final hasInvoiceInfo =
+      // 7. Quy tắc BA: Chi bắt buộc tạo Hóa đơn. Thu có Hóa đơn nếu nhập số HĐ/Đối tác/Ảnh.
+      final hasInvoiceInfo = _type == 'chi' ||
           _isFromOcr ||
-              _type == 'thu' ||
-              _pickedImageBytes != null ||
-              _invoiceNumberController.text
-                  .trim()
-                  .isNotEmpty ||
-              _partnerNameController.text
-                  .trim()
-                  .isNotEmpty;
+          _pickedImageBytes != null ||
+          _invoiceNumberController.text.trim().isNotEmpty ||
+          _partnerNameController.text.trim().isNotEmpty;
 
       // 8. Tạo hoặc sử dụng lại invoiceId.
       final String? invoiceId = hasInvoiceInfo
           ? (
-          _isEditing &&
-              widget.transactionToEdit!.invoiceId !=
-                  null
+          _isEditing && widget.transactionToEdit!.invoiceId != null
               ? widget.transactionToEdit!.invoiceId
-              : 'invoice_${now.microsecondsSinceEpoch}'
+              : _generateUniqueId('invoice')
       )
           : null;
 
       // 9. Xác định scanId.
       String? scanId = _isFromOcr
           ? widget.initialOcrData!.scanId
-          : (
-          _isEditing
-              ? widget.transactionToEdit!.scanId
-              : null
-      );
+          : (_isEditing ? widget.transactionToEdit!.scanId : null);
 
-      // 10. Lấy bytes ảnh.
       Uint8List? receiptBytes = _pickedImageBytes;
 
-
-
       if (receiptBytes != null) {
-        scanId ??=
-        'scan_${_type}_${now.microsecondsSinceEpoch}';
+        scanId ??= _generateUniqueId('scan_${_type}');
       }
 
-      // 11. Giữ URL ảnh cũ khi edit.
       String? receiptDownloadUrl = _isEditing
           ? widget.transactionToEdit!.receiptImage
           : null;
 
-      // 12. Chỉ upload sau khi toàn bộ dữ liệu đầu vào hợp lệ.
       if (receiptBytes != null && scanId != null) {
-        receiptDownloadUrl =
-        await FirebaseReceiptStorageService
-            .uploadReceipt(
+        receiptDownloadUrl = await FirebaseReceiptStorageService.uploadReceipt(
           userId: userId,
           transactionId: transactionId,
           scanId: scanId,
@@ -427,129 +395,72 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
         );
       }
 
-      // 13. Tạo TransactionModel.
       final transaction = TransactionModel(
         transactionId: transactionId,
         userId: userId,
-        categoryId:
-        _selectedCategoryId ?? 'cat_khac',
+        categoryId: _selectedCategoryId ?? 'cat_khac',
         invoiceId: invoiceId,
         scanId: scanId,
         amount: amount,
-        type: _type == 'thu'
-            ? TransactionType.income
-            : TransactionType.expense,
+        type: _type == 'thu' ? TransactionType.income : TransactionType.expense,
         transactionDate: _date,
         note: _noteController.text.trim(),
         receiptImage: receiptDownloadUrl,
-        status: _isEditing
-            ? widget.transactionToEdit!.status
-            : 'pending',
-        createdAt: _isEditing
-            ? widget.transactionToEdit!.createdAt
-            : now,
+        status: _isEditing ? widget.transactionToEdit!.status : 'pending',
+        createdAt: _isEditing ? widget.transactionToEdit!.createdAt : now,
       );
 
       bool transactionCreated = false;
-      bool invoiceChanged = false;
 
-      // 14. Lưu transaction.
       if (_isEditing) {
-        await provider.updateTransaction(
-          transaction,
-        );
+        await provider.updateTransaction(transaction);
       } else {
-        await provider.addTransaction(
-          transaction,
-        );
+        await provider.addTransaction(transaction);
         transactionCreated = true;
       }
 
-      // 15. Tạo hóa đơn từ OCR.
       if (_isFromOcr && invoiceId != null) {
-        final invoice =
-        widget.initialOcrData!.toInvoiceModel(
+        final invoice = widget.initialOcrData!.toInvoiceModel(
           invoiceId: invoiceId,
           transactionId: transactionId,
           createdBy: userId,
         );
-
-        await invoiceRepository.createInvoice(
-          invoice,
-        );
-
-        invoiceChanged = true;
-      }
-
-      // 16. Tạo hóa đơn nhập tay.
-      else if (hasInvoiceInfo &&
-          invoiceId != null) {
+        await invoiceRepository.createInvoice(invoice);
+      } else if (hasInvoiceInfo && invoiceId != null) {
         final totalAmount = amount;
+        final subTotal = validatedSubTotal ?? totalAmount;
+        final vatAmount = totalAmount - subTotal;
 
-        final subTotal = validatedSubTotal ??
-            int.tryParse(
-              _subTotalController.text.trim(),
-            ) ??
-            (
-                _type == 'thu'
-                    ? totalAmount
-                    : (
-                    totalAmount /
-                        (1 + _vatRate / 100)
-                ).round()
-            );
+        final invoiceNumberText = _invoiceNumberController.text.trim();
+        final partnerNameText = _partnerNameController.text.trim();
 
-        final vatAmount =
-            totalAmount - subTotal;
-
-        final invoiceNumberText =
-        _invoiceNumberController.text.trim();
-
-        final partnerNameText =
-        _partnerNameController.text.trim();
-
-        final invoiceNumber =
-        invoiceNumberText.isNotEmpty
+        final invoiceNumber = invoiceNumberText.isNotEmpty
             ? invoiceNumberText
-            : 'HĐ ${_type == 'thu' ? 'Thu' : 'Chi'} '
-            '#${now.millisecondsSinceEpoch.toString().substring(5)}';
+            : 'HĐ ${_type == 'thu' ? 'Thu' : 'Chi'} #${now.millisecondsSinceEpoch.toString().substring(5)}';
 
-        final partnerName =
-        partnerNameText.isNotEmpty
+        final partnerName = partnerNameText.isNotEmpty
             ? partnerNameText
-            : (
-            _type == 'thu'
-                ? 'Khách hàng'
-                : 'Nhà cung cấp / Đối tác'
-        );
+            : (_type == 'thu' ? 'Khách hàng' : 'Nhà cung cấp / Đối tác');
 
         final manualInvoice = InvoiceModel(
           invoiceId: invoiceId,
           transactionId: transactionId,
           invoiceNumber: invoiceNumber,
           partnerName: partnerName,
-          partnerAddress:
-          _partnerAddressController.text.trim(),
-          taxCode:
-          _taxCodeController.text.trim(),
+          partnerAddress: _partnerAddressController.text.trim(),
+          taxCode: _taxCodeController.text.trim(),
           invoiceDate: _date,
           subTotal: subTotal,
           vatRate: _vatRate,
-          vatAmount:
-          vatAmount > 0 ? vatAmount : 0,
+          vatAmount: vatAmount > 0 ? vatAmount : 0,
           totalAmount: totalAmount,
-          pdfPath:
-          'invoices/pdf/$invoiceId.pdf',
+          pdfPath: 'invoices/pdf/$invoiceId.pdf',
           createdBy: userId,
           scanId: scanId,
           status: transaction.status,
         );
 
-        await invoiceRepository.createInvoice(
-          manualInvoice,
-        );
-
-        invoiceChanged = true;
+        await invoiceRepository.createInvoice(manualInvoice);
       }
 
       // 17. Lưu OCR scan nếu có ảnh thật và invoice.
@@ -967,25 +878,53 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                   children: [
                     Icon(
                       Icons.receipt_long_rounded,
-                      color: _type == 'thu' ? AppDesignTokens.primary : AppDesignTokens.error,
+                      color: _type == 'chi' ? AppDesignTokens.error : AppDesignTokens.primary,
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      _type == 'thu'
-                          ? 'Thông tin hóa đơn (Bắt buộc)'
-                          : 'Thông tin hóa đơn / Chứng từ (Tùy chọn)',
+                      _type == 'chi'
+                          ? 'Thông tin hóa đơn (Bắt buộc cho Chi)'
+                          : 'Thông tin hóa đơn / Chứng từ (Tùy chọn cho Thu)',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: _type == 'thu' ? AppDesignTokens.primary : AppDesignTokens.error,
+                        color: _type == 'chi' ? AppDesignTokens.error : AppDesignTokens.primary,
                       ),
                     ),
                   ],
                 ),
                 Divider(
-                  color: _type == 'thu' ? AppDesignTokens.primary : AppDesignTokens.error,
+                  color: _type == 'chi' ? AppDesignTokens.error : AppDesignTokens.primary,
                   thickness: 1,
                 ),
                 const SizedBox(height: 16),
+
+                if (_isDuplicateInvoice) ...[
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.shade100,
+                      borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
+                      border: Border.all(color: Colors.amber.shade700),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.warning_amber_rounded, color: Colors.amber.shade900),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Cảnh báo: Hóa đơn có Số HĐ và Mã số thuế này đã tồn tại trên hệ thống.',
+                            style: TextStyle(
+                              color: Colors.amber.shade900,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
 
                 // Khối tải ảnh chứng từ / Hóa đơn
                 Container(
@@ -1000,7 +939,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _type == 'thu' ? 'Ảnh hóa đơn chứng từ' : 'Ảnh hóa đơn / Biên lai chi (Tùy chọn)',
+                        _type == 'chi' ? 'Ảnh hóa đơn / Biên lai chi *' : 'Ảnh hóa đơn chứng từ (Tùy chọn)',
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
@@ -1048,16 +987,17 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                 // Các trường chi tiết hóa đơn
                 TextFormField(
                   controller: _invoiceNumberController,
+                  onChanged: (_) => _checkDuplicateInvoice(),
                   decoration: InputDecoration(
-                    labelText: _type == 'thu' ? 'Số hóa đơn *' : 'Số hóa đơn (Nếu có)',
+                    labelText: _type == 'chi' ? 'Số hóa đơn *' : 'Số hóa đơn (Nếu có)',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
                     ),
                     prefixIcon: const Icon(Icons.numbers),
                   ),
                   validator: (value) {
-                    if (_type == 'thu' && (value == null || value.trim().isEmpty)) {
-                      return 'Vui lòng nhập số hóa đơn';
+                    if (_type == 'chi' && (value == null || value.trim().isEmpty)) {
+                      return 'Giao dịch Chi bắt buộc phải nhập số hóa đơn';
                     }
                     return null;
                   },
@@ -1066,15 +1006,15 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                 TextFormField(
                   controller: _partnerNameController,
                   decoration: InputDecoration(
-                    labelText: _type == 'thu' ? 'Tên đối tác *' : 'Tên nhà cung cấp / Đối tác (Nếu có)',
+                    labelText: _type == 'chi' ? 'Tên nhà cung cấp / Đối tác *' : 'Tên đối tác (Nếu có)',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
                     ),
                     prefixIcon: const Icon(Icons.business),
                   ),
                   validator: (value) {
-                    if (_type == 'thu' && (value == null || value.trim().isEmpty)) {
-                      return 'Vui lòng nhập tên đối tác';
+                    if (_type == 'chi' && (value == null || value.trim().isEmpty)) {
+                      return 'Giao dịch Chi bắt buộc nhập tên nhà cung cấp';
                     }
                     return null;
                   },
@@ -1093,6 +1033,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _taxCodeController,
+                  onChanged: (_) => _checkDuplicateInvoice(),
                   decoration: InputDecoration(
                     labelText: 'Mã số thuế',
                     border: OutlineInputBorder(
@@ -1101,65 +1042,65 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                     prefixIcon: const Icon(Icons.badge_outlined),
                   ),
                 ),
+                const SizedBox(height: 16),
 
-                if (_type == 'thu') ...[
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: TextFormField(
-                          controller: _subTotalController,
-                          decoration: InputDecoration(
-                            labelText: 'Tiền hàng *',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
-                            ),
-                            prefixIcon: const Icon(Icons.monetization_on_outlined),
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: TextFormField(
+                        controller: _subTotalController,
+                        decoration: InputDecoration(
+                          labelText: _type == 'chi' ? 'Tiền hàng *' : 'Tiền hàng (Nếu có)',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
                           ),
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                            LengthLimitingTextInputFormatter(_maxMoneyDigits),
-                          ],
-                          validator: (value) {
-                            if (_type != 'thu') return null;
+                          prefixIcon: const Icon(Icons.monetization_on_outlined),
+                        ),
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(_maxMoneyDigits),
+                        ],
+                        validator: (value) {
+                          if (_type == 'chi') {
                             return _validateMoney(
                               value,
                               fieldName: 'Tiền hàng',
                             );
-                          },
-                        ),
+                          }
+                          return null;
+                        },
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 1,
-                        child: DropdownButtonFormField<double>(
-                          value: _vatRate,
-                          decoration: InputDecoration(
-                            labelText: 'VAT %',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
-                            ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 1,
+                      child: DropdownButtonFormField<double>(
+                        value: _vatRate,
+                        decoration: InputDecoration(
+                          labelText: 'VAT %',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
                           ),
-                          items: const [
-                            DropdownMenuItem(value: 0.0, child: Text('0%')),
-                            DropdownMenuItem(value: 8.0, child: Text('8%')),
-                            DropdownMenuItem(value: 10.0, child: Text('10%')),
-                          ],
-                          onChanged: (val) {
-                            if (val != null) {
-                              setState(() {
-                                _vatRate = val;
-                                _updateTotalAmount();
-                              });
-                            }
-                          },
                         ),
+                        items: const [
+                          DropdownMenuItem(value: 0.0, child: Text('0%')),
+                          DropdownMenuItem(value: 8.0, child: Text('8%')),
+                          DropdownMenuItem(value: 10.0, child: Text('10%')),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() {
+                              _vatRate = val;
+                              _updateTotalAmount();
+                            });
+                          }
+                        },
                       ),
-                    ],
-                  ),
-                ],
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 32),
 
                 // 8. Thanh điều hướng dưới cùng (2 Button nằm ngang: Hủy 45%, Lưu 55%)

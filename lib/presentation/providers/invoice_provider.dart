@@ -61,14 +61,14 @@ class InvoiceProvider extends ChangeNotifier {
 
   List<InvoiceListEntry> get filteredItems {
     final query = _searchQuery.trim().toLowerCase();
+    final filterStatus = _statusFilter.trim().toLowerCase();
 
     return _items.where((entry) {
       final invoice = entry.invoice;
 
       final matchesStatus =
-          _statusFilter == 'all' ||
-              invoice.status.toLowerCase() ==
-                  _statusFilter.toLowerCase();
+          filterStatus == 'all' ||
+              invoice.status.toLowerCase() == filterStatus;
 
       if (!matchesStatus) {
         return false;
@@ -78,18 +78,17 @@ class InvoiceProvider extends ChangeNotifier {
         return true;
       }
 
-      final searchable = <String?>[
-        invoice.invoiceNumber,
-        invoice.partnerName,
-        invoice.taxCode,
-        entry.transaction.category,
-        entry.transaction.note,
-      ]
-          .whereType<String>()
-          .join(' ')
-          .toLowerCase();
+      final invNum = invoice.invoiceNumber?.toLowerCase() ?? '';
+      final partner = invoice.partnerName?.toLowerCase() ?? '';
+      final tax = invoice.taxCode?.toLowerCase() ?? '';
+      final cat = entry.transaction.category.toLowerCase();
+      final note = entry.transaction.note.toLowerCase();
 
-      return searchable.contains(query);
+      return invNum.contains(query) ||
+          partner.contains(query) ||
+          tax.contains(query) ||
+          cat.contains(query) ||
+          note.contains(query);
     }).toList(growable: false);
   }
 
