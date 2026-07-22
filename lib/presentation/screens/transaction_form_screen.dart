@@ -149,6 +149,16 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
   }
 
   bool _isDuplicateInvoice = false;
+  Timer? _debounceTimer;
+
+  void _onInvoiceInputChanged() {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 400), () {
+      if (mounted) {
+        _checkDuplicateInvoice();
+      }
+    });
+  }
 
   Future<void> _checkDuplicateInvoice() async {
     final invoiceNumber = _invoiceNumberController.text.trim();
@@ -239,6 +249,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _amountController.dispose();
     _invoiceNumberController.dispose();
     _partnerNameController.dispose();
@@ -324,8 +335,23 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
         return;
       }
     } else {
-      // Dành cho Thu (Income): Tiền hàng có thể lấy từ subTotal hoặc bằng chính amount
-      validatedSubTotal = int.tryParse(_subTotalController.text.trim());
+      final subText = _subTotalController.text.trim();
+      validatedSubTotal = int.tryParse(subText);
+
+      // Nếu Giao dịch Thu có chọn VAT > 0%, yêu cầu nhập Tiền hàng để tính đúng VAT.
+      if (_vatRate > 0 && subText.isNotEmpty) {
+        final subTotalError = _validateMoney(subText, fieldName: 'Tiền hàng');
+        if (subTotalError != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(subTotalError),
+              backgroundColor: AppDesignTokens.error,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          return;
+        }
+      }
     }
 
     // 4. Chỉ save form và bật loading sau khi dữ liệu hợp lệ.
@@ -420,54 +446,68 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
 
       InvoiceModel? createdInvoice;
 
-      if (_isFromOcr && invoiceId != null) {
-        createdInvoice = widget.initialOcrData!.toInvoiceModel(
-          invoiceId: invoiceId,
-          transactionId: transactionId,
-          createdBy: userId,
-        );
-        await invoiceRepository.createInvoice(createdInvoice);
-      } else if (hasInvoiceInfo && invoiceId != null) {
-        final subTotal = validatedSubTotal ?? amount;
-        final vatAmount = FinanceCalculationService.calculateVatAmount(
-          subTotal,
-          _vatRate,
-        );
-        final totalAmount = FinanceCalculationService.calculateTotalInvoiceAmount(
-          subTotal,
-          _vatRate,
-        );
+      try {
+        if (_isFromOcr && invoiceId != null) {
+          createdInvoice = widget.initialOcrData!.toInvoiceModel(
+            invoiceId: invoiceId,
+            transactionId: transactionId,
+            createdBy: userId,
+          );
+          await invoiceRepository.createInvoice(createdInvoice);
+        } else if (hasInvoiceInfo && invoiceId != null) {
+          final subTotal = validatedSubTotal ?? amount;
+          final vatAmount = FinanceCalculationService.calculateVatAmount(
+            subTotal,
+            _vatRate,
+          );
+          final totalAmount = FinanceCalculationService.calculateTotalInvoiceAmount(
+            subTotal,
+            _vatRate,
+          );
 
-        final invoiceNumberText = _invoiceNumberController.text.trim();
-        final partnerNameText = _partnerNameController.text.trim();
+          final invoiceNumberText = _invoiceNumberController.text.trim();
+          final partnerNameText = _partnerNameController.text.trim();
 
-        final invoiceNumber = invoiceNumberText.isNotEmpty
-            ? invoiceNumberText
-            : 'HĐ ${_type == 'thu' ? 'Thu' : 'Chi'} #${now.millisecondsSinceEpoch.toString().substring(5)}';
+          final invoiceNumber = invoiceNumberText.isNotEmpty
+              ? invoiceNumberText
+              : 'HĐ ${_type == 'thu' ? 'Thu' : 'Chi'} #${now.millisecondsSinceEpoch.toString().substring(5)}';
 
-        final partnerName = partnerNameText.isNotEmpty
-            ? partnerNameText
-            : (_type == 'thu' ? 'Khách hàng' : 'Nhà cung cấp / Đối tác');
+          final partnerName = partnerNameText.isNotEmpty
+              ? partnerNameText
+              : (_type == 'thu' ? 'Khách hàng' : 'Nhà cung cấp / Đối tác');
 
-        createdInvoice = InvoiceModel(
-          invoiceId: invoiceId,
-          transactionId: transactionId,
-          invoiceNumber: invoiceNumber,
-          partnerName: partnerName,
-          partnerAddress: _partnerAddressController.text.trim(),
-          taxCode: _taxCodeController.text.trim(),
-          invoiceDate: _date,
-          subTotal: subTotal,
-          vatRate: _vatRate,
-          vatAmount: vatAmount,
-          totalAmount: totalAmount,
-          pdfPath: 'invoices/pdf/$invoiceId.pdf',
-          createdBy: userId,
-          scanId: scanId,
-          status: transaction.status,
-        );
+          createdInvoice = InvoiceModel(
+            invoiceId: invoiceId,
+            transactionId: transactionId,
+            invoiceNumber: invoiceNumber,
+            partnerName: partnerName,
+            partnerAddress: _partnerAddressController.text.trim(),
+            taxCode: _taxCodeController.text.trim(),
+            invoiceDate: _date,
+            subTotal: subTotal,
+            vatRate: _vatRate,
+            vatAmount: vatAmount,
+            totalAmount: totalAmount,
+            pdfPath: 'invoices/pdf/$invoiceId.pdf',
+            createdBy: userId,
+            scanId: scanId,
+            status: transaction.status,
+          );
 
-        await invoiceRepository.createInvoice(createdInvoice);
+          await invoiceRepository.createInvoice(createdInvoice);
+        }
+      } catch (invoiceError) {
+        // Cơ chế Transactional Rollback: Nếu tạo Invoice thất bại khi vừa tạo Transaction mới,
+        // lập tức rollback (xóa) Transaction để không để lại Transaction Chi mồ côi.
+        if (transactionCreated) {
+          debugPrint('⚠️ Transactional Rollback: Xóa transaction $transactionId do tạo invoice thất bại');
+          try {
+            await provider.deleteTransaction(transactionId, userId);
+          } catch (rollbackErr) {
+            debugPrint('⚠️ Lỗi Rollback transaction: $rollbackErr');
+          }
+        }
+        rethrow;
       }
 
       // 17. Lưu OCR scan nếu có ảnh thật và invoice.
@@ -989,7 +1029,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                 // Các trường chi tiết hóa đơn
                 TextFormField(
                   controller: _invoiceNumberController,
-                  onChanged: (_) => _checkDuplicateInvoice(),
+                  onChanged: (_) => _onInvoiceInputChanged(),
                   decoration: InputDecoration(
                     labelText: _type == 'chi' ? 'Số hóa đơn *' : 'Số hóa đơn (Nếu có)',
                     border: OutlineInputBorder(
@@ -1035,7 +1075,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _taxCodeController,
-                  onChanged: (_) => _checkDuplicateInvoice(),
+                  onChanged: (_) => _onInvoiceInputChanged(),
                   decoration: InputDecoration(
                     labelText: 'Mã số thuế',
                     border: OutlineInputBorder(

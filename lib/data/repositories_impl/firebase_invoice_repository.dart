@@ -162,6 +162,10 @@ class FirebaseInvoiceRepository implements InvoiceRepository {
   Future<void> createInvoice(
       InvoiceModel invoice,
       ) async {
+    if (invoice.transactionId.isEmpty) {
+      throw StateError('Không thể tạo hóa đơn nếu không có transactionId liên kết.');
+    }
+
     await _cacheInvoice(invoice);
 
     try {
