@@ -30,10 +30,22 @@ class TransactionFormScreen extends StatefulWidget {
   final TransactionModel? transactionToEdit;
   final OcrInvoiceData? initialOcrData;
 
+  /// Giao dịch đã tồn tại cần được bổ sung hóa đơn.
+  /// Khác với [transactionToEdit]: chế độ này không tạo giao dịch mới
+  /// và không cho thay đổi bản chất giao dịch ngoài dữ liệu hóa đơn.
+  final TransactionModel? existingTransactionForInvoice;
+
+  /// Ảnh được chọn tại InvoiceCaptureScreen.
+  final Uint8List? initialReceiptBytes;
+  final String? initialReceiptFileName;
+
   const TransactionFormScreen({
     super.key,
     this.transactionToEdit,
     this.initialOcrData,
+    this.existingTransactionForInvoice,
+    this.initialReceiptBytes,
+    this.initialReceiptFileName,
   });
 
   @override
@@ -68,7 +80,14 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
   Uint8List? _pickedImageBytes;
 
   bool get _isEditing => widget.transactionToEdit != null;
-  bool get _isFromOcr => !_isEditing && widget.initialOcrData != null;
+  bool get _isAttachingInvoice =>
+      widget.existingTransactionForInvoice != null;
+  bool get _isFromOcr => widget.initialOcrData != null;
+
+  TransactionModel? get _baseTransaction =>
+      _isAttachingInvoice
+          ? widget.existingTransactionForInvoice
+          : widget.transactionToEdit;
 
   @override
   void initState() {
@@ -77,24 +96,32 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     String initialAmount = '';
     String initialNote = '';
 
-    if (_isEditing) {
-      final tx = widget.transactionToEdit!;
+    if (_isEditing || _isAttachingInvoice) {
+      final tx = _baseTransaction!;
       initialAmount = tx.amountVnd.toString();
       _type = tx.type == TransactionType.income ? 'thu' : 'chi';
       _selectedCategoryId = tx.categoryId;
       _date = tx.date;
       initialNote = tx.note;
 
-      // Tải hóa đơn liên kết nếu có
-      if (tx.invoiceId != null) {
+      // Chỉ tải hóa đơn khi đang sửa giao dịch vốn đã có hóa đơn.
+      if (_isEditing && tx.invoiceId != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) => _loadLinkedInvoice(tx));
       }
-    } else if (_isFromOcr) {
+    }
+
+    if (_isFromOcr) {
       final ocr = widget.initialOcrData!;
-      initialAmount = ocr.totalAmount.toString();
-      _type = 'chi';
-      _date = ocr.invoiceDate;
-      initialNote = '${ocr.invoiceNumber} - ${ocr.partnerName}';
+
+      // Khi gắn hóa đơn vào giao dịch có sẵn, giữ nguyên số tiền,
+      // loại, danh mục và ngày của giao dịch; OCR chỉ điền dữ liệu hóa đơn.
+      if (!_isAttachingInvoice && !_isEditing) {
+        initialAmount = ocr.totalAmount.toString();
+        _type = 'chi';
+        _date = ocr.invoiceDate;
+        initialNote = '${ocr.invoiceNumber} - ${ocr.partnerName}';
+      }
+
       _invoiceNumberController.text = ocr.invoiceNumber;
       _partnerNameController.text = ocr.partnerName;
       _partnerAddressController.text = ocr.partnerAddress;
@@ -102,6 +129,8 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
       _subTotalController.text = ocr.subTotal.toString();
       _vatRate = ocr.vatRate;
     }
+
+    _pickedImageBytes = widget.initialReceiptBytes;
 
     _amountController = TextEditingController(text: initialAmount);
     _noteController = TextEditingController(text: initialNote);
@@ -177,7 +206,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
       final isDup = await context.read<InvoiceRepository>().checkDuplicateInvoice(
         taxCode,
         invoiceNumber,
-        excludeInvoiceId: widget.transactionToEdit?.invoiceId,
+        excludeInvoiceId: _baseTransaction?.invoiceId,
       );
 
       if (mounted && isDup != _isDuplicateInvoice) {
@@ -187,6 +216,10 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
   }
 
   void _updateTotalAmount() {
+    // Khi chỉ bổ sung hóa đơn, không tự ý thay đổi số tiền
+    // của giao dịch đã tồn tại theo kết quả OCR/VAT.
+    if (_isAttachingInvoice) return;
+
     final text = _subTotalController.text.trim();
     if (text.isEmpty) return;
 
@@ -376,8 +409,8 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
       }
 
       // 6. Tạo hoặc sử dụng lại transactionId.
-      final transactionId = _isEditing
-          ? widget.transactionToEdit!.transactionId
+      final transactionId = (_isEditing || _isAttachingInvoice)
+          ? _baseTransaction!.transactionId
           : _generateUniqueId('tx');
 
       // 7. Quy tắc BA: Thu bắt buộc tạo Hóa đơn. Chi có Hóa đơn nếu nhập số HĐ/Đối tác/Ảnh.
@@ -399,16 +432,18 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
       // 9. Xác định scanId.
       String? scanId = _isFromOcr
           ? widget.initialOcrData!.scanId
-          : (_isEditing ? widget.transactionToEdit!.scanId : null);
+          : ((_isEditing || _isAttachingInvoice)
+          ? _baseTransaction!.scanId
+          : null);
 
-      Uint8List? receiptBytes = _pickedImageBytes;
+      final Uint8List? receiptBytes = _pickedImageBytes;
 
       if (receiptBytes != null) {
         scanId ??= _generateUniqueId('scan_${_type}');
       }
 
-      String? receiptDownloadUrl = _isEditing
-          ? widget.transactionToEdit!.receiptImage
+      String? receiptDownloadUrl = (_isEditing || _isAttachingInvoice)
+          ? _baseTransaction!.receiptImage
           : null;
 
       if (receiptBytes != null && scanId != null) {
@@ -417,7 +452,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
           transactionId: transactionId,
           scanId: scanId,
           bytes: receiptBytes,
-          fileName: _pickedImage?.name,
+          fileName: _pickedImage?.name ?? widget.initialReceiptFileName,
         );
       }
 
@@ -432,13 +467,19 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
         transactionDate: _date,
         note: _noteController.text.trim(),
         receiptImage: receiptDownloadUrl,
-        status: _isEditing ? widget.transactionToEdit!.status : 'pending',
-        createdAt: _isEditing ? widget.transactionToEdit!.createdAt : now,
+        status: (_isEditing || _isAttachingInvoice)
+            ? _baseTransaction!.status
+            : 'pending',
+        createdAt: (_isEditing || _isAttachingInvoice)
+            ? _baseTransaction!.createdAt
+            : now,
       );
 
       bool transactionCreated = false;
 
-      if (_isEditing) {
+      if (_isEditing || _isAttachingInvoice) {
+        // Chế độ thêm hóa đơn chỉ cập nhật giao dịch đã có,
+        // tuyệt đối không tạo thêm Transaction mới.
         await provider.updateTransaction(transaction);
       } else {
         await provider.addTransaction(transaction);
@@ -507,6 +548,14 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
           } catch (rollbackErr) {
             debugPrint('⚠️ Lỗi Rollback transaction: $rollbackErr');
           }
+        } else if (_isAttachingInvoice) {
+          // Khôi phục giao dịch ban đầu nếu việc tạo hóa đơn thất bại,
+          // tránh để invoiceId/scanId trỏ tới dữ liệu không tồn tại.
+          try {
+            await provider.updateTransaction(_baseTransaction!);
+          } catch (rollbackErr) {
+            debugPrint('⚠️ Lỗi khôi phục giao dịch cũ: $rollbackErr');
+          }
         }
         rethrow;
       }
@@ -547,7 +596,9 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
           content: Text(
             transactionCreated
                 ? 'Đã tạo giao dịch mới thành công'
-                : 'Đã cập nhật giao dịch',
+                : (_isAttachingInvoice
+                ? 'Đã thêm hóa đơn vào giao dịch'
+                : 'Đã cập nhật giao dịch'),
           ),
           backgroundColor:
           AppDesignTokens.success,
@@ -556,10 +607,11 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
         ),
       );
 
-      if (_isFromOcr) {
-        context.go('/invoices');
+      if (_isFromOcr || _isAttachingInvoice) {
+        // Trả kết quả về InvoiceCaptureScreen để màn danh sách tải lại.
+        context.pop(true);
       } else {
-        context.pop();
+        context.pop(true);
       }
     } catch (error, stackTrace) {
       debugPrint(
@@ -600,9 +652,11 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final user = context.watch<AuthProvider>().user;
 
-    final canAccess = _isEditing
+    final canAccess = _isAttachingInvoice
+        ? RbacPermissionService.canCreateInvoice(user)
+        : (_isEditing
         ? RbacPermissionService.canEditTransaction(user)
-        : RbacPermissionService.canCreateTransaction(user);
+        : RbacPermissionService.canCreateTransaction(user));
 
     if (!canAccess) {
       return Scaffold(
@@ -632,7 +686,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                 ),
                 const SizedBox(height: AppDesignTokens.spaceSm),
                 Text(
-                  'Tài khoản của bạn không có quyền ${_isEditing ? "chỉnh sửa" : "tạo mới"} giao dịch.',
+                  'Tài khoản của bạn không có quyền ${_isAttachingInvoice ? "thêm hóa đơn vào" : (_isEditing ? "chỉnh sửa" : "tạo mới")} giao dịch.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: isDark
@@ -670,7 +724,9 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
               children: [
                 // 1. Tiêu đề lớn
                 Text(
-                  _isEditing
+                  _isAttachingInvoice
+                      ? 'Thêm hóa đơn cho giao dịch'
+                      : _isEditing
                       ? 'Chỉnh sửa giao dịch'
                       : _isFromOcr
                       ? 'Kiểm tra dữ liệu OCR'
@@ -713,7 +769,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                         children: [
                           Expanded(
                             child: InkWell(
-                              onTap: () {
+                              onTap: _isAttachingInvoice ? null : () {
                                 setState(() {
                                   _type = 'thu';
                                   _updateTotalAmount();
@@ -744,7 +800,8 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                           const SizedBox(width: 4),
                           Expanded(
                             child: InkWell(
-                              onTap: RbacPermissionService.canCreateExpenseTransaction(user)
+                              onTap: !_isAttachingInvoice &&
+                                  RbacPermissionService.canCreateExpenseTransaction(user)
                                   ? () {
                                 setState(() {
                                   _type = 'chi';
@@ -786,7 +843,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                 // 3. Số tiền (VND) *
                 TextFormField(
                   controller: _amountController,
-                  readOnly: _type == 'thu', // Khóa không cho sửa tiền trực tiếp khi là Thu
+                  readOnly: _type == 'thu' || _isAttachingInvoice,
                   decoration: InputDecoration(
                     labelText: _type == 'thu' ? 'Số tiền (Tổng tiền hàng + VAT) *' : 'Số tiền (VND) *',
                     hintText: '0',
@@ -847,7 +904,9 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                         ),
                       )
                           .toList(),
-                      onChanged: (value) {
+                      onChanged: _isAttachingInvoice
+                          ? null
+                          : (value) {
                         if (value != null) {
                           setState(() => _selectedCategoryId = value);
                         }
@@ -860,7 +919,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
 
                 // Ngày giao dịch
                 InkWell(
-                  onTap: () => _selectDate(context),
+                  onTap: _isAttachingInvoice ? null : () => _selectDate(context),
                   child: InputDecorator(
                     decoration: InputDecoration(
                       labelText: 'Ngày giao dịch *',
@@ -901,6 +960,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                     const SizedBox(height: 6),
                     TextFormField(
                       controller: _noteController,
+                      readOnly: _isAttachingInvoice,
                       maxLength: 200,
                       maxLines: 3,
                       onChanged: (_) => setState(() {}),
@@ -1195,8 +1255,10 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                             height: 22,
                             child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                           )
-                              : const Text(
-                            'Lưu giao dịch',
+                              : Text(
+                            _isAttachingInvoice
+                                ? 'Thêm hóa đơn'
+                                : 'Lưu giao dịch',
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.bold,

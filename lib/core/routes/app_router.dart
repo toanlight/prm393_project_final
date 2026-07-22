@@ -7,6 +7,7 @@ import '../../domain/models/ocr_invoice_data.dart';
 import '../../presentation/providers/auth_provider.dart';
 import '../../presentation/screens/home_screen.dart';
 import '../../presentation/screens/invoice_capture_screen.dart';
+import '../../presentation/screens/invoice_scan_payload.dart';
 import '../../presentation/screens/invoice_list_screen.dart';
 import '../../presentation/screens/login_screen.dart';
 import '../../presentation/screens/profile_screen.dart';
@@ -106,6 +107,17 @@ class AppRouter {
                       path: 'create',
                       builder: (context, state) {
                         final extra = state.extra;
+
+                        if (extra is InvoiceScanPayload) {
+                          return TransactionFormScreen(
+                            initialOcrData: extra.ocrData,
+                            existingTransactionForInvoice:
+                            extra.existingTransaction,
+                            initialReceiptBytes: extra.imageBytes,
+                            initialReceiptFileName: extra.fileName,
+                          );
+                        }
+
                         return TransactionFormScreen(
                           initialOcrData:
                           extra is OcrInvoiceData ? extra : null,
@@ -114,8 +126,15 @@ class AppRouter {
                     ),
                     GoRoute(
                       path: 'scan',
-                      builder: (context, state) =>
-                      const InvoiceCaptureScreen(),
+                      builder: (context, state) {
+                        final transaction =
+                        state.extra is TransactionModel
+                            ? state.extra as TransactionModel
+                            : null;
+                        return InvoiceCaptureScreen(
+                          existingTransaction: transaction,
+                        );
+                      },
                     ),
                     GoRoute(
                       path: 'receipt',
@@ -157,6 +176,17 @@ class AppRouter {
                       path: 'create',
                       builder: (context, state) {
                         final extra = state.extra;
+
+                        if (extra is InvoiceScanPayload) {
+                          return TransactionFormScreen(
+                            initialOcrData: extra.ocrData,
+                            existingTransactionForInvoice:
+                            extra.existingTransaction,
+                            initialReceiptBytes: extra.imageBytes,
+                            initialReceiptFileName: extra.fileName,
+                          );
+                        }
+
                         return TransactionFormScreen(
                           initialOcrData:
                           extra is OcrInvoiceData ? extra : null,
@@ -165,8 +195,15 @@ class AppRouter {
                     ),
                     GoRoute(
                       path: 'scan',
-                      builder: (context, state) =>
-                      const InvoiceCaptureScreen(),
+                      builder: (context, state) {
+                        final transaction =
+                        state.extra is TransactionModel
+                            ? state.extra as TransactionModel
+                            : null;
+                        return InvoiceCaptureScreen(
+                          existingTransaction: transaction,
+                        );
+                      },
                     ),
                     GoRoute(
                       path: 'receipt',
