@@ -80,11 +80,13 @@ class IncomeExpenseLineChart extends StatelessWidget {
               sideTitles: SideTitles(
                 showTitles: true,
                 interval: 50,
-                reservedSize: 40,
+                reservedSize: 48,
                 getTitlesWidget: (value, meta) {
                   return Text(
                     CurrencyFormatter.short(value),
                     style: labelStyle,
+                    maxLines: 1,
+                    softWrap: false,
                   );
                 },
               ),

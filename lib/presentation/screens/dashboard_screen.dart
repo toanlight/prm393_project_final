@@ -30,6 +30,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   String selectedFilter = 'Tháng này';
+  int selectedYear = DateTime.now().year;
   String? _errorMessage;
 
   List<CategoryModel> _categories = [];
@@ -54,6 +55,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       // 1. Fetch Categories
       final categoryRepo = context.read<CategoryRepository>();
       _categories = await categoryRepo.getCategories();
+      if (mounted) {
+        setState(() {
+          _processDataSync();
+        });
+      }
 
       if (!mounted) return;
 
@@ -82,7 +88,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // Calculate dynamic KPI Metrics
     kpiCards = _calculateKpis(filtered, txsToCalculate);
 
-    // Calculate dynamic Monthly comparative data (Last 6 Months)
+    // Calculate dynamic Monthly comparative data (Weeks, Months, or Year)
     monthlyData = _calculateMonthlyData(txsToCalculate);
 
     // Calculate dynamic Expenses category distribution
@@ -96,21 +102,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final now = DateTime.now();
     return allTxs.where((tx) {
       final date = tx.transactionDate;
-      switch (selectedFilter) {
-        case 'Tháng này':
-          return date.year == now.year && date.month == now.month;
-        case 'Tháng trước':
-          final prevMonth = now.month == 1 ? 12 : now.month - 1;
-          final prevYear = now.month == 1 ? now.year - 1 : now.year;
-          return date.year == prevYear && date.month == prevMonth;
-        case 'Quý này':
-          final currentQuarter = ((now.month - 1) / 3).floor() + 1;
-          final txQuarter = ((date.month - 1) / 3).floor() + 1;
-          return date.year == now.year && txQuarter == currentQuarter;
-        case 'Toàn bộ':
-        default:
-          return true;
+      if (selectedFilter == 'Tháng này') {
+        return date.year == now.year && date.month == now.month;
+      } else if (selectedFilter == 'Tháng trước') {
+        final prevMonth = now.month == 1 ? 12 : now.month - 1;
+        final prevYear = now.month == 1 ? now.year - 1 : now.year;
+        return date.year == prevYear && date.month == prevMonth;
+      } else if (selectedFilter == 'Quý này') {
+        final currentQuarter = ((now.month - 1) / 3).floor() + 1;
+        final txQuarter = ((date.month - 1) / 3).floor() + 1;
+        return date.year == now.year && txQuarter == currentQuarter;
+      } else if (selectedFilter.startsWith('Năm')) {
+        return date.year == selectedYear;
       }
+      return true;
     }).toList();
   }
 
@@ -122,24 +127,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final now = DateTime.now();
     return allTxs.where((tx) {
       final date = tx.transactionDate;
-      switch (selectedFilter) {
-        case 'Tháng này':
-          final prevMonth = now.month == 1 ? 12 : now.month - 1;
-          final prevYear = now.month == 1 ? now.year - 1 : now.year;
-          return date.year == prevYear && date.month == prevMonth;
-        case 'Tháng trước':
-          final twoMonthsAgoMonth = now.month <= 2 ? now.month + 10 : now.month - 2;
-          final twoMonthsAgoYear = now.month <= 2 ? now.year - 1 : now.year;
-          return date.year == twoMonthsAgoYear && date.month == twoMonthsAgoMonth;
-        case 'Quý này':
-          final currentQuarter = ((now.month - 1) / 3).floor() + 1;
-          final prevQuarter = currentQuarter == 1 ? 4 : currentQuarter - 1;
-          final prevQuarterYear = currentQuarter == 1 ? now.year - 1 : now.year;
-          final txQuarter = ((date.month - 1) / 3).floor() + 1;
-          return date.year == prevQuarterYear && txQuarter == prevQuarter;
-        default:
-          return false;
+      if (selectedFilter == 'Tháng này') {
+        final prevMonth = now.month == 1 ? 12 : now.month - 1;
+        final prevYear = now.month == 1 ? now.year - 1 : now.year;
+        return date.year == prevYear && date.month == prevMonth;
+      } else if (selectedFilter == 'Tháng trước') {
+        final twoMonthsAgoMonth = now.month <= 2 ? now.month + 10 : now.month - 2;
+        final twoMonthsAgoYear = now.month <= 2 ? now.year - 1 : now.year;
+        return date.year == twoMonthsAgoYear && date.month == twoMonthsAgoMonth;
+      } else if (selectedFilter == 'Quý này') {
+        final currentQuarter = ((now.month - 1) / 3).floor() + 1;
+        final prevQuarter = currentQuarter == 1 ? 4 : currentQuarter - 1;
+        final prevQuarterYear = currentQuarter == 1 ? now.year - 1 : now.year;
+        final txQuarter = ((date.month - 1) / 3).floor() + 1;
+        return date.year == prevQuarterYear && txQuarter == prevQuarter;
+      } else if (selectedFilter.startsWith('Năm')) {
+        return date.year == (selectedYear - 1);
       }
+      return false;
     }).toList();
   }
 
@@ -201,17 +206,102 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<MonthlyBar> _calculateMonthlyData(List<TransactionModel> allTxs) {
     final now = DateTime.now();
     final list = <MonthlyBar>[];
-    for (int i = 5; i >= 0; i--) {
-      final date = DateTime(now.year, now.month - i, 1);
-      final monthName = "T${date.month}";
+
+    if (selectedFilter == 'Tháng này' || selectedFilter == 'Tháng trước') {
+      final targetMonth = selectedFilter == 'Tháng này' ? now.month : (now.month == 1 ? 12 : now.month - 1);
+      final targetYear = selectedFilter == 'Tháng này' ? now.year : (now.month == 1 ? now.year - 1 : now.year);
+
       final monthTxs = allTxs.where((tx) =>
-          tx.transactionDate.year == date.year &&
-          tx.transactionDate.month == date.month).toList();
-      final income = _getSumForPeriod(monthTxs, TransactionType.income) / 1000000.0;
-      final expense = _getSumForPeriod(monthTxs, TransactionType.expense) / 1000000.0;
-      list.add(MonthlyBar(monthName, income, expense));
+          tx.transactionDate.year == targetYear &&
+          tx.transactionDate.month == targetMonth).toList();
+
+      for (int w = 1; w <= 4; w++) {
+        final startDay = (w - 1) * 7 + 1;
+        final endDay = w == 4 ? 31 : w * 7;
+
+        final weekTxs = monthTxs.where((tx) =>
+            tx.transactionDate.day >= startDay &&
+            tx.transactionDate.day <= endDay).toList();
+
+        final income = _getSumForPeriod(weekTxs, TransactionType.income) / 1000000.0;
+        final expense = _getSumForPeriod(weekTxs, TransactionType.expense) / 1000000.0;
+        list.add(MonthlyBar("Tuần $w", income, expense));
+      }
+    } else if (selectedFilter == 'Quý này') {
+      final currentQuarter = ((now.month - 1) / 3).floor() + 1;
+      final startMonth = (currentQuarter - 1) * 3 + 1;
+
+      for (int i = 0; i < 3; i++) {
+        final m = startMonth + i;
+        final monthTxs = allTxs.where((tx) =>
+            tx.transactionDate.year == now.year &&
+            tx.transactionDate.month == m).toList();
+
+        final income = _getSumForPeriod(monthTxs, TransactionType.income) / 1000000.0;
+        final expense = _getSumForPeriod(monthTxs, TransactionType.expense) / 1000000.0;
+        list.add(MonthlyBar("Tháng $m", income, expense));
+      }
+    } else if (selectedFilter.startsWith('Năm')) {
+      for (int m = 1; m <= 12; m++) {
+        final monthTxs = allTxs.where((tx) =>
+            tx.transactionDate.year == selectedYear &&
+            tx.transactionDate.month == m).toList();
+
+        final income = _getSumForPeriod(monthTxs, TransactionType.income) / 1000000.0;
+        final expense = _getSumForPeriod(monthTxs, TransactionType.expense) / 1000000.0;
+        list.add(MonthlyBar("T$m", income, expense));
+      }
     }
+
     return list;
+  }
+
+  Color _getCategoryColor(String name) {
+    final cleanKey = name.toLowerCase().trim();
+    if (cleanKey.contains('mặt bằng') || cleanKey.contains('matbang')) {
+      return const Color(0xFFEA580C); // Orange
+    }
+    if (cleanKey.contains('ăn uống') || cleanKey.contains('anuong')) {
+      return const Color(0xFF10B981); // Emerald Green
+    }
+    if (cleanKey.contains('tiền điện') || cleanKey.contains('tiendien') || cleanKey.contains('điện')) {
+      return const Color(0xFFF59E0B); // Amber Yellow
+    }
+    if (cleanKey.contains('tiền nước') || cleanKey.contains('tiennuoc') || cleanKey.contains('nước')) {
+      return const Color(0xFF06B6D4); // Cyan
+    }
+    if (cleanKey.contains('internet')) {
+      return const Color(0xFF3B82F6); // Blue
+    }
+    if (cleanKey.contains('công tác') || cleanKey.contains('congtac')) {
+      return const Color(0xFF8B5CF6); // Violet Purple
+    }
+    if (cleanKey.contains('văn phòng phẩm') || cleanKey.contains('vanphongpham')) {
+      return const Color(0xFFEC4899); // Pink
+    }
+    if (cleanKey.contains('mua sắm') || cleanKey.contains('muasam')) {
+      return const Color(0xFF14B8A6); // Teal
+    }
+    if (cleanKey.contains('thuê xe') || cleanKey.contains('thuexe')) {
+      return const Color(0xFF6366F1); // Indigo
+    }
+    if (cleanKey.contains('di chuyển') || cleanKey.contains('dichuyen')) {
+      return const Color(0xFF64748B); // Slate Grey
+    }
+    
+    // Stable fallback
+    final hash = name.hashCode.abs();
+    final fallbackColors = [
+      const Color(0xFF3B82F6),
+      const Color(0xFF10B981),
+      const Color(0xFF8B5CF6),
+      const Color(0xFFF59E0B),
+      const Color(0xFFEF4444),
+      const Color(0xFFEC4899),
+      const Color(0xFF06B6D4),
+      const Color(0xFF64748B),
+    ];
+    return fallbackColors[hash % fallbackColors.length];
   }
 
   List<PieSegment> _calculatePieData(List<TransactionModel> filtered) {
@@ -223,63 +313,95 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     for (var tx in expenses) {
       final cat = catMap[tx.categoryId];
-      final name = cat?.categoryName ?? 'Chi phí khác';
+      String name = cat?.categoryName ?? (tx.categoryId.startsWith('cat_') ? '' : tx.categoryId);
+      if (name.trim().isEmpty) {
+        name = 'Chi phí khác';
+      }
       categorySums[name] = (categorySums[name] ?? 0.0) + (tx.amount / 1000000.0);
     }
 
     final list = <PieSegment>[];
-    int colorIdx = 0;
-    final colors = [
-      AppColors.chart1,
-      AppColors.chart2,
-      AppColors.chart3,
-      AppColors.chart4,
-      AppColors.chart5,
-      AppColors.chart6,
-      AppColors.purple,
-      AppColors.primary,
-    ];
-
     categorySums.forEach((name, value) {
-      final color = colors[colorIdx % colors.length];
+      final color = _getCategoryColor(name);
       list.add(PieSegment(name, value, color));
-      colorIdx++;
     });
+
+    list.sort((a, b) => b.value.compareTo(a.value));
     return list;
   }
 
   List<TrendPoint> _calculateTrendData(List<TransactionModel> filtered, List<TransactionModel> all) {
-    final filteredSorted = List<TransactionModel>.from(filtered);
-    filteredSorted.sort((a, b) => a.transactionDate.compareTo(b.transactionDate));
+    final now = DateTime.now();
+    final points = <TrendPoint>[];
 
-    double startingBalance = 0.0;
-    if (filteredSorted.isNotEmpty) {
-      final firstDate = filteredSorted.first.transactionDate;
-      final priorTxs = all.where((tx) => tx.transactionDate.isBefore(firstDate)).toList();
+    if (selectedFilter == 'Tháng này' || selectedFilter == 'Tháng trước') {
+      final targetMonth = selectedFilter == 'Tháng này' ? now.month : (now.month == 1 ? 12 : now.month - 1);
+      final targetYear = selectedFilter == 'Tháng này' ? now.year : (now.month == 1 ? now.year - 1 : now.year);
+
+      final priorTxs = all.where((tx) =>
+          tx.transactionDate.isBefore(DateTime(targetYear, targetMonth, 1))).toList();
       final priorIncome = _getSumForPeriod(priorTxs, TransactionType.income);
       final priorExpense = _getSumForPeriod(priorTxs, TransactionType.expense);
-      startingBalance = (priorIncome - priorExpense) / 1000000.0;
-    }
+      double currentBalance = (priorIncome - priorExpense) / 1000000.0;
 
-    final points = <TrendPoint>[];
-    double currentBalance = startingBalance;
-    final Map<String, double> dailyNet = {};
+      final monthTxs = all.where((tx) =>
+          tx.transactionDate.year == targetYear &&
+          tx.transactionDate.month == targetMonth).toList();
 
-    for (var tx in filteredSorted) {
-      final dateStr = "${tx.transactionDate.day}/${tx.transactionDate.month}";
-      final amountM = tx.amount / 1000000.0;
-      final change = tx.type == TransactionType.income ? amountM : -amountM;
-      dailyNet[dateStr] = (dailyNet[dateStr] ?? 0.0) + change;
-    }
+      for (int w = 1; w <= 4; w++) {
+        final startDay = (w - 1) * 7 + 1;
+        final endDay = w == 4 ? 31 : w * 7;
 
-    if (dailyNet.isEmpty) {
-      final now = DateTime.now();
-      points.add(TrendPoint("${now.day}/${now.month}", currentBalance));
-    } else {
-      dailyNet.forEach((date, change) {
-        currentBalance += change;
-        points.add(TrendPoint(date, currentBalance));
-      });
+        final weekTxs = monthTxs.where((tx) =>
+            tx.transactionDate.day >= startDay &&
+            tx.transactionDate.day <= endDay).toList();
+
+        final wIncome = _getSumForPeriod(weekTxs, TransactionType.income) / 1000000.0;
+        final wExpense = _getSumForPeriod(weekTxs, TransactionType.expense) / 1000000.0;
+
+        currentBalance += (wIncome - wExpense);
+        points.add(TrendPoint("Tuần $w", currentBalance));
+      }
+    } else if (selectedFilter == 'Quý này') {
+      final currentQuarter = ((now.month - 1) / 3).floor() + 1;
+      final startMonth = (currentQuarter - 1) * 3 + 1;
+
+      final priorTxs = all.where((tx) =>
+          tx.transactionDate.isBefore(DateTime(now.year, startMonth, 1))).toList();
+      final priorIncome = _getSumForPeriod(priorTxs, TransactionType.income);
+      final priorExpense = _getSumForPeriod(priorTxs, TransactionType.expense);
+      double currentBalance = (priorIncome - priorExpense) / 1000000.0;
+
+      for (int i = 0; i < 3; i++) {
+        final m = startMonth + i;
+        final monthTxs = all.where((tx) =>
+            tx.transactionDate.year == now.year &&
+            tx.transactionDate.month == m).toList();
+
+        final mIncome = _getSumForPeriod(monthTxs, TransactionType.income) / 1000000.0;
+        final mExpense = _getSumForPeriod(monthTxs, TransactionType.expense) / 1000000.0;
+
+        currentBalance += (mIncome - mExpense);
+        points.add(TrendPoint("Tháng $m", currentBalance));
+      }
+    } else if (selectedFilter.startsWith('Năm')) {
+      final priorTxs = all.where((tx) =>
+          tx.transactionDate.isBefore(DateTime(selectedYear, 1, 1))).toList();
+      final priorIncome = _getSumForPeriod(priorTxs, TransactionType.income);
+      final priorExpense = _getSumForPeriod(priorTxs, TransactionType.expense);
+      double currentBalance = (priorIncome - priorExpense) / 1000000.0;
+
+      for (int m = 1; m <= 12; m++) {
+        final monthTxs = all.where((tx) =>
+            tx.transactionDate.year == selectedYear &&
+            tx.transactionDate.month == m).toList();
+
+        final mIncome = _getSumForPeriod(monthTxs, TransactionType.income) / 1000000.0;
+        final mExpense = _getSumForPeriod(monthTxs, TransactionType.expense) / 1000000.0;
+
+        currentBalance += (mIncome - mExpense);
+        points.add(TrendPoint("T$m", currentBalance));
+      }
     }
 
     if (points.length == 1) {
@@ -299,10 +421,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final prev = DateTime(now.year, now.month - 1, 1);
         return 'Tháng ${prev.month}/${prev.year}';
       case 'Quý này':
-        return 'Quý ${((now.month - 1) / 3).floor() + 1}/${now.year}';
-      case 'Toàn bộ':
+        final q = ((now.month - 1) / 3).floor() + 1;
+        return 'Quý $q/${now.year}';
       default:
-        return 'Toàn thời gian';
+        if (selectedFilter.startsWith('Năm')) {
+          return selectedFilter;
+        }
+        return 'Năm $selectedYear';
     }
   }
 
@@ -536,26 +661,72 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
 
 
+  Future<void> _showYearPickerDialog(BuildContext context) async {
+    final currentYear = DateTime.now().year;
+    final availableYears = _allTransactions.map((tx) => tx.transactionDate.year).toSet();
+    availableYears.add(currentYear);
+
+    final years = availableYears.toList()..sort((a, b) => b.compareTo(a));
+
+    final picked = await showDialog<int>(
+      context: context,
+      builder: (ctx) {
+        return SimpleDialog(
+          title: const Text('Chọn năm xem báo cáo'),
+          children: years.map((y) {
+            final isCur = y == selectedYear;
+            return SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, y),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Năm $y', style: TextStyle(fontWeight: isCur ? FontWeight.bold : FontWeight.normal)),
+                    if (isCur) const Icon(Icons.check, color: AppColors.primary, size: 18),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() {
+        selectedYear = picked;
+        selectedFilter = 'Năm $picked';
+        _processDataSync();
+      });
+    }
+  }
+
   Widget _buildFilterChips(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final chipBg = isDark ? AppDesignTokens.darkSurface : AppColors.card;
     final chipBorder = isDark ? AppDesignTokens.darkBorder : AppColors.border;
     final unselectedText = isDark ? AppDesignTokens.darkTextSecondary : AppColors.mutedFg;
 
-    final filters = ['Tháng này', 'Tháng trước', 'Quý này', 'Toàn bộ'];
+    final yearLabel = 'Năm $selectedYear';
+    final filters = ['Tháng này', 'Tháng trước', 'Quý này', yearLabel];
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
         children: filters.map((filter) {
-          final isSelected = selectedFilter == filter;
+          final isSelected = selectedFilter == filter || (filter.startsWith('Năm') && selectedFilter.startsWith('Năm'));
           return Padding(
             padding: const EdgeInsets.only(right: AppTheme.sp8),
             child: InkWell(
               onTap: () {
-                setState(() {
-                  selectedFilter = filter;
-                  _processDataSync();
-                });
+                if (filter.startsWith('Năm')) {
+                  _showYearPickerDialog(context);
+                } else {
+                  setState(() {
+                    selectedFilter = filter;
+                    _processDataSync();
+                  });
+                }
               },
               borderRadius: BorderRadius.circular(12),
               child: Container(
@@ -565,12 +736,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   borderRadius: BorderRadius.circular(12),
                   border: isSelected ? null : Border.all(color: chipBorder),
                 ),
-                child: Text(
-                  filter,
-                  style: AppTextStyles.body.copyWith(
-                    color: isSelected ? AppColors.primaryFg : unselectedText,
-                    fontWeight: FontWeight.w500,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      filter,
+                      style: AppTextStyles.body.copyWith(
+                        color: isSelected ? AppColors.primaryFg : unselectedText,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (filter.startsWith('Năm')) ...[
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.arrow_drop_down,
+                        size: 18,
+                        color: isSelected ? AppColors.primaryFg : unselectedText,
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ),
@@ -677,6 +861,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? AppDesignTokens.darkTextPrimary : AppColors.foreground;
     final mutedTextColor = isDark ? AppDesignTokens.darkTextSecondary : AppColors.mutedFg;
+    final chartTitle = (selectedFilter == 'Tháng này' || selectedFilter == 'Tháng trước')
+        ? 'Thu & Chi theo tuần'
+        : 'Thu & Chi theo tháng';
 
     return Container(
       decoration: _cardDecoration(context),
@@ -693,7 +880,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Thu & Chi theo tháng', style: AppTextStyles.h2.copyWith(color: textColor)),
+                  Text(chartTitle, style: AppTextStyles.h2.copyWith(color: textColor)),
                   const SizedBox(height: AppTheme.sp4),
                   Text('Đơn vị: triệu VND', style: AppTextStyles.caption.copyWith(color: mutedTextColor)),
                 ],
@@ -807,7 +994,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Xu hướng số dư ròng', style: AppTextStyles.h2.copyWith(color: textColor)),
+                  Text(
+                    (selectedFilter == 'Tháng này' || selectedFilter == 'Tháng trước')
+                        ? 'Xu hướng số dư ròng theo tuần'
+                        : 'Xu hướng số dư ròng',
+                    style: AppTextStyles.h2.copyWith(color: textColor),
+                  ),
                   const SizedBox(height: AppTheme.sp4),
                   Text(
                     '${_getCurrentDateRangeString()} • Đơn vị: triệu VND',
