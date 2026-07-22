@@ -22,8 +22,7 @@ import '../providers/category_provider.dart';
 import '../providers/invoice_provider.dart';
 import '../providers/transaction_provider.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_auth/firebase_auth.dart'
-as firebase_auth;
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 
 
 class TransactionFormScreen extends StatefulWidget {
@@ -382,7 +381,55 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
       return;
     }
 
-    // 3. Quy tắc BA: Thu BẮT BUỘC có hóa đơn hợp lệ! Chi có thể có hoặc không.
+    // 3. Khi thêm hóa đơn vào giao dịch có sẵn,
+    // số hóa đơn và tên đối tác là bắt buộc.
+    if (_isAttachingInvoice) {
+      final invoiceNumber = _invoiceNumberController.text.trim();
+      final partnerName = _partnerNameController.text.trim();
+
+      if (invoiceNumber.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Vui lòng nhập số hóa đơn.',
+            ),
+            backgroundColor: AppDesignTokens.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
+      if (partnerName.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Vui lòng nhập tên đối tác.',
+            ),
+            backgroundColor: AppDesignTokens.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
+      final taxCode = _taxCodeController.text.trim();
+
+      if (taxCode.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Vui lòng nhập mã số thuế.',
+            ),
+            backgroundColor: AppDesignTokens.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+    }
+
+    // 4. Quy tắc BA: Thu BẮT BUỘC có hóa đơn hợp lệ! Chi có thể có hoặc không.
     int? validatedSubTotal;
 
     if (_type == 'thu') {
@@ -524,13 +571,19 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
       InvoiceModel? createdInvoice;
 
       try {
-        if (_isFromOcr && invoiceId != null) {
+        if (_isFromOcr &&
+            !_isAttachingInvoice &&
+            !_isEditing &&
+            invoiceId != null) {
           createdInvoice = widget.initialOcrData!.toInvoiceModel(
             invoiceId: invoiceId,
             transactionId: transactionId,
             createdBy: userId,
           );
-          await invoiceRepository.createInvoice(createdInvoice);
+
+          await invoiceRepository.createInvoice(
+            createdInvoice,
+          );
         } else if (hasInvoiceInfo && invoiceId != null) {
           final subTotal = validatedSubTotal ?? amount;
           final vatAmount = FinanceCalculationService.calculateVatAmount(
@@ -572,6 +625,14 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
           );
 
           await invoiceRepository.createInvoice(createdInvoice);
+
+          debugPrint(
+            '[TransactionForm] Đã lưu hóa đơn: '
+                'invoiceId=${createdInvoice.invoiceId}, '
+                'invoiceNumber=${createdInvoice.invoiceNumber}, '
+                'partnerName=${createdInvoice.partnerName}, '
+                'transactionId=${createdInvoice.transactionId}',
+          );
         }
       } catch (invoiceError) {
         // Cơ chế Transactional Rollback: Nếu tạo Invoice thất bại khi vừa tạo Transaction mới,
@@ -642,12 +703,8 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
         ),
       );
 
-      if (_isFromOcr || _isAttachingInvoice) {
-        // Trả kết quả về InvoiceCaptureScreen để màn danh sách tải lại.
-        context.pop(true);
-      } else {
-        context.pop(true);
-      }
+      // Trả true về màn hình trước để danh sách giao dịch/hóa đơn tải lại.
+      context.pop(true);
     } catch (error, stackTrace) {
       debugPrint(
         '[TransactionForm] Không thể lưu giao dịch: '
@@ -1132,16 +1189,24 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                   controller: _invoiceNumberController,
                   onChanged: (_) => _onInvoiceInputChanged(),
                   decoration: InputDecoration(
-                    labelText: _type == 'thu' ? 'Số hóa đơn *' : 'Số hóa đơn (Nếu có)',
+                    labelText: (_type == 'thu' || _isAttachingInvoice)
+                        ? 'Số hóa đơn *'
+                        : 'Số hóa đơn (Nếu có)',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
                     ),
                     prefixIcon: const Icon(Icons.numbers),
                   ),
                   validator: (value) {
-                    if (_type == 'thu' && (value == null || value.trim().isEmpty)) {
-                      return 'Giao dịch Thu bắt buộc phải nhập số hóa đơn';
+                    final text = value?.trim() ?? '';
+
+                    if ((_type == 'thu' || _isAttachingInvoice) &&
+                        text.isEmpty) {
+                      return _isAttachingInvoice
+                          ? 'Vui lòng nhập số hóa đơn'
+                          : 'Giao dịch Thu bắt buộc phải nhập số hóa đơn';
                     }
+
                     return null;
                   },
                 ),
@@ -1149,16 +1214,24 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                 TextFormField(
                   controller: _partnerNameController,
                   decoration: InputDecoration(
-                    labelText: _type == 'thu' ? 'Tên khách hàng / Đối tác *' : 'Tên đối tác (Nếu có)',
+                    labelText: (_type == 'thu' || _isAttachingInvoice)
+                        ? 'Tên khách hàng / Đối tác *'
+                        : 'Tên đối tác (Nếu có)',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
                     ),
                     prefixIcon: const Icon(Icons.business),
                   ),
                   validator: (value) {
-                    if (_type == 'thu' && (value == null || value.trim().isEmpty)) {
-                      return 'Giao dịch Thu bắt buộc nhập tên khách hàng / đối tác';
+                    final text = value?.trim() ?? '';
+
+                    if ((_type == 'thu' || _isAttachingInvoice) &&
+                        text.isEmpty) {
+                      return _isAttachingInvoice
+                          ? 'Vui lòng nhập tên đối tác'
+                          : 'Giao dịch Thu bắt buộc nhập tên khách hàng / đối tác';
                     }
+
                     return null;
                   },
                 ),
@@ -1178,12 +1251,23 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                   controller: _taxCodeController,
                   onChanged: (_) => _onInvoiceInputChanged(),
                   decoration: InputDecoration(
-                    labelText: 'Mã số thuế',
+                    labelText: _isAttachingInvoice
+                        ? 'Mã số thuế *'
+                        : 'Mã số thuế',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
                     ),
                     prefixIcon: const Icon(Icons.badge_outlined),
                   ),
+                  validator: (value) {
+                    final text = value?.trim() ?? '';
+
+                    if (_isAttachingInvoice && text.isEmpty) {
+                      return 'Vui lòng nhập mã số thuế';
+                    }
+
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 16),
 
