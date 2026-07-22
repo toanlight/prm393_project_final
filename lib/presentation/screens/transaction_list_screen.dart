@@ -56,6 +56,45 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
     }
   }
 
+
+  Future<void> _addInvoiceToTransaction(
+      TransactionModel transaction,
+      ) async {
+    final user = context.read<AuthProvider>().user;
+
+    if (!RbacPermissionService.canCreateInvoice(user)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tài khoản của bạn không có quyền thêm hóa đơn.'),
+          backgroundColor: AppDesignTokens.error,
+        ),
+      );
+      return;
+    }
+
+    final hasInvoice =
+        (transaction.invoiceId?.trim().isNotEmpty ?? false) ||
+            (transaction.scanId?.trim().isNotEmpty ?? false) ||
+            (transaction.receiptImage?.trim().isNotEmpty ?? false);
+
+    if (hasInvoice) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Giao dịch này đã có hóa đơn/chứng từ.'),
+        ),
+      );
+      return;
+    }
+
+    final created = await context.push<bool>(
+      '/transactions/scan',
+      extra: transaction,
+    );
+
+    if (!mounted || created != true) return;
+    await _loadData();
+  }
+
   String _getPeriodLabel(String value) {
     switch (value) {
       case 'this_month':
@@ -690,9 +729,9 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                             Text(
                               'Lịch sử giao dịch',
                               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 20,
-                                  ),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 20,
+                              ),
                             ),
                             Text(
                               '${filteredTxs.length} / ${provider.transactions.length} giao dịch · ${_selectedPeriod != 'all' ? _getPeriodLabel(_selectedPeriod) : 'Tháng ${now.month}/${now.year}'}',
@@ -786,11 +825,13 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                             return TransactionListDesktop(
                               transactions: pagedTransactions,
                               onDelete: (id) => provider.deleteTransaction(id, userId),
+                              onAddInvoice: _addInvoiceToTransaction,
                             );
                           } else {
                             return TransactionListMobile(
                               transactions: pagedTransactions,
                               onDelete: (id) => provider.deleteTransaction(id, userId),
+                              onAddInvoice: _addInvoiceToTransaction,
                             );
                           }
                         },

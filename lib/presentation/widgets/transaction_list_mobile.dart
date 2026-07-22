@@ -15,11 +15,13 @@ import '../providers/transaction_provider.dart';
 class TransactionListMobile extends StatelessWidget {
   final List<TransactionModel> transactions;
   final Future<void> Function(String id) onDelete;
+  final Future<void> Function(TransactionModel transaction) onAddInvoice;
 
   const TransactionListMobile({
     super.key,
     required this.transactions,
     required this.onDelete,
+    required this.onAddInvoice,
   });
 
   String _formatVnd(int amount) {
@@ -104,11 +106,11 @@ class TransactionListMobile extends StatelessWidget {
   }
 
   void _showTransactionDetailSheet(
-    BuildContext context,
-    TransactionModel tx,
-    String currentUserId,
-    bool canApprove,
-  ) {
+      BuildContext context,
+      TransactionModel tx,
+      String currentUserId,
+      bool canApprove,
+      ) {
     final isIncome = tx.type == TransactionType.income;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final hasInvoice = tx.invoiceId != null || tx.scanId != null || tx.receiptImageUrl != null;
@@ -148,8 +150,8 @@ class TransactionListMobile extends StatelessWidget {
                       Text(
                         'Chi tiết giao dịch',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       _buildMiniStatusChip(tx.status),
                     ],
@@ -269,6 +271,21 @@ class TransactionListMobile extends StatelessWidget {
                         ),
                       ),
                     ),
+                  ] else ...[
+                    const Divider(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () async {
+                          Navigator.pop(context);
+                          await onAddInvoice(tx);
+                        },
+                        icon: const Icon(
+                          Icons.add_photo_alternate_outlined,
+                        ),
+                        label: const Text('Thêm hóa đơn'),
+                      ),
+                    ),
                   ],
 
                   // Khối Phê duyệt (Chỉ hiển thị với Admin & Kế toán trưởng)
@@ -277,9 +294,9 @@ class TransactionListMobile extends StatelessWidget {
                     Text(
                       'Phê duyệt trạng thái (Admin / Kế toán trưởng)',
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: AppDesignTokens.primary,
-                          ),
+                        fontWeight: FontWeight.bold,
+                        color: AppDesignTokens.primary,
+                      ),
                     ),
                     const SizedBox(height: 10),
                     Row(
@@ -370,11 +387,11 @@ class TransactionListMobile extends StatelessWidget {
     Navigator.pop(context); // Đóng BottomSheet
     try {
       await context.read<TransactionProvider>().updateTransactionStatus(
-            txId,
-            status,
-            userId,
-            invoiceRepository: context.read<InvoiceRepository>(),
-          );
+        txId,
+        status,
+        userId,
+        invoiceRepository: context.read<InvoiceRepository>(),
+      );
       if (context.mounted) {
         final currentUser = context.read<AuthProvider>().user;
         await context.read<InvoiceProvider>().loadInvoices(
@@ -608,6 +625,23 @@ class TransactionListMobile extends StatelessWidget {
                             size: 20,
                           ),
                           const SizedBox(height: 6),
+                        ] else ...[
+                          IconButton(
+                            tooltip: 'Thêm hóa đơn',
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 28,
+                              minHeight: 28,
+                            ),
+                            onPressed: () => onAddInvoice(tx),
+                            icon: const Icon(
+                              Icons.add_photo_alternate_outlined,
+                              color: AppDesignTokens.primary,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
                         ],
                         _buildMiniStatusChip(tx.status),
                       ],

@@ -13,11 +13,13 @@ import '../providers/transaction_provider.dart';
 class TransactionListDesktop extends StatelessWidget {
   final List<TransactionModel> transactions;
   final Future<void> Function(String id) onDelete;
+  final Future<void> Function(TransactionModel transaction) onAddInvoice;
 
   const TransactionListDesktop({
     super.key,
     required this.transactions,
     required this.onDelete,
+    required this.onAddInvoice,
   });
 
   String _formatVnd(int amount) {
@@ -66,11 +68,11 @@ class TransactionListDesktop extends StatelessWidget {
               try {
                 final userId = user?.uid ?? '';
                 await context.read<TransactionProvider>().updateTransactionStatus(
-                      tx.id,
-                      newValue,
-                      userId,
-                      invoiceRepository: context.read<InvoiceRepository>(),
-                    );
+                  tx.id,
+                  newValue,
+                  userId,
+                  invoiceRepository: context.read<InvoiceRepository>(),
+                );
                 if (context.mounted) {
                   final currentUser = context.read<AuthProvider>().user;
                   await context.read<InvoiceProvider>().loadInvoices(
@@ -267,8 +269,15 @@ class TransactionListDesktop extends StatelessWidget {
                             _buildStatusCell(context, tx, isDark),
                           ),
                           DataCell(
-                            tx.invoiceId != null
-                                ? Tooltip(
+                            Builder(
+                              builder: (context) {
+                                final hasInvoice =
+                                    (tx.invoiceId?.trim().isNotEmpty ?? false) ||
+                                        (tx.scanId?.trim().isNotEmpty ?? false) ||
+                                        (tx.receiptImage?.trim().isNotEmpty ?? false);
+
+                                if (hasInvoice) {
+                                  return Tooltip(
                                     message: 'Xem hóa đơn',
                                     child: IconButton(
                                       icon: const Icon(
@@ -282,15 +291,19 @@ class TransactionListDesktop extends StatelessWidget {
                                         );
                                       },
                                     ),
-                                  )
-                                : Text(
-                                    'Không có',
-                                    style: TextStyle(
-                                      color: isDark
-                                          ? AppDesignTokens.darkTextSecondary.withOpacity(0.5)
-                                          : AppDesignTokens.lightTextSecondary.withOpacity(0.5),
-                                    ),
+                                  );
+                                }
+
+                                return FilledButton.tonalIcon(
+                                  onPressed: () => onAddInvoice(tx),
+                                  icon: const Icon(
+                                    Icons.add_photo_alternate_outlined,
+                                    size: 18,
                                   ),
+                                  label: const Text('Thêm hóa đơn'),
+                                );
+                              },
+                            ),
                           ),
                         ],
                       );
