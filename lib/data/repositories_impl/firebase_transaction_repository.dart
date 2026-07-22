@@ -10,6 +10,32 @@ class FirebaseTransactionRepository implements TransactionRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static const String _cacheBoxName = 'firebase_transactions_cache';
 
+  static const _allAccessRoles = {'admin', 'chiefAccountant', 'accountant', 'manager'};
+
+  Future<bool> _isAllAccessUser(String userId, String? roleId) async {
+    if (userId.isEmpty) return false;
+
+    // 1. Kiểm tra roleId được truyền từ AuthProvider nếu có
+    if (roleId != null && roleId.isNotEmpty) {
+      if (_allAccessRoles.contains(roleId)) return true;
+    }
+
+    // 2. Tra cứu trực tiếp Firestore collection 'users' document {userId}
+    try {
+      final doc = await _firestore.collection('users').doc(userId).get();
+      if (doc.exists && doc.data() != null) {
+        final fetchedRole = doc.data()!['roleId'] as String?;
+        if (fetchedRole != null && _allAccessRoles.contains(fetchedRole)) {
+          return true;
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Lỗi tra cứu roleId từ Firestore: $e');
+    }
+
+    return false;
+  }
+
   @override
   Future<List<TransactionModel>> getTransactions(
     String userId, {
@@ -24,13 +50,10 @@ class FirebaseTransactionRepository implements TransactionRepository {
         return [];
       }
 
+      final isAllAccess = await _isAllAccessUser(userId, roleId);
       final QuerySnapshot querySnapshot;
-      final isGlobalRole = roleId == 'admin' ||
-          roleId == 'chiefAccountant' ||
-          roleId == 'accountant' ||
-          roleId == 'manager';
 
-      if (isGlobalRole) {
+      if (isAllAccess) {
         querySnapshot = await _firestore
             .collection('transactions')
             .orderBy('transactionDate', descending: true)
@@ -53,7 +76,6 @@ class FirebaseTransactionRepository implements TransactionRepository {
           .toList();
 
       final box = await Hive.openBox(_cacheBoxName);
-
       for (final tx in list) {
         await box.put(tx.transactionId, tx.toMap());
       }
@@ -64,11 +86,8 @@ class FirebaseTransactionRepository implements TransactionRepository {
         '⚠️ Firestore getTransactions offline/error fallback: $e',
       );
 
+      final isAllAccess = await _isAllAccessUser(userId, roleId);
       final box = await Hive.openBox(_cacheBoxName);
-      final isGlobalRole = roleId == 'admin' ||
-          roleId == 'chiefAccountant' ||
-          roleId == 'accountant' ||
-          roleId == 'manager';
 
       final list = box.values
           .map(
@@ -76,13 +95,11 @@ class FirebaseTransactionRepository implements TransactionRepository {
               Map<String, dynamic>.from(e),
             ),
           )
-          .where((tx) => isGlobalRole || tx.userId == userId)
+          .where((tx) => isAllAccess || tx.userId == userId)
           .toList();
 
       list.sort(
-        (a, b) => b.transactionDate.compareTo(
-          a.transactionDate,
-        ),
+        (a, b) => b.transactionDate.compareTo(a.transactionDate),
       );
 
       return list;
@@ -99,11 +116,8 @@ class FirebaseTransactionRepository implements TransactionRepository {
       return;
     }
 
+    final isAllAccess = await _isAllAccessUser(userId, roleId);
     final box = await Hive.openBox(_cacheBoxName);
-    final isGlobalRole = roleId == 'admin' ||
-        roleId == 'chiefAccountant' ||
-        roleId == 'accountant' ||
-        roleId == 'manager';
 
     final cached = box.values
         .map(
@@ -111,13 +125,11 @@ class FirebaseTransactionRepository implements TransactionRepository {
             Map<String, dynamic>.from(e),
           ),
         )
-        .where((tx) => isGlobalRole || tx.userId == userId)
+        .where((tx) => isAllAccess || tx.userId == userId)
         .toList();
 
     cached.sort(
-      (a, b) => b.transactionDate.compareTo(
-        a.transactionDate,
-      ),
+      (a, b) => b.transactionDate.compareTo(a.transactionDate),
     );
 
     yield cached;
@@ -128,19 +140,16 @@ class FirebaseTransactionRepository implements TransactionRepository {
     }
 
     try {
-      final Stream<QuerySnapshot> queryStream;
-      if (isGlobalRole) {
-        queryStream = _firestore
-            .collection('transactions')
-            .orderBy('transactionDate', descending: true)
-            .snapshots();
-      } else {
-        queryStream = _firestore
-            .collection('transactions')
-            .where('userId', isEqualTo: userId)
-            .orderBy('transactionDate', descending: true)
-            .snapshots();
-      }
+      final queryStream = isAllAccess
+          ? _firestore
+              .collection('transactions')
+              .orderBy('transactionDate', descending: true)
+              .snapshots()
+          : _firestore
+              .collection('transactions')
+              .where('userId', isEqualTo: userId)
+              .orderBy('transactionDate', descending: true)
+              .snapshots();
 
       await for (final querySnapshot in queryStream) {
         final list = querySnapshot.docs
@@ -168,22 +177,19 @@ class FirebaseTransactionRepository implements TransactionRepository {
         '⚠️ Firestore streamTransactions offline fallback: $e',
       );
 
-      final fallbackBox =
-      await Hive.openBox(_cacheBoxName);
+      final fallbackBox = await Hive.openBox(_cacheBoxName);
 
       final list = fallbackBox.values
           .map(
             (e) => TransactionModel.fromMap(
-          Map<String, dynamic>.from(e),
-        ),
-      )
-          .where((tx) => tx.userId == userId)
+              Map<String, dynamic>.from(e),
+            ),
+          )
+          .where((tx) => isAllAccess || tx.userId == userId)
           .toList();
 
       list.sort(
-            (a, b) => b.transactionDate.compareTo(
-          a.transactionDate,
-        ),
+        (a, b) => b.transactionDate.compareTo(a.transactionDate),
       );
 
       yield list;

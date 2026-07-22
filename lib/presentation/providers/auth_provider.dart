@@ -94,6 +94,19 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> refreshUser() async {
+    if (_user == null) return;
+    try {
+      final dbUser = await _userRepository.getUser(_user!.uid);
+      if (dbUser != null) {
+        _user = dbUser;
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint("Failed to refresh user profile from DB: $e");
+    }
+  }
+
   void clearError() {
     _errorMessage = null;
     notifyListeners();
