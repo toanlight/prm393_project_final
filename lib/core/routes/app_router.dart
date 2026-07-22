@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../domain/models/transaction_model.dart';
-import '../../domain/services/mock_ocr_service.dart';
+import '../../domain/models/ocr_invoice_data.dart';
 import '../../presentation/providers/auth_provider.dart';
 import '../../presentation/screens/home_screen.dart';
 import '../../presentation/screens/invoice_capture_screen.dart';

@@ -64,7 +64,7 @@ class TransactionListDesktop extends StatelessWidget {
           onChanged: (newValue) async {
             if (newValue != null && newValue != tx.status) {
               try {
-                final userId = user?.uid ?? 'chief_mock';
+                final userId = user?.uid ?? '';
                 await context.read<TransactionProvider>().updateTransactionStatus(
                       tx.id,
                       newValue,

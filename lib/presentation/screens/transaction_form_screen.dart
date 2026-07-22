@@ -6,14 +6,13 @@ import 'package:provider/provider.dart';
 
 import '../../core/theme/design_tokens.dart';
 import '../../domain/models/invoice_model.dart';
+import '../../domain/models/ocr_invoice_data.dart';
 import '../../domain/models/ocr_scan_model.dart';
 import '../../domain/models/transaction_model.dart';
 import '../../domain/models/transaction_type.dart';
 import '../../domain/repositories/invoice_repository.dart';
 import '../../domain/repositories/ocr_scan_repository.dart';
 import '../../domain/services/finance_calculation_service.dart';
-import '../../domain/services/mock_ocr_service.dart';
-import '../../domain/services/mock_receipt_image_store.dart';
 import '../../domain/services/rbac_permission_service.dart';
 import '../../data/services/firebase_receipt_storage_service.dart';
 import '../providers/auth_provider.dart';
@@ -183,9 +182,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
           _subTotalController.text = invoice.subTotal.toString();
           _vatRate = invoice.vatRate;
 
-          if (tx.scanId != null) {
-            _pickedImageBytes = MockReceiptImageStore.get(tx.scanId!);
-          }
+
         });
       }
     } catch (e) {
@@ -405,11 +402,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
       // 10. Lấy bytes ảnh.
       Uint8List? receiptBytes = _pickedImageBytes;
 
-      if (_isFromOcr && receiptBytes == null) {
-        receiptBytes = MockReceiptImageStore.get(
-          widget.initialOcrData!.scanId,
-        );
-      }
+
 
       if (receiptBytes != null) {
         scanId ??=

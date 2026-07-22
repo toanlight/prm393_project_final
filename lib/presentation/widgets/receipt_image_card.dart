@@ -69,9 +69,7 @@ class _MissingReceiptImage extends StatelessWidget {
   final String message;
 
   const _MissingReceiptImage({
-    this.message =
-    'Không tìm thấy ảnh trong bộ nhớ mock.\n'
-        'Ảnh mock sẽ mất sau khi refresh hoặc restart ứng dụng.',
+    this.message = 'Chưa có ảnh chứng từ hoặc ảnh đã bị xóa.',
   });
 
   @override

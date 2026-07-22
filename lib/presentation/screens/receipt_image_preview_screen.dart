@@ -11,7 +11,6 @@ import '../../domain/models/invoice_model.dart';
 import '../../domain/models/transaction_model.dart';
 import '../../domain/repositories/invoice_repository.dart';
 import '../../domain/services/invoice_pdf_service.dart';
-import '../../domain/services/mock_receipt_image_store.dart';
 import '../../domain/services/rbac_permission_service.dart';
 import '../providers/auth_provider.dart';
 
@@ -121,8 +120,6 @@ class _ReceiptImagePreviewScreenState
         bytes = await reference.getData(
           10 * 1024 * 1024,
         );
-      } else if (scanId != null) {
-        bytes = MockReceiptImageStore.get(scanId);
       }
 
       if (!mounted) return;

@@ -18,9 +18,6 @@ class SeedDataService {
 
   /// Kiểm tra xem Firebase Firestore đã có dữ liệu danh mục/người dùng chưa
   static Future<bool> isDataSeeded() async {
-    if (FirebaseService().isMockMode) {
-      return true; // Trong chế độ Mock, không cần seed lên Firebase thật
-    }
     try {
       final results = await Future.wait([
         _firestore.collection('categories').limit(1).get(),
@@ -55,11 +52,6 @@ class SeedDataService {
 
   /// Tự động seed dữ liệu lên Firebase nếu trên Firestore chưa có dữ liệu
   static Future<bool> seedIfEmpty({void Function(String msg)? onStatus}) async {
-    if (FirebaseService().isMockMode) {
-      debugPrint('[SeedData] ⚙️ Đang ở Mock Mode, bỏ qua seed Firebase.');
-      return false;
-    }
-
     try {
       final seeded = await isDataSeeded();
       if (!seeded) {
@@ -75,6 +67,7 @@ class SeedDataService {
       return false;
     }
   }
+
 
   /// Chạy toàn bộ quá trình seed (tạo roles, users, categories, transactions, invoices, ocr_scans, app_config)
   static Future<void> run({void Function(String msg)? onStatus}) async {

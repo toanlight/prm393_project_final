@@ -465,7 +465,7 @@ class TransactionListMobile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final user = context.watch<AuthProvider>().user;
-    final currentUserId = user?.uid ?? 'mock-user-123';
+    final currentUserId = user?.uid ?? '';
     final roleId = user?.roleId ?? '';
     final email = user?.email.toLowerCase() ?? '';
 

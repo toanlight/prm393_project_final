@@ -43,7 +43,7 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
 
   void _loadData() {
     final authProvider = context.read<AuthProvider>();
-    final userId = authProvider.user?.uid ?? 'mock-user-123';
+    final userId = authProvider.user?.uid ?? '';
     final roleId = authProvider.user?.roleId;
     context.read<TransactionProvider>().fetchTransactions(userId, roleId: roleId);
   }
@@ -398,7 +398,7 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final authProvider = context.watch<AuthProvider>();
-    final userId = authProvider.user?.uid ?? 'mock-user-123';
+    final userId = authProvider.user?.uid ?? '';
     final now = DateTime.now();
 
     return Scaffold(

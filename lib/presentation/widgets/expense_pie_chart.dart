@@ -1,6 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import '../../domain/models/mock_chart_data.dart';
+import '../../domain/models/chart_models.dart';
 
 class ExpensePieChart extends StatefulWidget {
   final List<PieSegment> data;

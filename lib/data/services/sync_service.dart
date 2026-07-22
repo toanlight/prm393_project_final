@@ -56,10 +56,6 @@ class SyncService {
   }
 
   Future<bool> isDeviceOnline() async {
-    // If Firebase service is explicitly in mock mode, treat it as offline for sync queue purposes
-    if (FirebaseService().isMockMode) {
-      return false;
-    }
     try {
       final connectivityResult = await Connectivity().checkConnectivity();
       return !connectivityResult.contains(ConnectivityResult.none);
@@ -67,6 +63,7 @@ class SyncService {
       return false;
     }
   }
+
 
   Future<void> enqueue({
     required String collection,
@@ -96,12 +93,7 @@ class SyncService {
   Future<void> syncPendingOperations() async {
     // Prevent concurrent sync sessions
     if (_isSyncing) return;
-    
-    // Check if Firebase is available
-    if (FirebaseService().isMockMode) {
-      debugPrint('⚙️ Sync skipped: FirebaseService is in Mock Mode.');
-      return;
-    }
+
 
     if (_syncBox == null || !_syncBox!.isOpen) {
       _syncBox = await Hive.openBox(_syncBoxName);

@@ -7,7 +7,7 @@ import 'package:project_final/domain/models/invoice_model.dart';
 import 'package:project_final/domain/models/invoice_item_model.dart';
 import 'package:project_final/domain/models/ocr_scan_model.dart';
 import 'package:project_final/domain/services/rbac_permission_service.dart';
-import 'package:project_final/data/repositories_impl/mock_user_repository.dart';
+import 'package:project_final/domain/repositories/user_repository.dart';
 import 'package:project_final/presentation/providers/user_management_provider.dart';
 import 'package:project_final/presentation/providers/auth_provider.dart';
 import 'package:project_final/domain/repositories/auth_repository.dart';
@@ -300,7 +300,7 @@ void main() {
 
     group('5. Test quản lý user (ban tài khoản & rule hạn chế admin)', () {
       test('Không cho phép admin tự đổi vai trò của chính mình hoặc tự ban chính mình', () async {
-        final mockRepo = MockUserRepository();
+        final mockRepo = TestUserRepository();
         final testAuthRepo = TestAuthRepository();
         final provider = UserManagementProvider(
           userRepository: mockRepo,
@@ -338,7 +338,7 @@ void main() {
       });
 
       test('Chỉ cho phép tối đa 1 tài khoản Admin Hệ thống hoặc Kế toán trưởng hoạt động', () async {
-        final mockRepo = MockUserRepository();
+        final mockRepo = TestUserRepository();
         final testAuthRepo = TestAuthRepository();
         final provider = UserManagementProvider(
           userRepository: mockRepo,
@@ -387,7 +387,7 @@ void main() {
       });
 
       test('AuthProvider tự động từ chối đăng nhập và đăng xuất nếu tài khoản bị vô hiệu hóa (isActive = false)', () async {
-        final mockUserRepo = MockUserRepository();
+        final mockUserRepo = TestUserRepository();
         final testAuthRepo = TestAuthRepository();
         
         final user = UserModel(
@@ -414,8 +414,8 @@ void main() {
         // Đặt người dùng hiện tại ở Repository và phát sinh trạng thái đăng nhập
         testAuthRepo.setCurrentUser(user);
         
-        // Chờ xử lý đồng bộ từ AuthProvider listener (MockUserRepository.getUser có delay 300ms)
-        await Future.delayed(const Duration(milliseconds: 1000));
+        // Chờ xử lý đồng bộ từ AuthProvider listener
+        await Future.delayed(const Duration(milliseconds: 100));
 
         // Kiểm tra xem AuthProvider có tự động đăng xuất và báo lỗi không
         expect(authProvider.isAuthenticated, isFalse);
@@ -424,6 +424,67 @@ void main() {
       });
     });
   });
+}
+
+class TestUserRepository implements UserRepository {
+  final List<UserModel> _users = [
+    UserModel(
+      uid: 'uid_admin',
+      email: 'admin@smartfinance.com',
+      displayName: 'Admin Hệ thống',
+      fullName: 'Nguyễn Văn Admin',
+      roleId: 'admin',
+      photoUrl: '',
+      isAnonymous: false,
+      createdAt: DateTime(2026, 1, 1),
+      isActive: true,
+    ),
+    UserModel(
+      uid: 'uid_chiefAccountant',
+      email: 'chief@smartfinance.com',
+      displayName: 'Kế toán trưởng',
+      fullName: 'Trần Thị Hương',
+      roleId: 'chiefAccountant',
+      photoUrl: '',
+      isAnonymous: false,
+      createdAt: DateTime(2026, 1, 1),
+      isActive: true,
+    ),
+  ];
+
+  @override
+  Future<UserModel?> getUser(String uid) async {
+    try {
+      return _users.firstWhere((u) => u.uid == uid);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Future<void> createUser(UserModel user) async {
+    _users.add(user);
+  }
+
+  @override
+  Future<void> updateUser(UserModel user) async {
+    final index = _users.indexWhere((u) => u.uid == user.uid);
+    if (index != -1) {
+      _users[index] = user;
+    } else {
+      _users.add(user);
+    }
+  }
+
+  @override
+  Future<List<UserModel>> getUsers() async {
+    return List.from(_users);
+  }
+
+  @override
+  Future<Map<String, dynamic>> getAppConfiguration() async {
+    return {};
+  }
 }
 
 class TestAuthRepository implements AuthRepository {
@@ -466,6 +527,5 @@ class TestAuthRepository implements AuthRepository {
   @override
   Future<void> changePassword(String oldPassword, String newPassword) async {}
 
-  @override
   Future<void> updateDisplayName(String name) async {}
 }

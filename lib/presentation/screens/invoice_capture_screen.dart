@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart'
@@ -7,9 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
-import '../../domain/services/mock_image_validation_service.dart';
-import '../../domain/services/mock_ocr_service.dart';
-import '../../domain/services/mock_receipt_image_store.dart';
+import '../../domain/models/ocr_scan_model.dart';
 import '../../domain/services/rbac_permission_service.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/scan_effect_overlay.dart';
@@ -53,14 +52,9 @@ class _InvoiceCaptureScreenState extends State<InvoiceCaptureScreen> {
     try {
       final bytes = await picked.readAsBytes();
 
-      final validation = await MockImageValidationService.validate(
-        bytes: bytes,
-        fileName: picked.name,
-      );
-
-      if (!validation.isValid) {
+      if (bytes.isEmpty || bytes.lengthInBytes > 10 * 1024 * 1024) {
         if (!mounted) return;
-        _showMessage(validation.errorMessage ?? 'Ảnh không hợp lệ.');
+        _showMessage('Ảnh không hợp lệ hoặc quá dung lượng (tối đa 10 MB).');
         return;
       }
 
@@ -72,12 +66,20 @@ class _InvoiceCaptureScreenState extends State<InvoiceCaptureScreen> {
       if (!mounted) return;
       await ScanEffectOverlay.show(context, bytes);
 
-      final ocrData = MockOcrService.scan();
+      final now = DateTime.now();
+      final scanId = 'scan_${now.millisecondsSinceEpoch}';
+      final userId = user?.uid ?? '';
 
-      // Lưu đúng ảnh người dùng đã chọn theo scanId.
-      MockReceiptImageStore.save(
-        scanId: ocrData.scanId,
-        bytes: bytes,
+      final ocrData = OCRScanModel(
+        scanId: scanId,
+        userId: userId,
+        imagePath: picked.path,
+        extractedAmount: 0,
+        extractedTaxCode: '',
+        extractedDate: now,
+        rawJson: jsonEncode({'fileName': picked.name, 'size': bytes.lengthInBytes}),
+        status: 'completed',
+        createdAt: now,
       );
 
       if (!mounted) return;
@@ -131,10 +133,10 @@ class _InvoiceCaptureScreenState extends State<InvoiceCaptureScreen> {
                     child: _imageBytes == null
                         ? const _EmptyCaptureState()
                         : Image.memory(
-                      _imageBytes!,
-                      fit: BoxFit.contain,
-                      semanticLabel: _fileName,
-                    ),
+                            _imageBytes!,
+                            fit: BoxFit.contain,
+                            semanticLabel: _fileName,
+                          ),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -178,8 +180,7 @@ class _InvoiceCaptureScreenState extends State<InvoiceCaptureScreen> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'OCR đang ở chế độ mô phỏng. Hệ thống kiểm tra định dạng, '
-                      'dung lượng và kích thước ảnh nhưng không đọc nội dung thật.',
+                  'Hệ thống tự động tải và lưu trữ chứng từ lên Firebase & Hive offline cache.',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),

@@ -6,7 +6,12 @@ import 'package:provider/provider.dart';
 
 import 'core/routes/app_router.dart';
 import 'core/theme/app_theme.dart';
-import 'data/repositories_impl/dynamic_repositories.dart';
+import 'data/repositories_impl/firebase_auth_repository.dart';
+import 'data/repositories_impl/firebase_user_repository.dart';
+import 'data/repositories_impl/firebase_transaction_repository.dart';
+import 'data/repositories_impl/firebase_category_repository.dart';
+import 'data/repositories_impl/firebase_ocr_scan_repository.dart';
+import 'data/repositories_impl/firebase_invoice_repository.dart';
 import 'data/services/firebase_service.dart';
 import 'data/services/seed_data_service.dart';
 import 'data/services/sync_service.dart';
@@ -36,13 +41,14 @@ void main() async {
   unawaited(SyncService().initialize());
   unawaited(SeedDataService.seedIfEmpty());
 
-  // Create repository wrappers that dynamically switch modes
-  final authRepository = DynamicAuthRepository();
-  final userRepository = DynamicUserRepository();
-  final transactionRepository = DynamicTransactionRepository();
-  final categoryRepository = DynamicCategoryRepository();
-  final ocrScanRepository = DynamicOCRScanRepository();
-  final invoiceRepository = DynamicInvoiceRepository();
+  // Direct injection of Firebase + Hive repositories
+  final authRepository = FirebaseAuthRepository();
+  final userRepository = FirebaseUserRepository();
+  final transactionRepository = FirebaseTransactionRepository();
+  final categoryRepository = FirebaseCategoryRepository();
+  final ocrScanRepository = FirebaseOCRScanRepository();
+  final invoiceRepository = FirebaseInvoiceRepository();
+
 
   runApp(
     MultiProvider(

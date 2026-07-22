@@ -8,7 +8,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/utils/responsive_helper.dart';
 import '../../domain/models/category_model.dart';
-import '../../domain/models/mock_chart_data.dart' hide kpiCards, monthlyData, spendingData, trendData;
+import '../../domain/models/chart_models.dart';
 import '../../domain/models/transaction_model.dart';
 import '../../domain/models/transaction_type.dart';
 import '../../domain/services/finance_calculation_service.dart';

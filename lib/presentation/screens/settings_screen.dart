@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/utils/responsive_helper.dart';
-import '../../data/services/firebase_service.dart';
 import '../../data/services/seed_data_service.dart';
 import '../providers/theme_provider.dart';
 import '../providers/auth_provider.dart';
@@ -16,7 +15,6 @@ class SettingsScreen extends StatelessWidget {
     final themeProvider = context.watch<ThemeProvider>();
     final authProvider = context.watch<AuthProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final firebaseService = FirebaseService();
 
     return Scaffold(
       appBar: AppBar(
@@ -82,62 +80,6 @@ class SettingsScreen extends StatelessWidget {
                   },
                 ),
 
-                const SizedBox(height: AppDesignTokens.spaceLg),
-                const Divider(),
-                const SizedBox(height: AppDesignTokens.spaceMd),
-
-                // Firebase/Mock Switcher
-                Text(
-                  'Cấu hình nền tảng Firebase',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? AppDesignTokens.darkTextSecondary : AppDesignTokens.lightTextSecondary,
-                  ),
-                ),
-                const SizedBox(height: AppDesignTokens.spaceSm),
-                
-                SwitchListTile(
-                  title: const Text('Chế độ Mock (Offline)'),
-                  subtitle: const Text(
-                    'Sử dụng dữ liệu giả lập bộ nhớ tạm mà không kết nối Firebase Real'
-                  ),
-                  secondary: const Icon(Icons.developer_mode_outlined),
-                  value: firebaseService.isMockMode,
-                  activeColor: AppDesignTokens.warning,
-                  onChanged: (value) {
-                    firebaseService.forceMockMode(value);
-                    
-                    // Alert user to Re-authenticate to trigger matching repository
-                    showDialog(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: Row(
-                          children: [
-                            Icon(Icons.warning_amber_rounded, color: AppDesignTokens.warning),
-                            const SizedBox(width: 8),
-                            const Text('Thay đổi chế độ'),
-                          ],
-                        ),
-                        content: Text(
-                          'Đã thiết lập Mock Mode thành $value. Bạn nên Đăng xuất và Đăng nhập lại để cập nhật Repository thích ứng (Mock vs Firebase Real).'
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () {
-                              Navigator.pop(ctx);
-                              authProvider.signOut(); // Auto logout to apply
-                            },
-                            child: const Text('Đăng xuất ngay'),
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx),
-                            child: const Text('Bỏ qua'),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
 
                 const SizedBox(height: AppDesignTokens.spaceLg),
                 const Divider(),
@@ -349,7 +291,7 @@ class SettingsScreen extends StatelessWidget {
               ],
             ),
             content: Text(
-              'Không thể seed dữ liệu lên Firebase:\n$error\n\nHãy đảm bảo bạn đã tắt Mock Mode và đã Đăng nhập tài khoản.',
+              'Không thể seed dữ liệu lên Firebase:\n$error\n\nHãy đảm bảo bạn đã kết nối Internet và đã đăng nhập tài khoản có đủ quyền.',
             ),
             actions: [
               TextButton(

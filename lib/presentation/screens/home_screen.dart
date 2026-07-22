@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/utils/responsive_helper.dart';
-import '../../data/services/firebase_service.dart';
 import '../providers/auth_provider.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -14,9 +13,6 @@ class HomeScreen extends StatelessWidget {
     final user = authProvider.user;
     final config = authProvider.appConfig;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    // Check actual Firebase Initialization state
-    final isMockMode = FirebaseService().isMockMode;
 
     Widget buildStatCard({
       required String title,
@@ -154,20 +150,20 @@ class HomeScreen extends StatelessWidget {
               children: [
                 buildStatCard(
                   title: 'Chế độ hoạt động',
-                  value: isMockMode ? 'Mock Mode (Offline)' : 'Firebase Production',
-                  icon: isMockMode ? Icons.cloud_off_rounded : Icons.cloud_done_rounded,
-                  color: isMockMode ? AppDesignTokens.warning : AppDesignTokens.success,
+                  value: 'Firebase + Hive Cache',
+                  icon: Icons.cloud_done_rounded,
+                  color: AppDesignTokens.success,
                 ),
                 buildStatCard(
                   title: 'Cơ sở dữ liệu Firestore',
-                  value: isMockMode ? 'In-Memory (Mock)' : 'Connected (Real)',
+                  value: 'Firestore (Online/Offline)',
                   icon: Icons.storage_rounded,
                   color: AppDesignTokens.secondary,
                 ),
                 buildStatCard(
-                  title: 'Lưu trữ Storage client',
-                  value: isMockMode ? 'Mock Storage' : 'Firebase Storage',
-                  icon: Icons.snippet_folder_rounded,
+                  title: 'Bộ nhớ đệm',
+                  value: 'Hive Cache Sync',
+                  icon: Icons.sync_rounded,
                   color: AppDesignTokens.accent,
                 ),
               ],
