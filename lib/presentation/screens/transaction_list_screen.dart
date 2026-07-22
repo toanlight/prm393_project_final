@@ -23,6 +23,7 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
   String _selectedType = 'all'; // 'all', 'income', 'expense'
   String _selectedStatus = 'all'; // 'all', 'pending', 'confirmed', 'rejected'
   String _selectedPeriod = 'all'; // 'all', 'this_month', 'last_month', 'q1', 'q2', 'q3', 'q4'
+  String _selectedInvoiceFilter = 'all'; // 'all', 'without_invoice', 'with_invoice'
   String _searchQuery = '';
 
   static const int _itemsPerPage = 10;
@@ -66,6 +67,18 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Tài khoản của bạn không có quyền thêm hóa đơn.'),
+          backgroundColor: AppDesignTokens.error,
+        ),
+      );
+      return;
+    }
+
+    if (transaction.status.trim().toLowerCase() == 'rejected') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Không thể thêm hóa đơn cho giao dịch đã bị từ chối.',
+          ),
           backgroundColor: AppDesignTokens.error,
         ),
       );
@@ -129,6 +142,20 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
       if (_selectedStatus != 'all') {
         if (tx.status != _selectedStatus) return false;
       }
+
+      final hasInvoice =
+          (tx.invoiceId?.trim().isNotEmpty ?? false) ||
+              (tx.scanId?.trim().isNotEmpty ?? false) ||
+              (tx.receiptImage?.trim().isNotEmpty ?? false);
+
+      if (_selectedInvoiceFilter == 'without_invoice' && hasInvoice) {
+        return false;
+      }
+
+      if (_selectedInvoiceFilter == 'with_invoice' && !hasInvoice) {
+        return false;
+      }
+
       if (_selectedPeriod != 'all') {
         final txDate = tx.transactionDate;
         final now = DateTime.now();
@@ -363,6 +390,60 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
     final user = context.watch<AuthProvider>().user;
     final canCreate = RbacPermissionService.canCreateTransaction(user);
 
+    final filterInvoiceButton = PopupMenuButton<String>(
+      tooltip: 'Lọc theo hóa đơn',
+      icon: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            _selectedInvoiceFilter == 'without_invoice'
+                ? Icons.receipt_long_outlined
+                : _selectedInvoiceFilter == 'with_invoice'
+                ? Icons.receipt_rounded
+                : Icons.receipt_long_rounded,
+            size: 19,
+            color: _selectedInvoiceFilter != 'all'
+                ? AppDesignTokens.primary
+                : null,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            _selectedInvoiceFilter == 'without_invoice'
+                ? 'Chưa có HĐ'
+                : _selectedInvoiceFilter == 'with_invoice'
+                ? 'Đã có HĐ'
+                : 'Hóa đơn',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: _selectedInvoiceFilter != 'all'
+                  ? FontWeight.bold
+                  : FontWeight.normal,
+              color: _selectedInvoiceFilter != 'all'
+                  ? AppDesignTokens.primary
+                  : null,
+            ),
+          ),
+        ],
+      ),
+      onSelected: (value) {
+        setState(() {
+          _selectedInvoiceFilter = value;
+          _currentPage = 1;
+        });
+      },
+      itemBuilder: (context) => const [
+        PopupMenuItem(value: 'all', child: Text('Tất cả giao dịch')),
+        PopupMenuItem(
+          value: 'without_invoice',
+          child: Text('Chưa có hóa đơn'),
+        ),
+        PopupMenuItem(
+          value: 'with_invoice',
+          child: Text('Đã có hóa đơn'),
+        ),
+      ],
+    );
+
     final addButton = canCreate
         ? ElevatedButton.icon(
       onPressed: () => context.push('/transactions/create'),
@@ -394,6 +475,8 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
               filterPeriodButton,
               const SizedBox(width: 6),
               filterStatusButton,
+              const SizedBox(width: 6),
+              filterInvoiceButton,
               if (canCreate) ...[
                 const SizedBox(width: 12),
                 addButton,
@@ -425,6 +508,8 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                   filterPeriodButton,
                   const SizedBox(width: 4),
                   filterStatusButton,
+                  const SizedBox(width: 4),
+                  filterInvoiceButton,
                 ],
               ),
             ],

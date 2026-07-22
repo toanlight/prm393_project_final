@@ -271,6 +271,39 @@ class TransactionListMobile extends StatelessWidget {
                         ),
                       ),
                     ),
+                  ] else if (tx.status.trim().toLowerCase() == 'rejected') ...[
+                    const Divider(height: 24),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppDesignTokens.error.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(
+                          AppDesignTokens.radiusMd,
+                        ),
+                        border: Border.all(
+                          color: AppDesignTokens.error.withOpacity(0.25),
+                        ),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(
+                            Icons.block_rounded,
+                            color: AppDesignTokens.error,
+                          ),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Không thể thêm hóa đơn cho giao dịch đã bị từ chối.',
+                              style: TextStyle(
+                                color: AppDesignTokens.error,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ] else ...[
                     const Divider(height: 24),
                     SizedBox(
@@ -623,6 +656,17 @@ class TransactionListMobile extends StatelessWidget {
                             Icons.receipt_long_rounded,
                             color: AppDesignTokens.primary,
                             size: 20,
+                          ),
+                          const SizedBox(height: 6),
+                        ] else if (tx.status.trim().toLowerCase() == 'rejected') ...[
+                          const Tooltip(
+                            message:
+                            'Giao dịch đã bị từ chối, không thể thêm hóa đơn',
+                            child: Icon(
+                              Icons.block_rounded,
+                              color: AppDesignTokens.error,
+                              size: 20,
+                            ),
                           ),
                           const SizedBox(height: 6),
                         ] else ...[

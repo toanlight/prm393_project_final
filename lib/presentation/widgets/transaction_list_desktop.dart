@@ -294,13 +294,80 @@ class TransactionListDesktop extends StatelessWidget {
                                   );
                                 }
 
+                                final isRejected =
+
+
+                                    tx.status.trim().toLowerCase() == 'rejected';
+
+
+
+                                if (isRejected) {
+
+
+                                  return Tooltip(
+
+
+                                    message:
+
+
+                                    'Không thể thêm hóa đơn cho giao dịch đã bị từ chối',
+
+
+                                    child: Text(
+
+
+                                      'Đã từ chối',
+
+
+                                      style: TextStyle(
+
+
+                                        color: isDark
+
+
+                                            ? AppDesignTokens.darkTextSecondary
+
+
+                                            : AppDesignTokens.lightTextSecondary,
+
+
+                                        fontSize: 12,
+
+
+                                      ),
+
+
+                                    ),
+
+
+                                  );
+
+
+                                }
+
+
+
                                 return FilledButton.tonalIcon(
+
+
                                   onPressed: () => onAddInvoice(tx),
+
+
                                   icon: const Icon(
+
+
                                     Icons.add_photo_alternate_outlined,
+
+
                                     size: 18,
+
+
                                   ),
+
+
                                   label: const Text('Thêm hóa đơn'),
+
+
                                 );
                               },
                             ),

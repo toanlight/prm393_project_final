@@ -84,6 +84,13 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
       widget.existingTransactionForInvoice != null;
   bool get _isFromOcr => widget.initialOcrData != null;
 
+  bool get _isRejectedAttach =>
+      _isAttachingInvoice &&
+          widget.existingTransactionForInvoice!.status
+              .trim()
+              .toLowerCase() ==
+              'rejected';
+
   TransactionModel? get _baseTransaction =>
       _isAttachingInvoice
           ? widget.existingTransactionForInvoice
@@ -92,6 +99,21 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
   @override
   void initState() {
     super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_isRejectedAttach) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Không thể thêm hóa đơn cho giao dịch đã bị từ chối.',
+          ),
+          backgroundColor: AppDesignTokens.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      context.pop(false);
+    });
 
     String initialAmount = '';
     String initialNote = '';
@@ -310,6 +332,19 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
 
   Future<void> _saveTransaction() async {
     if (_isSaving) return;
+
+    if (_isRejectedAttach) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Không thể thêm hóa đơn cho giao dịch đã bị từ chối.',
+          ),
+          backgroundColor: AppDesignTokens.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
 
     // 1. Validate ngay trên thiết bị.
     final isFormValid = _formKey.currentState?.validate() ?? false;
@@ -652,11 +687,12 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final user = context.watch<AuthProvider>().user;
 
-    final canAccess = _isAttachingInvoice
-        ? RbacPermissionService.canCreateInvoice(user)
-        : (_isEditing
-        ? RbacPermissionService.canEditTransaction(user)
-        : RbacPermissionService.canCreateTransaction(user));
+    final canAccess = !_isRejectedAttach &&
+        (_isAttachingInvoice
+            ? RbacPermissionService.canCreateInvoice(user)
+            : (_isEditing
+            ? RbacPermissionService.canEditTransaction(user)
+            : RbacPermissionService.canCreateTransaction(user)));
 
     if (!canAccess) {
       return Scaffold(
@@ -686,7 +722,9 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                 ),
                 const SizedBox(height: AppDesignTokens.spaceSm),
                 Text(
-                  'Tài khoản của bạn không có quyền ${_isAttachingInvoice ? "thêm hóa đơn vào" : (_isEditing ? "chỉnh sửa" : "tạo mới")} giao dịch.',
+                  _isRejectedAttach
+                      ? 'Giao dịch đã bị từ chối nên không thể bổ sung hóa đơn.'
+                      : 'Tài khoản của bạn không có quyền ${_isAttachingInvoice ? "thêm hóa đơn vào" : (_isEditing ? "chỉnh sửa" : "tạo mới")} giao dịch.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: isDark
