@@ -76,11 +76,13 @@ class IncomeExpenseBarChart extends StatelessWidget {
               sideTitles: SideTitles(
                 showTitles: true,
                 interval: 50,
-                reservedSize: 40,
+                reservedSize: 48,
                 getTitlesWidget: (value, meta) {
                   return Text(
                     CurrencyFormatter.short(value),
                     style: labelStyle,
+                    maxLines: 1,
+                    softWrap: false,
                   );
                 },
               ),
@@ -96,6 +98,7 @@ class IncomeExpenseBarChart extends StatelessWidget {
   }
 
   List<BarChartGroupData> _buildBarGroups() {
+    final barWidth = data.length > 6 ? 5.0 : 10.0;
     return List.generate(data.length, (index) {
       final item = data[index];
       return BarChartGroupData(
@@ -104,14 +107,14 @@ class IncomeExpenseBarChart extends StatelessWidget {
           BarChartRodData(
             toY: item.thu,
             color: AppColors.success,
-            width: 10,
-            borderRadius: BorderRadius.circular(4),
+            width: barWidth,
+            borderRadius: BorderRadius.circular(3),
           ),
           BarChartRodData(
             toY: item.chi,
             color: AppColors.danger,
-            width: 10,
-            borderRadius: BorderRadius.circular(4),
+            width: barWidth,
+            borderRadius: BorderRadius.circular(3),
           ),
         ],
       );
