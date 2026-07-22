@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import '../../domain/models/chart_models.dart';
@@ -5,6 +6,41 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/utils/currency_formatter.dart';
+
+class _AxisConfig {
+  final double maxY;
+  final double interval;
+  _AxisConfig(this.maxY, this.interval);
+}
+
+_AxisConfig _calculateAxisConfig(double maxVal) {
+  if (maxVal <= 0) return _AxisConfig(100, 25);
+
+  double targetMax = maxVal * 1.25;
+  double rawInterval = targetMax / 4;
+
+  double exponent = (rawInterval <= 0) ? 0 : (log(rawInterval) / ln10).floorToDouble();
+  double magnitude = pow(10, exponent).toDouble();
+  double residual = rawInterval / magnitude;
+
+  double niceInterval;
+  if (residual < 1.5) {
+    niceInterval = 1 * magnitude;
+  } else if (residual < 3) {
+    niceInterval = 2 * magnitude;
+  } else if (residual < 7) {
+    niceInterval = 5 * magnitude;
+  } else {
+    niceInterval = 10 * magnitude;
+  }
+
+  double maxY = (targetMax / niceInterval).ceil() * niceInterval;
+  if (maxY < maxVal * 1.15) {
+    maxY += niceInterval;
+  }
+
+  return _AxisConfig(maxY, niceInterval);
+}
 
 class IncomeExpenseLineChart extends StatelessWidget {
   final List<TrendPoint> data;
@@ -21,10 +57,17 @@ class IncomeExpenseLineChart extends StatelessWidget {
       color: isDark ? AppDesignTokens.darkTextSecondary : AppColors.mutedFg,
     );
 
+    double maxVal = 0;
+    for (var item in data) {
+      if (item.balance.abs() > maxVal) maxVal = item.balance.abs();
+    }
+    final axisConfig = _calculateAxisConfig(maxVal);
+
     return AspectRatio(
       aspectRatio: 3.5,
       child: LineChart(
         LineChartData(
+          maxY: axisConfig.maxY,
           lineTouchData: LineTouchData(
             handleBuiltInTouches: true,
             touchTooltipData: LineTouchTooltipData(
@@ -45,7 +88,7 @@ class IncomeExpenseLineChart extends StatelessWidget {
           gridData: FlGridData(
             show: true,
             drawVerticalLine: false,
-            horizontalInterval: 50,
+            horizontalInterval: axisConfig.interval,
             getDrawingHorizontalLine: (value) {
               return FlLine(
                 color: gridLineColor,
@@ -79,8 +122,8 @@ class IncomeExpenseLineChart extends StatelessWidget {
             leftTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,
-                interval: 50,
-                reservedSize: 48,
+                interval: axisConfig.interval,
+                reservedSize: 52,
                 getTitlesWidget: (value, meta) {
                   return Text(
                     CurrencyFormatter.short(value),
