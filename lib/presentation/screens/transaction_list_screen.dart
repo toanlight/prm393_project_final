@@ -22,6 +22,7 @@ class TransactionListScreen extends StatefulWidget {
 class _TransactionListScreenState extends State<TransactionListScreen> {
   String _selectedType = 'all'; // 'all', 'income', 'expense'
   String _selectedStatus = 'all'; // 'all', 'pending', 'confirmed', 'rejected'
+  String _selectedPeriod = 'all'; // 'all', 'this_month', 'last_month', 'q1', 'q2', 'q3', 'q4'
   String _searchQuery = '';
 
   static const int _itemsPerPage = 10;
@@ -35,17 +36,43 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
     });
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _loadData();
-  }
-
-  void _loadData() {
+  Future<void> _loadData() async {
     final authProvider = context.read<AuthProvider>();
     final userId = authProvider.user?.uid ?? '';
     final roleId = authProvider.user?.roleId;
-    context.read<TransactionProvider>().fetchTransactions(userId, roleId: roleId);
+    if (userId.isNotEmpty) {
+      context.read<TransactionProvider>().fetchTransactions(userId, roleId: roleId);
+    }
+  }
+
+  Future<void> _onRefresh() async {
+    final authProvider = context.read<AuthProvider>();
+    await authProvider.refreshUser();
+    if (!mounted) return;
+    final userId = authProvider.user?.uid ?? '';
+    final roleId = authProvider.user?.roleId;
+    if (userId.isNotEmpty) {
+      await context.read<TransactionProvider>().fetchTransactions(userId, roleId: roleId);
+    }
+  }
+
+  String _getPeriodLabel(String value) {
+    switch (value) {
+      case 'this_month':
+        return 'Tháng này';
+      case 'last_month':
+        return 'Tháng trước';
+      case 'q1':
+        return 'Quý 1';
+      case 'q2':
+        return 'Quý 2';
+      case 'q3':
+        return 'Quý 3';
+      case 'q4':
+        return 'Quý 4';
+      default:
+        return 'Thời gian';
+    }
   }
 
   List<TransactionModel> _getFilteredTransactions(List<TransactionModel> txs) {
@@ -62,6 +89,24 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
       }
       if (_selectedStatus != 'all') {
         if (tx.status != _selectedStatus) return false;
+      }
+      if (_selectedPeriod != 'all') {
+        final txDate = tx.transactionDate;
+        final now = DateTime.now();
+        if (_selectedPeriod == 'this_month') {
+          if (txDate.year != now.year || txDate.month != now.month) return false;
+        } else if (_selectedPeriod == 'last_month') {
+          final lastMonthDate = DateTime(now.year, now.month - 1);
+          if (txDate.year != lastMonthDate.year || txDate.month != lastMonthDate.month) return false;
+        } else if (_selectedPeriod == 'q1') {
+          if (txDate.year != now.year || txDate.month < 1 || txDate.month > 3) return false;
+        } else if (_selectedPeriod == 'q2') {
+          if (txDate.year != now.year || txDate.month < 4 || txDate.month > 6) return false;
+        } else if (_selectedPeriod == 'q3') {
+          if (txDate.year != now.year || txDate.month < 7 || txDate.month > 9) return false;
+        } else if (_selectedPeriod == 'q4') {
+          if (txDate.year != now.year || txDate.month < 10 || txDate.month > 12) return false;
+        }
       }
       return true;
     }).toList();
@@ -201,6 +246,46 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
       );
     }
 
+    final filterPeriodButton = PopupMenuButton<String>(
+      tooltip: 'Lọc thời gian (Tháng/Quý)',
+      icon: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.calendar_month_outlined,
+            size: 18,
+            color: _selectedPeriod != 'all' ? AppDesignTokens.primary : null,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            _getPeriodLabel(_selectedPeriod),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: _selectedPeriod != 'all' ? FontWeight.bold : FontWeight.normal,
+              color: _selectedPeriod != 'all' ? AppDesignTokens.primary : null,
+            ),
+          ),
+        ],
+      ),
+      onSelected: (val) {
+        setState(() {
+          _selectedPeriod = val;
+          _currentPage = 1;
+        });
+      },
+      itemBuilder: (context) => const [
+        PopupMenuItem(value: 'all', child: Text('Tất cả thời gian')),
+        PopupMenuDivider(),
+        PopupMenuItem(value: 'this_month', child: Text('Tháng này')),
+        PopupMenuItem(value: 'last_month', child: Text('Tháng trước')),
+        PopupMenuDivider(),
+        PopupMenuItem(value: 'q1', child: Text('Quý 1 (T1 - T3)')),
+        PopupMenuItem(value: 'q2', child: Text('Quý 2 (T4 - T6)')),
+        PopupMenuItem(value: 'q3', child: Text('Quý 3 (T7 - T9)')),
+        PopupMenuItem(value: 'q4', child: Text('Quý 4 (T10 - T12)')),
+      ],
+    );
+
     final filterStatusButton = PopupMenuButton<String>(
       tooltip: 'Lọc trạng thái',
       icon: Row(
@@ -267,6 +352,8 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
               const SizedBox(width: 6),
               buildFilterChip('Chi', 'expense'),
               const SizedBox(width: 8),
+              filterPeriodButton,
+              const SizedBox(width: 6),
               filterStatusButton,
               if (canCreate) ...[
                 const SizedBox(width: 12),
@@ -291,11 +378,13 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
               Row(
                 children: [
                   buildFilterChip('Tất cả', 'all'),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 4),
                   buildFilterChip('Thu', 'income'),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 4),
                   buildFilterChip('Chi', 'expense'),
                   const Spacer(),
+                  filterPeriodButton,
+                  const SizedBox(width: 4),
                   filterStatusButton,
                 ],
               ),
@@ -557,13 +646,12 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
               );
             }
 
-            // Tính toán tổng quan thu/chi và số dư (Chỉ tính các giao dịch đã được phê duyệt 'confirmed')
-            final totalIncome = FinanceCalculationService.calculateConfirmedIncome(provider.transactions);
-            final totalExpense = FinanceCalculationService.calculateConfirmedExpense(provider.transactions);
-            final balance = FinanceCalculationService.calculateNetBalance(totalIncome, totalExpense);
+            final filteredTxs = _getFilteredTransactions(provider.transactions);
 
-            final filteredTxs =
-            _getFilteredTransactions(provider.transactions);
+            // Tính toán tổng quan thu/chi và số dư theo danh sách đã lọc (Chỉ tính các giao dịch 'confirmed')
+            final totalIncome = FinanceCalculationService.calculateConfirmedIncome(filteredTxs);
+            final totalExpense = FinanceCalculationService.calculateConfirmedExpense(filteredTxs);
+            final balance = FinanceCalculationService.calculateNetBalance(totalIncome, totalExpense);
 
             final totalPages =
             (filteredTxs.length / _itemsPerPage).ceil();
@@ -580,140 +668,143 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                 .take(_itemsPerPage)
                 .toList(growable: false);
 
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 1. Tiêu đề chính + Subtitle
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppDesignTokens.spaceMd,
-                    AppDesignTokens.spaceSm,
-                    AppDesignTokens.spaceMd,
-                    2,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Lịch sử giao dịch',
-                            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 20,
-                            ),
-                          ),
-                          Text(
-                            '${provider.transactions.length} giao dịch · Tháng ${now.month}/${now.year}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: isDark
-                                  ? AppDesignTokens.darkTextSecondary
-                                  : AppDesignTokens.lightTextSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-
-                // 2. Khối tóm tắt (3 thẻ bo góc nằm ngang)
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppDesignTokens.spaceMd,
-                    vertical: 4,
-                  ),
-                  child: Row(
-                    children: [
-                      _buildSummaryCard(
-                        context: context,
-                        title: 'Tổng Thu',
-                        amountText: '+${_formatVnd(totalIncome)}',
-                        amountColor: AppDesignTokens.success,
-                        isDark: isDark,
-                      ),
-                      const SizedBox(width: 6),
-                      _buildSummaryCard(
-                        context: context,
-                        title: 'Tổng Chi',
-                        amountText: '-${_formatVnd(totalExpense)}',
-                        amountColor: AppDesignTokens.error,
-                        isDark: isDark,
-                      ),
-                      const SizedBox(width: 6),
-                      _buildSummaryCard(
-                        context: context,
-                        title: 'Số dư cuối',
-                        amountText: _formatVnd(balance),
-                        amountColor: AppDesignTokens.primary,
-                        isDark: isDark,
-                      ),
-                    ],
-                  ),
-                ),
-
-                // 3. Thanh công cụ tìm kiếm & bộ lọc
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppDesignTokens.spaceMd,
-                    vertical: 2,
-                  ),
-                  child: _buildFilterBar(context),
-                ),
-
-                const SizedBox(height: AppDesignTokens.spaceSm),
-
-                // 4. Bảng danh sách giao dịch (Responsive Layout)
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppDesignTokens.spaceLg,
+            return RefreshIndicator(
+              onRefresh: _onRefresh,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 1. Tiêu đề chính + Subtitle
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppDesignTokens.spaceMd,
+                      AppDesignTokens.spaceSm,
+                      AppDesignTokens.spaceMd,
+                      2,
                     ),
-                    child: provider.transactions.isEmpty
-                        ? TransactionEmptyState(onRefresh: _loadData)
-                        : (filteredTxs.isEmpty
-                        ? const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(AppDesignTokens.spaceLg),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(Icons.filter_list_off, size: 48, color: Colors.grey),
-                            SizedBox(height: 8),
                             Text(
-                              'Không tìm thấy giao dịch phù hợp với bộ lọc.',
-                              style: TextStyle(color: Colors.grey),
+                              'Lịch sử giao dịch',
+                              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 20,
+                                  ),
+                            ),
+                            Text(
+                              '${filteredTxs.length} / ${provider.transactions.length} giao dịch · ${_selectedPeriod != 'all' ? _getPeriodLabel(_selectedPeriod) : 'Tháng ${now.month}/${now.year}'}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: isDark
+                                    ? AppDesignTokens.darkTextSecondary
+                                    : AppDesignTokens.lightTextSecondary,
+                              ),
                             ),
                           ],
                         ),
-                      ),
-                    )
-                        : LayoutBuilder(
-                      builder: (context, constraints) {
-                        if (constraints.maxWidth >= 900) {
-                          return TransactionListDesktop(
-                            transactions: pagedTransactions,
-                            onDelete: (id) => provider.deleteTransaction(id, userId),
-                          );
-                        } else {
-                          return TransactionListMobile(
-                            transactions: pagedTransactions,
-                            onDelete: (id) => provider.deleteTransaction(id, userId),
-                          );
-                        }
-                      },
-                    )),
+                      ],
+                    ),
                   ),
-                ),
 
-                if (filteredTxs.isNotEmpty)
-                  _buildPagination(
-                    totalItems: filteredTxs.length,
-                    isDark: isDark,
+                  // 2. Khối tóm tắt (3 thẻ bo góc nằm ngang)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppDesignTokens.spaceMd,
+                      vertical: 4,
+                    ),
+                    child: Row(
+                      children: [
+                        _buildSummaryCard(
+                          context: context,
+                          title: 'Tổng Thu',
+                          amountText: '+${_formatVnd(totalIncome)}',
+                          amountColor: AppDesignTokens.success,
+                          isDark: isDark,
+                        ),
+                        const SizedBox(width: 6),
+                        _buildSummaryCard(
+                          context: context,
+                          title: 'Tổng Chi',
+                          amountText: '-${_formatVnd(totalExpense)}',
+                          amountColor: AppDesignTokens.error,
+                          isDark: isDark,
+                        ),
+                        const SizedBox(width: 6),
+                        _buildSummaryCard(
+                          context: context,
+                          title: 'Số dư cuối',
+                          amountText: _formatVnd(balance),
+                          amountColor: AppDesignTokens.primary,
+                          isDark: isDark,
+                        ),
+                      ],
+                    ),
                   ),
-              ],
+
+                  // 3. Thanh công cụ tìm kiếm & bộ lọc
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppDesignTokens.spaceMd,
+                      vertical: 2,
+                    ),
+                    child: _buildFilterBar(context),
+                  ),
+
+                  const SizedBox(height: AppDesignTokens.spaceSm),
+
+                  // 4. Bảng danh sách giao dịch (Responsive Layout)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppDesignTokens.spaceLg,
+                      ),
+                      child: provider.transactions.isEmpty
+                          ? TransactionEmptyState(onRefresh: _onRefresh)
+                          : (filteredTxs.isEmpty
+                          ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(AppDesignTokens.spaceLg),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.filter_list_off, size: 48, color: Colors.grey),
+                              SizedBox(height: 8),
+                              Text(
+                                'Không tìm thấy giao dịch phù hợp với bộ lọc.',
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                          : LayoutBuilder(
+                        builder: (context, constraints) {
+                          if (constraints.maxWidth >= 900) {
+                            return TransactionListDesktop(
+                              transactions: pagedTransactions,
+                              onDelete: (id) => provider.deleteTransaction(id, userId),
+                            );
+                          } else {
+                            return TransactionListMobile(
+                              transactions: pagedTransactions,
+                              onDelete: (id) => provider.deleteTransaction(id, userId),
+                            );
+                          }
+                        },
+                      )),
+                    ),
+                  ),
+
+                  if (filteredTxs.isNotEmpty)
+                    _buildPagination(
+                      totalItems: filteredTxs.length,
+                      isDark: isDark,
+                    ),
+                ],
+              ),
             );
           },
         ),
