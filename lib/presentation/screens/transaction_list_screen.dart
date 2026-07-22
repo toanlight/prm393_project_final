@@ -317,79 +317,184 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
     }
 
     final startItem = ((_currentPage - 1) * _itemsPerPage) + 1;
-    final endItem = (_currentPage * _itemsPerPage).clamp(0, totalItems);
+    final endItem =
+    (_currentPage * _itemsPerPage).clamp(0, totalItems);
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppDesignTokens.spaceLg,
-        AppDesignTokens.spaceSm,
-        AppDesignTokens.spaceLg,
-        AppDesignTokens.spaceMd,
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              'Hiển thị $startItem–$endItem trên $totalItems giao dịch',
-              style: TextStyle(
-                fontSize: 12,
-                color: isDark
-                    ? AppDesignTokens.darkTextSecondary
-                    : AppDesignTokens.lightTextSecondary,
-              ),
+    List<int> visiblePages() {
+      const maxVisiblePages = 5;
+
+      if (totalPages <= maxVisiblePages) {
+        return List<int>.generate(
+          totalPages,
+              (index) => index + 1,
+        );
+      }
+
+      var start = _currentPage - 2;
+      var end = _currentPage + 2;
+
+      if (start < 1) {
+        start = 1;
+        end = maxVisiblePages;
+      }
+
+      if (end > totalPages) {
+        end = totalPages;
+        start = totalPages - maxVisiblePages + 1;
+      }
+
+      return List<int>.generate(
+        end - start + 1,
+            (index) => start + index,
+      );
+    }
+
+    Widget pageButton(int page) {
+      final isSelected = page == _currentPage;
+
+      return InkWell(
+        onTap: isSelected
+            ? null
+            : () {
+          setState(() {
+            _currentPage = page;
+          });
+        },
+        borderRadius: BorderRadius.circular(
+          AppDesignTokens.radiusSm,
+        ),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          width: 38,
+          height: 38,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: isSelected
+                ? AppDesignTokens.primary
+                : (isDark
+                ? AppDesignTokens.darkSurfaceCard
+                : Colors.white),
+            borderRadius: BorderRadius.circular(
+              AppDesignTokens.radiusSm,
+            ),
+            border: Border.all(
+              color: isSelected
+                  ? AppDesignTokens.primary
+                  : (isDark
+                  ? AppDesignTokens.darkBorder
+                  : AppDesignTokens.lightBorder),
             ),
           ),
-          IconButton(
-            tooltip: 'Trang trước',
-            onPressed: _currentPage > 1
-                ? () {
-              setState(() {
-                _currentPage--;
-              });
-            }
-                : null,
-            icon: const Icon(Icons.chevron_left_rounded),
-          ),
-          Container(
-            constraints: const BoxConstraints(minWidth: 74),
-            alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(
-              horizontal: 10,
-              vertical: 8,
-            ),
-            decoration: BoxDecoration(
-              color: isDark
-                  ? AppDesignTokens.darkSurfaceCard
-                  : Colors.white,
-              borderRadius: BorderRadius.circular(
-                AppDesignTokens.radiusSm,
-              ),
-              border: Border.all(
-                color: isDark
-                    ? AppDesignTokens.darkBorder
-                    : AppDesignTokens.lightBorder,
-              ),
-            ),
-            child: Text(
-              '$_currentPage/$totalPages',
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-              ),
+          child: Text(
+            '$page',
+            style: TextStyle(
+              color: isSelected
+                  ? Colors.white
+                  : (isDark
+                  ? AppDesignTokens.darkTextPrimary
+                  : AppDesignTokens.lightTextPrimary),
+              fontWeight: FontWeight.w600,
             ),
           ),
-          IconButton(
-            tooltip: 'Trang sau',
-            onPressed: _currentPage < totalPages
-                ? () {
-              setState(() {
-                _currentPage++;
-              });
-            }
-                : null,
-            icon: const Icon(Icons.chevron_right_rounded),
+        ),
+      );
+    }
+
+    final pages = visiblePages();
+
+    final controls = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          tooltip: 'Trang trước',
+          onPressed: _currentPage > 1
+              ? () {
+            setState(() {
+              _currentPage--;
+            });
+          }
+              : null,
+          icon: const Icon(Icons.chevron_left_rounded),
+        ),
+        Flexible(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var i = 0; i < pages.length; i++) ...[
+                  pageButton(pages[i]),
+                  if (i != pages.length - 1)
+                    const SizedBox(width: 6),
+                ],
+              ],
+            ),
           ),
-        ],
-      ),
+        ),
+        IconButton(
+          tooltip: 'Trang sau',
+          onPressed: _currentPage < totalPages
+              ? () {
+            setState(() {
+              _currentPage++;
+            });
+          }
+              : null,
+          icon: const Icon(Icons.chevron_right_rounded),
+        ),
+      ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 600;
+
+        final infoText = Text(
+          'Hiển thị $startItem–$endItem trên '
+              '$totalItems giao dịch',
+          textAlign:
+          isMobile ? TextAlign.center : TextAlign.left,
+          style: TextStyle(
+            fontSize: 12,
+            color: isDark
+                ? AppDesignTokens.darkTextSecondary
+                : AppDesignTokens.lightTextSecondary,
+          ),
+        );
+
+        if (isMobile) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppDesignTokens.spaceSm,
+              AppDesignTokens.spaceMd,
+              AppDesignTokens.spaceSm,
+              AppDesignTokens.spaceLg,
+            ),
+            child: Column(
+              children: [
+                infoText,
+                const SizedBox(height: 10),
+                Center(child: controls),
+              ],
+            ),
+          );
+        }
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppDesignTokens.spaceLg,
+            AppDesignTokens.spaceMd,
+            AppDesignTokens.spaceLg,
+            AppDesignTokens.spaceMd,
+          ),
+          child: Row(
+            children: [
+              Expanded(child: infoText),
+              controls,
+            ],
+          ),
+        );
+      },
     );
   }
 
