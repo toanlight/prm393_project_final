@@ -240,6 +240,34 @@ class InvoiceProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void addOrUpdateInvoiceEntry(
+    InvoiceModel invoice,
+    TransactionModel transaction,
+  ) {
+    final list = List<InvoiceListEntry>.from(_items);
+    final index = list.indexWhere((e) => e.invoice.invoiceId == invoice.invoiceId);
+    final newEntry = InvoiceListEntry(
+      invoice: invoice,
+      transaction: transaction,
+    );
+
+    if (index != -1) {
+      list[index] = newEntry;
+    } else {
+      list.insert(0, newEntry);
+    }
+
+    list.sort((a, b) {
+      final aDate = a.invoice.invoiceDate ?? a.transaction.transactionDate;
+      final bDate = b.invoice.invoiceDate ?? b.transaction.transactionDate;
+      return bDate.compareTo(aDate);
+    });
+
+    _items = list;
+    _status = InvoiceLoadStatus.success;
+    notifyListeners();
+  }
+
   void clearFilters() {
     _searchQuery = '';
     _statusFilter = 'all';

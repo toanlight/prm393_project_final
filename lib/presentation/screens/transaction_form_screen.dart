@@ -339,15 +339,14 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     final now = DateTime.now();
 
     try {
-      final firebaseUser = firebase_auth.FirebaseAuth.instance.currentUser;
+      final userId = authProvider.user?.uid ??
+          firebase_auth.FirebaseAuth.instance.currentUser?.uid;
 
-      if (firebaseUser == null) {
+      if (userId == null || userId.isEmpty) {
         throw StateError(
-          'Phiên đăng nhập Firebase chưa sẵn sàng. Vui lòng đăng nhập lại.',
+          'Phiên đăng nhập chưa sẵn sàng. Vui lòng đăng nhập lại.',
         );
       }
-
-      final userId = firebaseUser.uid;
 
       // 6. Tạo hoặc sử dụng lại transactionId.
       final transactionId = _isEditing
@@ -419,17 +418,25 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
         transactionCreated = true;
       }
 
+      InvoiceModel? createdInvoice;
+
       if (_isFromOcr && invoiceId != null) {
-        final invoice = widget.initialOcrData!.toInvoiceModel(
+        createdInvoice = widget.initialOcrData!.toInvoiceModel(
           invoiceId: invoiceId,
           transactionId: transactionId,
           createdBy: userId,
         );
-        await invoiceRepository.createInvoice(invoice);
+        await invoiceRepository.createInvoice(createdInvoice);
       } else if (hasInvoiceInfo && invoiceId != null) {
-        final totalAmount = amount;
-        final subTotal = validatedSubTotal ?? totalAmount;
-        final vatAmount = totalAmount - subTotal;
+        final subTotal = validatedSubTotal ?? amount;
+        final vatAmount = FinanceCalculationService.calculateVatAmount(
+          subTotal,
+          _vatRate,
+        );
+        final totalAmount = FinanceCalculationService.calculateTotalInvoiceAmount(
+          subTotal,
+          _vatRate,
+        );
 
         final invoiceNumberText = _invoiceNumberController.text.trim();
         final partnerNameText = _partnerNameController.text.trim();
@@ -442,7 +449,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
             ? partnerNameText
             : (_type == 'thu' ? 'Khách hàng' : 'Nhà cung cấp / Đối tác');
 
-        final manualInvoice = InvoiceModel(
+        createdInvoice = InvoiceModel(
           invoiceId: invoiceId,
           transactionId: transactionId,
           invoiceNumber: invoiceNumber,
@@ -452,7 +459,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
           invoiceDate: _date,
           subTotal: subTotal,
           vatRate: _vatRate,
-          vatAmount: vatAmount > 0 ? vatAmount : 0,
+          vatAmount: vatAmount,
           totalAmount: totalAmount,
           pdfPath: 'invoices/pdf/$invoiceId.pdf',
           createdBy: userId,
@@ -460,7 +467,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
           status: transaction.status,
         );
 
-        await invoiceRepository.createInvoice(manualInvoice);
+        await invoiceRepository.createInvoice(createdInvoice);
       }
 
       // 17. Lưu OCR scan nếu có ảnh thật và invoice.
@@ -487,15 +494,10 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
             .createOCRScan(ocrScan);
       }
 
-      // 18. Đồng bộ lại danh sách hóa đơn.
-        final currentUser = authProvider.user;
-        await context
-            .read<InvoiceProvider>()
-            .loadInvoices(
-              userId,
-              roleId: currentUser?.roleId,
-              taxCode: currentUser?.taxCode,
-            );
+      // 18. Cập nhật mượt mà vào InvoiceProvider local state (Tránh re-fetch toàn bộ document qua mạng)
+      if (createdInvoice != null) {
+        context.read<InvoiceProvider>().addOrUpdateInvoiceEntry(createdInvoice, transaction);
+      }
 
       if (!mounted) return;
 
