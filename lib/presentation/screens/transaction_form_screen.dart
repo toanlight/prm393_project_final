@@ -314,10 +314,10 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
       return;
     }
 
-    // 3. Quy tắc BA: Chi BẮT BUỘC có hóa đơn hợp lệ! Thu có thể có hoặc không.
+    // 3. Quy tắc BA: Thu BẮT BUỘC có hóa đơn hợp lệ! Chi có thể có hoặc không.
     int? validatedSubTotal;
 
-    if (_type == 'chi') {
+    if (_type == 'thu') {
       final subText = _subTotalController.text.trim();
       validatedSubTotal = int.tryParse(subText);
 
@@ -329,7 +329,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
       if (subTotalError != null || validatedSubTotal == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(subTotalError ?? 'Giao dịch Chi bắt buộc phải có thông tin Tiền hàng hóa đơn hợp lệ.'),
+            content: Text(subTotalError ?? 'Giao dịch Thu bắt buộc phải có thông tin Tiền hàng hóa đơn hợp lệ.'),
             backgroundColor: AppDesignTokens.error,
             behavior: SnackBarBehavior.floating,
           ),
@@ -340,7 +340,6 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
       final subText = _subTotalController.text.trim();
       validatedSubTotal = int.tryParse(subText);
 
-      // Nếu Giao dịch Thu có chọn VAT > 0%, yêu cầu nhập Tiền hàng để tính đúng VAT.
       if (_vatRate > 0 && subText.isNotEmpty) {
         final subTotalError = _validateMoney(subText, fieldName: 'Tiền hàng');
         if (subTotalError != null) {
@@ -381,8 +380,8 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
           ? widget.transactionToEdit!.transactionId
           : _generateUniqueId('tx');
 
-      // 7. Quy tắc BA: Chi bắt buộc tạo Hóa đơn. Thu có Hóa đơn nếu nhập số HĐ/Đối tác/Ảnh.
-      final hasInvoiceInfo = _type == 'chi' ||
+      // 7. Quy tắc BA: Thu bắt buộc tạo Hóa đơn. Chi có Hóa đơn nếu nhập số HĐ/Đối tác/Ảnh.
+      final hasInvoiceInfo = _type == 'thu' ||
           _isFromOcr ||
           _pickedImageBytes != null ||
           _invoiceNumberController.text.trim().isNotEmpty ||
@@ -922,22 +921,24 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                   children: [
                     Icon(
                       Icons.receipt_long_rounded,
-                      color: _type == 'chi' ? AppDesignTokens.error : AppDesignTokens.primary,
+                      color: _type == 'thu' ? AppDesignTokens.success : AppDesignTokens.primary,
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      _type == 'chi'
-                          ? 'Thông tin hóa đơn (Bắt buộc cho Chi)'
-                          : 'Thông tin hóa đơn / Chứng từ (Tùy chọn cho Thu)',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: _type == 'chi' ? AppDesignTokens.error : AppDesignTokens.primary,
+                    Expanded(
+                      child: Text(
+                        _type == 'thu'
+                            ? 'Thông tin hóa đơn (Bắt buộc cho Thu)'
+                            : 'Thông tin hóa đơn / Chứng từ (Tùy chọn cho Chi)',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: _type == 'thu' ? AppDesignTokens.success : AppDesignTokens.primary,
+                        ),
                       ),
                     ),
                   ],
                 ),
                 Divider(
-                  color: _type == 'chi' ? AppDesignTokens.error : AppDesignTokens.primary,
+                  color: _type == 'thu' ? AppDesignTokens.success : AppDesignTokens.primary,
                   thickness: 1,
                 ),
                 const SizedBox(height: 16),
@@ -983,7 +984,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _type == 'chi' ? 'Ảnh hóa đơn / Biên lai chi *' : 'Ảnh hóa đơn chứng từ (Tùy chọn)',
+                        _type == 'thu' ? 'Ảnh hóa đơn / Chứng từ thu *' : 'Ảnh hóa đơn chứng từ (Tùy chọn)',
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
@@ -1033,15 +1034,15 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                   controller: _invoiceNumberController,
                   onChanged: (_) => _onInvoiceInputChanged(),
                   decoration: InputDecoration(
-                    labelText: _type == 'chi' ? 'Số hóa đơn *' : 'Số hóa đơn (Nếu có)',
+                    labelText: _type == 'thu' ? 'Số hóa đơn *' : 'Số hóa đơn (Nếu có)',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
                     ),
                     prefixIcon: const Icon(Icons.numbers),
                   ),
                   validator: (value) {
-                    if (_type == 'chi' && (value == null || value.trim().isEmpty)) {
-                      return 'Giao dịch Chi bắt buộc phải nhập số hóa đơn';
+                    if (_type == 'thu' && (value == null || value.trim().isEmpty)) {
+                      return 'Giao dịch Thu bắt buộc phải nhập số hóa đơn';
                     }
                     return null;
                   },
@@ -1050,15 +1051,15 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                 TextFormField(
                   controller: _partnerNameController,
                   decoration: InputDecoration(
-                    labelText: _type == 'chi' ? 'Tên nhà cung cấp / Đối tác *' : 'Tên đối tác (Nếu có)',
+                    labelText: _type == 'thu' ? 'Tên khách hàng / Đối tác *' : 'Tên đối tác (Nếu có)',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
                     ),
                     prefixIcon: const Icon(Icons.business),
                   ),
                   validator: (value) {
-                    if (_type == 'chi' && (value == null || value.trim().isEmpty)) {
-                      return 'Giao dịch Chi bắt buộc nhập tên nhà cung cấp';
+                    if (_type == 'thu' && (value == null || value.trim().isEmpty)) {
+                      return 'Giao dịch Thu bắt buộc nhập tên khách hàng / đối tác';
                     }
                     return null;
                   },
@@ -1095,7 +1096,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                       child: TextFormField(
                         controller: _subTotalController,
                         decoration: InputDecoration(
-                          labelText: _type == 'chi' ? 'Tiền hàng *' : 'Tiền hàng (Nếu có)',
+                          labelText: _type == 'thu' ? 'Tiền hàng *' : 'Tiền hàng (Nếu có)',
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(AppDesignTokens.radiusMd),
                           ),
@@ -1107,7 +1108,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                           LengthLimitingTextInputFormatter(_maxMoneyDigits),
                         ],
                         validator: (value) {
-                          if (_type == 'chi') {
+                          if (_type == 'thu') {
                             return _validateMoney(
                               value,
                               fieldName: 'Tiền hàng',
